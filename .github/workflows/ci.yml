@@ -1,0 +1,77 @@
+# card: C1-6 (amended by B8). The job list is forge/ci-jobs.json only: this file names no job.
+# all-green is the one required check; it is red when the list step failed, or any matrix job failed,
+# was cancelled or was skipped while count is above 0.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.m.outputs.include }}
+      count: ${{ steps.m.outputs.count }}
+      nb_line: ${{ steps.m.outputs.nb_line }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: m
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then BASE="$PR_BASE"; HEAD="$PR_HEAD"; else BASE="$PUSH_BEFORE"; HEAD="$PUSH_AFTER"; fi
+          case "$BASE" in 0000000*) BASE="" ;; esac
+          python -B forge/tools/ci.py matrix --base "$BASE" --head "$HEAD" > "$RUNNER_TEMP/matrix.json"
+          if [ -n "$BASE" ]; then python -B forge/tools/ci.py check --base "$BASE"; else python -B forge/tools/ci.py check; fi
+          python - "$RUNNER_TEMP/matrix.json" >> "$GITHUB_OUTPUT" <<'EOF'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          print("include=" + json.dumps({"include": d["include"]}))
+          print("count=%d" % d["count"])
+          ids = d["not_built"]
+          print("nb_line=not built: %d%s" % (len(ids), " (%s)" % ", ".join(ids) if ids else ""))
+          EOF
+
+  matrix:
+    needs: list
+    if: needs.list.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.list.outputs.include) }}
+    name: ${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - env:
+          JOB_COMMAND: ${{ matrix.command }}
+        run: bash -c "$JOB_COMMAND"
+
+  all-green:
+    needs: [list, matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          LIST_RESULT: ${{ needs.list.result }}
+          MATRIX_RESULT: ${{ needs.matrix.result }}
+          COUNT: ${{ needs.list.outputs.count }}
+          NB_LINE: ${{ needs.list.outputs.nb_line }}
+        run: |
+          if [ "$LIST_RESULT" != "success" ]; then echo "red: the list step is $LIST_RESULT"; exit 1; fi
+          if [ "$COUNT" != "0" ] && [ "$MATRIX_RESULT" != "success" ]; then echo "red: the matrix is $MATRIX_RESULT"; exit 1; fi
+          echo "green, $NB_LINE"
