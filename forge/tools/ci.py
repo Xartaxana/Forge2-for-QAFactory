@@ -6,7 +6,8 @@ ci.py matrix [--base R] [--head R] [--base-fallback REF] [--github-output F]   o
 ci.py check [--base R] [--head R] [--base-fallback REF]   not_built only shrinks; a built row is not deleted
 
 Tokens {base}, {head}, {range} are filled in the run path only; a token with no value is exit 3 (not judged here,
-red on Actions). Exit: 0 green, 1 a job failed (or the list rules broke), 2 cannot judge (list absent or malformed).
+red on Actions). Exit: 0 green, 1 a job failed (or the list rules broke), 2 cannot judge (the list absent or
+malformed, --only not a built id, --head or check's base not a commit).
 The job ids and commands live in the list only; this file names none of them.
 """
 import argparse
@@ -204,8 +205,12 @@ def main(argv):
     ap.add_argument("--only")
     ap.add_argument("--github-output", dest="gh_path")
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # outside text (a commit message, an id) never crashes a print
+        stream.reconfigure(errors="backslashreplace")
     try:
         rows = load(a.list_path)
+        if a.head and not commit_of(a.head):
+            raise Refuse("--head %r: not a commit here" % a.head)
         base, note, invalid = resolve_base(a.base, a.head, a.fallback)
         if invalid and a.cmd == "check":
             raise Refuse("--base %s: not a commit here" % a.base)
