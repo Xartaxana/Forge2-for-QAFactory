@@ -1,5 +1,5 @@
 [
-  {"id": "tests", "command": "", "card": "C1-6", "state": "not_built"},
+  {"id": "tests", "command": "python -B -m pytest forge/tests -q -p no:cacheprovider", "card": "C1-6", "state": "built"},
   {"id": "lint", "command": "", "card": "C1-3", "state": "not_built"},
   {"id": "clone", "command": "", "card": "C1-3", "state": "not_built"},
   {"id": "crap", "command": "", "card": "C1-3", "state": "not_built"},
