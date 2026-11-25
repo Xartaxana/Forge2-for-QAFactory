@@ -7,6 +7,8 @@ journal.py [--root D] open                                                      
 
 Exit: 0 done, 1 journal busy / an unparsable line (never skipped), 2 refused input (event, task, note, session).
 The closed event list lives here and nowhere else; hooks of later cards import load() and open_tasks().
+Two residuals, known: without --session and FORGE_SESSION a line may land in another live session's file (hooks pass
+the session), and a note that starts with a hyphen is given as --note=<text> (argparse refuses `--note -x`).
 """
 import argparse
 import json
@@ -14,6 +16,13 @@ import os
 import re
 import sys
 import time
+
+try:  # one capability, two stdlib doors: the OS lock of take_lock
+    import msvcrt
+    fcntl = None
+except ImportError:
+    import fcntl
+    msvcrt = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning", "cut", "hook_failed", "refuse",
@@ -23,7 +32,6 @@ CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 LOCK_WAIT_S = 10
-LOCK_STALE_S = 60
 
 
 def jdir(root):
@@ -36,37 +44,44 @@ def files(root):
 
 
 def load(root, session=None):
-    """Return (entries, bad, found): entries (ts, file, n, raw, obj) in ts order; bad = [(n, file)]; found = any file."""
+    """Return (entries, bad, found): entries (ts, file, n, raw, obj) in ts order; bad = problem texts (an unparsable
+    line, an object whose task or event is no string, an unreadable file); found = any file."""
     paths = files(root)
     if session is not None:
         paths = [p for p in paths if os.path.basename(p) == session + ".jsonl"]
     out, bad = [], []
     for p in paths:
-        last_ts = ""
-        with open(p, encoding="utf-8", errors="replace", newline="") as fh:
-            for n, raw in enumerate(fh.read().split("\n"), 1):
-                if not raw.strip():
-                    continue
-                try:
-                    obj = json.loads(raw)
-                    if not isinstance(obj, dict):
-                        raise ValueError
-                    last_ts = str(obj.get("ts", ""))
-                except ValueError:
-                    obj = None
-                    bad.append((n, os.path.basename(p)))
-                out.append((last_ts, os.path.basename(p), n, raw, obj))
+        name, last_ts = os.path.basename(p), ""
+        try:
+            with open(p, encoding="utf-8", errors="replace", newline="") as fh:
+                rows = fh.read().split("\n")
+        except OSError:
+            bad.append("unreadable file %s" % name)
+            continue
+        for n, raw in enumerate(rows, 1):
+            if not raw.strip():
+                continue
+            try:
+                obj = json.loads(raw)
+                if not isinstance(obj, dict) or not all(isinstance(obj.get(k, ""), str) for k in ("task", "event")):
+                    raise ValueError
+                last_ts = str(obj.get("ts", ""))
+            except ValueError:
+                obj = None
+                bad.append("unparsable line %d in %s" % (n, name))
+            out.append((last_ts, name, n, raw, obj))
     out.sort(key=lambda e: (e[0], e[1], e[2]))
     return out, bad, bool(paths)
 
 
-def open_tasks(root):
-    """Return (status, tasks, bad): status is ok, unknown (no .jsonl) or incomplete (an unparsable line)."""
-    entries, bad, found = load(root)
+def open_tasks(root, loaded=None):
+    """Return (status, tasks, bad): status is ok, unknown (no .jsonl) or incomplete (a problem in bad).
+    loaded is a result of load(root), so a caller that read the journal does not read it twice."""
+    entries, bad, found = loaded or load(root)
     if not found:
         return "unknown", [], bad
     last = {}
-    for i, e in enumerate(entries):
+    for e in entries:
         o = e[4] or {}
         t = o.get("task", "")
         if not t:
@@ -85,28 +100,29 @@ def pick_session(root, given):
         d = jdir(root)
         cand = [os.path.join(d, f) for f in os.listdir(d)
                 if f.endswith(".jsonl") and f != "git-hooks.jsonl"] if os.path.isdir(d) else []
-        given = os.path.basename(max(cand, key=os.path.getmtime))[:-6] if cand else \
+        given = os.path.basename(max(cand, key=lambda p: os.stat(p).st_mtime))[:-6] if cand else \
             "s-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     return given
 
 
 def take_lock(path):
+    """Hold an OS lock on the persistent file; the OS frees it when the process dies, so there is no staleness to guess
+    and the file is never deleted. Return the open descriptor, or None after LOCK_WAIT_S."""
+    fd = os.open(path, os.O_CREAT | os.O_RDWR)
     end = time.time() + LOCK_WAIT_S
     while True:
         try:
-            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
-            return True
+            if msvcrt:
+                os.lseek(fd, 0, 0)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
         except OSError:
-            try:
-                if time.time() - os.path.getmtime(path) > LOCK_STALE_S:
-                    os.unlink(path)
-                    print("journal lock older than %d s taken over" % LOCK_STALE_S)
-                    continue
-            except OSError:
-                pass
-        if time.time() > end:
-            return False
-        time.sleep(0.02)
+            if time.time() > end:
+                os.close(fd)
+                return None
+            time.sleep(0.02)
 
 
 def write(a):
@@ -132,15 +148,22 @@ def write(a):
     line = json.dumps(obj, ensure_ascii=False)
     os.makedirs(jdir(a.root), exist_ok=True)
     lock = os.path.join(jdir(a.root), ".lock")
-    if not take_lock(lock):
+    fd = take_lock(lock)
+    if fd is None:
         print("journal busy: %s held for over %d s, nothing written" % (lock, LOCK_WAIT_S))
         return 1
     try:
         path = os.path.join(jdir(a.root), session + ".jsonl")
-        with open(path, "a", encoding="utf-8", newline="\n") as fh:
-            fh.write(line + "\n")
+        with open(path, "a+b") as fh:
+            fh.seek(0, 2)
+            lead = b""
+            if fh.tell():
+                fh.seek(-1, 2)
+                # a writer killed mid-line left no newline: end that broken line so it stays its own named line
+                lead = b"" if fh.read(1) == b"\n" else b"\n"
+            fh.write(lead + (line + "\n").encode("utf-8"))
     finally:
-        os.unlink(lock)
+        os.close(fd)
     print(path)
     print(line)
     return 0
@@ -169,15 +192,18 @@ def main(argv=None):
         shown = entries[-a.last:] if a.last and a.last > 0 else entries
         for ts, f, n, raw, obj in shown:
             print(raw if obj is not None else "unparsable line %d in %s" % (n, f))
+        for b in bad:
+            if b.startswith("unreadable"):
+                print(b)
         return 1 if bad else 0
     status, tasks, bad = open_tasks(a.root)
     if status == "unknown":
         print("unknown -- no journal")
         return 0
-    for n, f in bad:
-        print("unparsable line %d in %s" % (n, f))
+    for b in bad:
+        print(b)
     if bad:
-        print("incomplete")
+        print("\n".join(tasks + ["incomplete"]))  # the lines that did parse still count: F1's new line must be seen
         return 1
     print("\n".join(tasks) if tasks else "none")
     return 0

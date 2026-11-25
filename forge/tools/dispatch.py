@@ -5,7 +5,8 @@ dispatch.py [--root D] new --role R --task T --given P... --owns P... --non-goal
                            --siblings X [--test X]      print the header lines, exit 0 only when check passes
 dispatch.py [--root D] check <file | ->                 one line `missing: <name>` per absent line; else ok
 
-Exit: 0 ok, 1 something missing or an owns path not absolute / outside the root, 2 unknown role or a newline in a value.
+Exit: 0 ok, 1 something missing or repeated or an owns path not absolute / outside the root, 2 unknown role, a newline
+in a value or a file that cannot be read. Lines inside fences or after > are no header lines.
 A called tool: it gates nothing. The caps line reads forge/caps.json (card B5), a JSON array of rows with role,
 tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent, malformed or without the role's row -> `caps: missing`.
 """
@@ -21,6 +22,7 @@ NAMES = ("task", "role", "caps", "given", "owns", "non-goals", "handoff", "edges
 PATHS = ("given", "owns")
 HEAD = re.compile(r"^(%s):(.*)$" % "|".join(re.escape(n) for n in NAMES))
 TICKS = re.compile(r"`[^`\n]+`")
+KEY = re.compile(r"^[A-Za-z0-9_-]+:(\s|$)")  # a drive path (C:/x) has a slash after its colon, so it is no key
 
 
 def caps_line(root, role):
@@ -45,25 +47,37 @@ def inside(root, path):
 
 
 def parse(text):
-    """Return {name: (inline value, [path lines])}; a line that opens no header belongs to the last path header."""
-    out, cur = {}, None
+    """Return ({name: (inline value, [path lines])}, [repeated names]). Fenced and > quoted lines are no header lines
+    (R11-f); the first of a repeated name stays; a key-shaped line ends a path block, any other line joins it."""
+    out, rep, cur, fenced = {}, [], None, False
     for ln in text.splitlines():
+        if ln.startswith(("```", "~~~")):
+            fenced = not fenced
+            continue
+        if fenced or ln.startswith(">"):
+            continue
         m = HEAD.match(ln)
         if m:
             cur = m.group(1)
-            out[cur] = (m.group(2).strip(), [])
+            if cur in out:
+                rep.append(cur)
+                cur = None
+            else:
+                out[cur] = (m.group(2).strip(), [])
+        elif KEY.match(ln):
+            cur = None
         elif cur in PATHS and ln.strip():
             out[cur][1].append(ln.strip())
-    return out
+    return out, rep
 
 
 def check(text, root):
-    h = parse(text)
+    h, rep = parse(text)
     role = h.get("role", ("", []))[0]
     if role and role not in ROLES:
         print("unknown role %r; roles: %s" % (role, ", ".join(ROLES)))
         return 2
-    bad = []
+    bad = ["repeated: " + n for n in rep]
     for n in NAMES:
         if n not in h:
             if n != "test" or role == "builder":
@@ -74,12 +88,11 @@ def check(text, root):
             paths = ([v] if v else []) + paths
             if n == "owns" and role == "builder" and not paths:
                 bad.append("missing: owns")
+            paths = [p[1:-1] if len(p) > 1 and p[0] == p[-1] == "`" else p for p in paths]
             bad += ["owns path not absolute or not inside the root: %s" % p for p in paths
                     if n == "owns" and not inside(root, p)]
-        elif not v and n != "caps" or (n == "DoD" and not TICKS.search(v)):
+        elif not v or (n == "DoD" and not TICKS.search(v)):
             bad.append("missing: %s" % n + (" (no backticked command)" if n == "DoD" and v else ""))
-        elif n == "caps" and not v:
-            bad.append("missing: caps")
     print("\n".join(bad) if bad else "ok")
     return 1 if bad else 0
 
@@ -99,10 +112,10 @@ def new(a):
         dod = "`%s`" % dod
     rows = ["task: %s" % (a.task or ""), "role: %s" % a.role, caps_line(a.root, a.role)]
     for n, paths in (("given", a.given), ("owns", a.owns)):
-        rows += ["%s:" % n] + list(paths)
+        rows += ["%s:" % n] + ["`%s`" % q if " " in q else q for q in paths]
     rows += ["non-goals: %s" % (a.non_goals or ""), "handoff: %s" % (a.handoff or ""), "edges: %s" % (a.edges or ""),
              "DoD: %s" % (dod or ""), "siblings: %s" % (a.siblings or "")]
-    if a.test is not None or a.role == "builder":
+    if a.test or a.role == "builder":
         rows.append("test: %s" % (a.test or ""))
     text = "\n".join(rows) + "\n"
     print(text, end="")
@@ -124,7 +137,11 @@ def main(argv=None):
     a = p.parse_args(argv)
     if a.cmd == "new":
         return new(a)
-    text = sys.stdin.buffer.read() if a.file == "-" else open(a.file, "rb").read()
+    try:
+        text = sys.stdin.buffer.read() if a.file == "-" else open(a.file, "rb").read()
+    except OSError:
+        print("cannot read %s" % a.file)
+        return 2
     return check(text.decode("utf-8", "replace"), a.root)
 
 

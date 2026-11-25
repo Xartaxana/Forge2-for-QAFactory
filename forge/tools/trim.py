@@ -8,6 +8,8 @@ the kept lines in their order, then the last N lines. Bytes read as UTF-8 with r
 marker is printed even when K is 0. Exit: 0, 2 for N below 1 or a pattern that does not compile.
 """
 import argparse
+import collections
+import contextlib
 import re
 import sys
 
@@ -29,18 +31,22 @@ def main(argv=None):
         except re.error as exc:
             print("--keep pattern %r does not compile: %s" % (k, exc))
             return 2
-    raw = open(a.file, "rb").read() if a.file else sys.stdin.buffer.read()
-    try:
-        text, replaced = raw.decode("utf-8"), False
-    except UnicodeDecodeError:
-        text, replaced = raw.decode("utf-8", "replace"), True
-    lines = text.split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()
-    m = len(lines)
-    tail = lines[-a.last:]
-    kept = [ln for ln in lines[:-a.last] if any(q.search(ln) for q in pats)] if m > a.last else []
-    out = kept + tail
+    # streamed line by line: memory is bounded by N plus the kept lines, however large the log (review t-1944, F9)
+    tail, kept, m, replaced = collections.deque(maxlen=a.last), [], 0, False
+    with (open(a.file, "rb") if a.file else contextlib.nullcontext(sys.stdin.buffer)) as src:
+        for chunk in src:
+            try:
+                ln = chunk.decode("utf-8")
+            except UnicodeDecodeError:
+                ln, replaced = chunk.decode("utf-8", "replace"), True
+            ln = ln[:-1] if ln.endswith("\n") else ln
+            m += 1
+            if len(tail) == a.last:
+                old = tail[0]  # about to leave the tail; a CR is dropped for the match only, the line prints as it was
+                if any(q.search(old[:-1] if old.endswith("\r") else old) for q in pats):
+                    kept.append(old)
+            tail.append(ln)
+    out = kept + list(tail)
     if m > a.last or replaced:
         out.insert(0, "[trimmed %d of %d lines%s]" % (m - len(kept) - len(tail) if m > a.last else 0, m,
                                                      "; non-UTF-8 bytes replaced" if replaced else ""))

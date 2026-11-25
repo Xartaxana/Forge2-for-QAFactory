@@ -41,34 +41,59 @@ def carriers(root):
         return ["forge/carriers.json malformed: %s" % exc]
 
 
+def guard(name, fn):
+    try:
+        return fn()
+    except Exception as exc:
+        return "%s failed: %s" % (name, exc)
+
+
+def journal_text(root):
+    """Return (open tasks text, last 20 lines text); the loader's named problems stay in the first."""
+    loaded = journal.load(root)
+    entries, bad, _ = loaded
+    tasks = journal.open_tasks(root, loaded)[1]
+    none = "no journal lines"
+    opened = none if not entries else ("\n".join(tasks) if tasks else "none")
+    if bad:
+        opened += "\n(incomplete)\n" + "\n".join(bad)
+    return opened, "\n".join(e[3] for e in entries[-20:]) or none
+
+
+def status(root):
+    rows = git(root, "status", "--short", "--untracked-files=all").split("\n")
+    if len(rows) > STATUS_MAX:
+        rows = rows[:STATUS_MAX] + ["[cut: %d of %d lines shown]" % (STATUS_MAX, len(rows))]
+    return "\n".join(rows) or "clean"
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--root", default=ROOT)
     p.add_argument("--close", action="store_true")
     a = p.parse_args(argv)
     if a.close:
-        print("\n".join(carriers(a.root)))
-    entries, bad, found = journal.load(a.root)
-    status, tasks, _ = journal.open_tasks(a.root)
-    none = "no journal lines"
-    opened = none if not entries else ("\n".join(tasks) if tasks else "none") + (
-        "\n(incomplete: unparsable lines)" if bad else "")
-    last = "\n".join(e[3] for e in entries[-20:]) or none
-    st = git(a.root, "status", "--short", "--untracked-files=all")
-    rows = st.split("\n")
-    if len(rows) > STATUS_MAX:
-        st = "\n".join(rows[:STATUS_MAX] + ["[cut: %d of %d lines shown]" % (STATUS_MAX, len(rows))])
+        print(guard("carriers", lambda: "\n".join(carriers(a.root))))
+    try:
+        opened, last = journal_text(a.root)
+    except Exception as exc:  # the snapshot is read by the next session: whatever the journal does, the file is written
+        opened = last = "journal failed: %s" % exc
     text = "# Snapshot\n\n## open tasks\n%s\n\n## last 20 journal lines\n%s\n\n## git status --short\n%s\n\n## branch\n%s\n" % (
-        opened, last, st or "clean", git(a.root, "branch", "--show-current") or "(none)")
+        opened, last, guard("git status", lambda: status(a.root)),
+        guard("branch", lambda: git(a.root, "branch", "--show-current") or "(none)"))
     d = os.path.join(a.root, "logs", "journal", "snapshots")
     os.makedirs(d, exist_ok=True)
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    path, i = os.path.join(d, stamp + ".md"), 1
-    while os.path.exists(path):
-        i += 1
-        path = os.path.join(d, "%s-%d.md" % (stamp, i))
-    with open(path, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(text)
+    stamp, i = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()), 1
+    while True:  # mode x: two snapshots started in the same second never overwrite each other
+        path = os.path.join(d, stamp + ".md" if i == 1 else "%s-%d.md" % (stamp, i))
+        try:
+            fh = open(path, "x", encoding="utf-8", newline="\n")
+        except FileExistsError:
+            i += 1
+            continue
+        with fh:
+            fh.write(text)
+        break
     print(path)
     return 0
 
