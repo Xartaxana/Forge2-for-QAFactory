@@ -3019,3 +3019,41 @@ B7); ретро нет.
 Порядок: сначала носители, от которых зависят ближайшие карточки (роли и справочники пакета; хуки и гейты
 старого форджа — до C1-5), затем остальное, затем кучки находок. Карточку ведомости (B15) и содержание двух
 взглядов (A26) пишет дизайнер в часть 6 спеки; проба описи — на ролях пакета.
+
+### 26.11.2026 ≈ 00:36 — история форджа 2 очищена от имени постороннего человека
+
+Слово владельца на мой вопрос «Убрать имя постороннего из истории форджа 2 ещё одной принудительной перезаписью?»:
+«Да, перезаписать».
+
+Сделано: в файле плана каждого коммита, где стояла эта строка, убраны номер и имя (правка по содержимому файла,
+другие пути не тронуты); дерево последнего коммита до и после совпадает; поиск имени по всем коммитам ветки — ноль
+попаданий (контроль на резервной ветке находит); отправлено принудительной перезаписью. Изменились 8 коммитов и
+все следующие за ними. Старые версии лежат в локальных ветках `local/pre-email-rewrite` и
+`local/pre-name-rewrite`; они не отправляются. GitHub какое-то время хранит старые коммиты по прямому хэшу;
+ссылок на них в репозитории нет.
+
+Таблица хэшей заменяет таблицу предыдущей записи (её столбец «стало» устарел):
+
+| первые | после почты | теперь | коммит |
+|---|---|---|---|
+| `cb9d29e` | `c19d2ff` | `c19d2ff` | Start the repository: forge 2 and the light QA factory |
+| `4d43529` | `24dcdea` | `24dcdea` | Phase 0, card C0-1: byte copies of the plan and the spec, th |
+| `83a36d2` | `1bf496e` | `1bf496e` | Plan: the documents moved here (card C0-1); the plan and the |
+| `143462c` | `0cfa308` | `0cfa308` | Phase 0, card C1-6: the one CI job list, ci.py, the workflow |
+| `e397a6f` | `457c546` | `457c546` | Plan record: the critic's verdict on card C1-6 and the Lead' |
+| `067f1bb` | `f5898b1` | `f5898b1` | Card C1-6, fix round 1 after the code review: one road for a |
+| `5163fc9` | `7fc9068` | `7fc9068` | Phase 0, card C1-4: the journal, the dispatch header, output |
+| `ddc33b8` | `2101dd1` | `2101dd1` | Card C1-6, fix round 2 after the re-review: outside text nev |
+| `5e64c75` | `f94cb6a` | `71a5ed4` | Everything of the old forge that belongs to forge 2: recon d |
+| `6f82818` | `38d8df9` | `c539e1d` | Card C1-4, fix round 1 after the code review: the OS lock, a |
+| `733bbf6` | `a7c9b36` | `a00e2b8` | Plan record: the inventory of the old forge's ideas and less |
+| `4147670` | `8c5455b` | `62f4377` | Plan record: the owner's word on the two looks -- two places |
+| `9c7f5f4` | `08b531d` | `f991eb0` | Spec part 5 (cards A24 r2, A25, B14) copied in; the plan rec |
+| `d774a46` | `39b75da` | `f126d36` | Cards C1-4 and C1-6, fix round after the re-review t-1947: f |
+| `ded385b` | `c3bd0e0` | `0e9a617` | Plan record: what the agent looks at by itself in the curren |
+| `2e6fd18` | `6cf283c` | `218338c` | Recon copies: run lessons and experiment retros, with their  |
+| `—` | `4006e84` | `0042c35` | Plan record: the owner's six replies -- spend figures are pu |
+
+Замечено: в корне рабочей папки форджа 2 появилась неотслеживаемая папка `qa-factory/state/cost/` — её создаёт
+хук учёта расхода старого плагина при работе воркера в этой папке. Не коммитится (в коммит идут только названные
+пути); при постройке хуков C1-5 папка вносится в список игнорируемого.
