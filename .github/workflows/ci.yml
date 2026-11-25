@@ -3,6 +3,9 @@
 # was cancelled or was skipped while count is above 0.
 name: ci
 
+permissions:
+  contents: read
+
 on:
   push:
   pull_request:
@@ -14,10 +17,13 @@ jobs:
       include: ${{ steps.m.outputs.include }}
       count: ${{ steps.m.outputs.count }}
       nb_line: ${{ steps.m.outputs.nb_line }}
+      base: ${{ steps.m.outputs.base }}
+      head: ${{ steps.m.outputs.head }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -28,19 +34,11 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = "pull_request" ]; then BASE="$PR_BASE"; HEAD="$PR_HEAD"; else BASE="$PUSH_BEFORE"; HEAD="$PUSH_AFTER"; fi
-          case "$BASE" in 0000000*) BASE="" ;; esac
-          python -B forge/tools/ci.py matrix --base "$BASE" --head "$HEAD" > "$RUNNER_TEMP/matrix.json"
-          if [ -n "$BASE" ]; then python -B forge/tools/ci.py check --base "$BASE"; else python -B forge/tools/ci.py check; fi
-          python - "$RUNNER_TEMP/matrix.json" >> "$GITHUB_OUTPUT" <<'EOF'
-          import json, sys
-          d = json.load(open(sys.argv[1]))
-          print("include=" + json.dumps({"include": d["include"]}))
-          print("count=%d" % d["count"])
-          ids = d["not_built"]
-          print("nb_line=not built: %d%s" % (len(ids), " (%s)" % ", ".join(ids) if ids else ""))
-          EOF
+          python -B forge/tools/ci.py matrix --github-output "$GITHUB_OUTPUT" --base "$BASE" --head "$HEAD" --base-fallback "origin/$DEFAULT_BRANCH" > /dev/null
+          python -B forge/tools/ci.py check --base "$BASE" --head "$HEAD" --base-fallback "origin/$DEFAULT_BRANCH"
 
   matrix:
     needs: list
@@ -54,12 +52,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - env:
-          JOB_COMMAND: ${{ matrix.command }}
-        run: bash -c "$JOB_COMMAND"
+          JOB_ID: ${{ matrix.id }}
+          BASE: ${{ needs.list.outputs.base }}
+          HEAD: ${{ needs.list.outputs.head }}
+        run: python -B forge/tools/ci.py --only "$JOB_ID" --base "$BASE" --head "$HEAD"
 
   all-green:
     needs: [list, matrix]
