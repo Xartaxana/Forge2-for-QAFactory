@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лёгкая фабрика и фордж-2 — схемы</title>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --ink:#1d2330; --mut:#5d6677; --line:#d9d4c8;
+  --code:#2f6fde; --codebg:#e8f0fe; --role:#0f8a6c; --rolebg:#e2f5ee; --man:#c2571a; --manbg:#fdeede;
+  --crit:#8a3fc9; --critbg:#f1e7fb; --warn:#b3261e; --warnbg:#fde8e6; --new:#946200; --newbg:#fff3c9;
+  --rec:#27303f; --recink:#f3f1ea; --shadow:0 1px 2px rgba(20,25,40,.06),0 6px 18px rgba(20,25,40,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#14171d; --card:#1d222b; --ink:#e8eaf0; --mut:#9aa3b5; --line:#343b48;
+    --code:#7fb0ff; --codebg:#1b2c4a; --role:#5fd3b3; --rolebg:#143a31; --man:#ffab73; --manbg:#47291a;
+    --crit:#c79bf5; --critbg:#33214a; --warn:#ff8f88; --warnbg:#4a1f1c; --new:#f2cf63; --newbg:#40350f;
+    --rec:#0d1016; --recink:#dfe3ec; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.3);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
+header h1{font-size:28px;margin:0 0 6px;letter-spacing:-.01em}
+header p{margin:0;color:var(--mut)}
+.status{display:inline-block;margin-top:12px;padding:6px 12px;border-radius:999px;background:var(--newbg);color:var(--new);font-size:13px;font-weight:600}
+.tabs{display:flex;gap:8px;margin:26px 0 22px;border-bottom:2px solid var(--line)}
+.tab{appearance:none;border:0;background:none;color:var(--mut);font:600 17px/1 inherit;padding:14px 22px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:8px 8px 0 0}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--code);background:var(--card)}
+section.pane{display:none} section.pane.on{display:block}
+h2{font-size:20px;margin:38px 0 4px;letter-spacing:-.005em}
+h2 small{font-weight:500;color:var(--mut);font-size:14px;margin-left:8px}
+.lead{color:var(--mut);margin:0 0 16px;max-width:900px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+.hero{border-left:6px solid var(--code);font-size:19px;line-height:1.45}
+.hero b{font-weight:650}
+.grid{display:grid;gap:14px}
+.g3{grid-template-columns:repeat(3,1fr)} .g2{grid-template-columns:repeat(2,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:900px){.g3,.g2,.g4{grid-template-columns:1fr}}
+.card h3{margin:0 0 6px;font-size:16px}
+.card p{margin:0;color:var(--mut)}
+.tag{display:inline-block;font-size:12px;font-weight:650;padding:2px 9px;border-radius:999px;margin:0 6px 6px 0;white-space:nowrap}
+.t-code{background:var(--codebg);color:var(--code)} .t-role{background:var(--rolebg);color:var(--role)}
+.t-man{background:var(--manbg);color:var(--man)} .t-crit{background:var(--critbg);color:var(--crit)}
+.t-warn{background:var(--warnbg);color:var(--warn)} .t-new{background:var(--newbg);color:var(--new)}
+.legend{margin:10px 0 14px}
+/* pipeline */
+.pipe{display:grid;grid-template-columns:repeat(6,1fr);gap:0;position:relative}
+.stage{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 12px 12px;margin:0 9px;box-shadow:var(--shadow);min-width:0}
+.stage:not(:last-child)::after{content:"";position:absolute;right:-19px;top:34px;width:18px;height:2px;background:var(--mut)}
+.stage:not(:last-child)::before{content:"";position:absolute;right:-21px;top:29px;border:6px solid transparent;border-left-color:var(--mut);z-index:2}
+.num{width:30px;height:30px;border-radius:50%;background:var(--code);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;margin-bottom:8px}
+.stage h3{font-size:14.5px;margin:0 0 8px;line-height:1.25}
+.stage .row{font-size:12.5px;color:var(--mut);margin:6px 0 0;line-height:1.35}
+.stage .row b{color:var(--ink);font-weight:600}
+.stage .tag{margin-top:8px;margin-bottom:0}
+.record{margin:14px 9px 0;background:var(--rec);color:var(--recink);border-radius:14px;padding:14px 18px;font-size:13.5px}
+.record b{font-size:15px}
+.record span{opacity:.82}
+.ups{display:grid;grid-template-columns:repeat(6,1fr);margin:0 9px}
+.ups i{display:block;text-align:center;color:var(--mut);font-style:normal;font-size:18px;line-height:14px;padding-top:8px}
+@media (max-width:1000px){.pipe,.ups{grid-template-columns:1fr}.stage{margin:0 0 22px}.stage:not(:last-child)::after{right:auto;left:26px;top:auto;bottom:-20px;width:2px;height:18px}.stage:not(:last-child)::before{right:auto;left:21px;top:auto;bottom:-24px;border:6px solid transparent;border-top-color:var(--mut)}.ups{display:none}.record{margin:0}}
+/* flow chips */
+.flow{display:flex;flex-wrap:wrap;align-items:stretch;gap:0}
+.step{flex:1 1 150px;min-width:140px;border-radius:12px;padding:12px 14px;margin:6px 22px 6px 0;position:relative;font-size:13.5px;border:1px solid var(--line);background:var(--card)}
+.step b{display:block;font-size:14px;margin-bottom:3px}
+.step:not(:last-child)::after{content:"→";position:absolute;right:-19px;top:50%;transform:translateY(-50%);color:var(--mut);font-size:18px}
+.s-code{background:var(--codebg);border-color:transparent} .s-role{background:var(--rolebg);border-color:transparent}
+.s-man{background:var(--manbg);border-color:transparent} .s-crit{background:var(--critbg);border-color:transparent}
+.s-warn{background:var(--warnbg);border-color:transparent} .s-new{background:var(--newbg);border-color:transparent}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:650}
+td:first-child{white-space:nowrap;font-weight:650}
+tr:last-child td{border-bottom:0}
+ul{margin:6px 0 0;padding-left:18px} li{margin:3px 0}
+.tree{font:13px/1.7 ui-monospace,Consolas,"Cascadia Mono",monospace;white-space:pre;overflow:auto}
+.tree em{font:13px/1.5 "Segoe UI",system-ui,sans-serif;color:var(--mut);font-style:normal}
+.tree .f{color:var(--role);font-weight:700}
+.loop{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;counter-reset:n}
+.loop .card{position:relative;padding-top:34px}
+.loop .card::before{counter-increment:n;content:counter(n);position:absolute;left:16px;top:10px;font-weight:700;color:var(--code)}
+@media (max-width:900px){.loop{grid-template-columns:1fr 1fr}}
+.phases{display:flex;flex-wrap:wrap;gap:8px}
+.ph{flex:1 1 150px;border-radius:12px;padding:10px 12px;background:var(--card);border:1px solid var(--line);font-size:13px}
+.ph b{display:block;font-size:13.5px}
+.ph.done{border-color:var(--role)} .ph.spec{border-left:5px solid var(--code)} .ph.later{opacity:.85}
+.note{font-size:13px;color:var(--mut);margin-top:10px}
+footer{margin-top:44px;color:var(--mut);font-size:12.5px;border-top:1px solid var(--line);padding-top:14px}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--codebg);color:var(--code);padding:1px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Лёгкая фабрика и фордж-2</h1>
+  <p>Схемы по плану v1.6 и спеке фаз 0–4 (25.11.2026). Фабрика — то, что тестирует стори в проекте пользователя. Фордж-2 — то, чем эту фабрику строят и меряют.</p>
+  <span class="status">Состояние: план v1.6 ждёт «да» владельца · спека r2 принята лидом · ничего ещё не построено</span>
+</header>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-pane="factory">Фабрика</button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="forge">Фордж-2</button>
+</div>
+
+<!-- ============================ FACTORY ============================ -->
+<section class="pane on" id="factory">
+
+<div class="card hero"><b>Идея.</b> Фабрика на любом проекте делает <b>не меньше свободного агента с одним промптом</b> — и сверх того качественнее и предсказуемее. Если фабрика делает меньше свободного агента, она работает неправильно. Гейты не мешают правильным действиям агента, но не дают пройти дальше, не закончив всё необходимое.</div>
+
+<h2>Основной механизм <small>три вещи, на которых всё держится</small></h2>
+<div class="grid g3">
+  <div class="card"><h3>1. Одна запись стори</h3><p>Всё, что узнано и сделано, — строки одной записи: источники, требования, ожидания, проверки, тесты, прогоны, доказательства, баги, вопросы и ответы. Писатель один — инструмент записи. Форм сдачи между ролями нет: следующий этап читает запись.</p></div>
+  <div class="card"><h3>2. Этапы со свежим контекстом</h3><p>Шесть этапов, каждый — новый исполнитель с чистым контекстом и страницами ремесла своего этапа. Внутри этапа он действует как свободный агент: сам решает, как проверять. На странице заранее сказано, по чему работу проверят.</p></div>
+  <div class="card"><h3>3. Гейты — строки данных</h3><p>Условие выхода проверяет, что <i>сделано</i>, а не <i>как</i>. Отказ называет все долги сразу и дверь для каждого: записать строку, назвать причину или получить слово человека. Неизвестное никогда не засчитывается как пройденное.</p></div>
+</div>
+
+<h2>Шесть этапов стори <small>кто что оставляет и где стоит человек</small></h2>
+<div class="legend">
+  <span class="tag t-code">код сверяет данные</span><span class="tag t-crit">критик судит смысл</span><span class="tag t-man">человек решает замысел</span><span class="tag t-role">исполнитель — суждение и исход</span>
+</div>
+<div class="pipe">
+  <div class="stage"><div class="num">1</div><h3>Источники и понимание</h3>
+    <div class="row"><b>Оставляет:</b> источники целиком, понимание, перечень требований, вопросы</div>
+    <div class="row"><b>Документ:</b> «Понимание»</div>
+    <span class="tag t-man">стоп: подтвердить понимание</span></div>
+  <div class="stage"><div class="num">2</div><h3>Осмотр продукта и смоук</h3>
+    <div class="row"><b>Оставляет:</b> запуск продукта, результат смоука, факты о среде в знание проекта</div>
+    <div class="row"><b>Документ:</b> нет</div>
+    <span class="tag t-man">только критический вопрос</span></div>
+  <div class="stage"><div class="num">3</div><h3>Требования и план проверок</h3>
+    <div class="row"><b>Оставляет:</b> ожидание и его источник по каждому требованию, проверки по уровням пирамиды</div>
+    <div class="row"><b>Документ:</b> «План тестирования»</div>
+    <span class="tag t-crit">критик</span><span class="tag t-man">стоп: утвердить план</span></div>
+  <div class="stage"><div class="num">4</div><h3>Кейсы, автотесты, ручные проходы</h3>
+    <div class="row"><b>Оставляет:</b> тесты, связи «проверка ↔ тест» (много ко многим), прогоны, доказательства. Идёт группами, до двух параллельно</div>
+    <div class="row"><b>Документ:</b> «Отчёт о ручном проходе»</div>
+    <span class="tag t-crit">критик + красная проба</span></div>
+  <div class="stage"><div class="num">5</div><h3>Разбор красного</h3>
+    <div class="row"><b>Оставляет:</b> причину каждого красного (продукт, тест, среда, данные), черновики багов</div>
+    <div class="row"><b>Форма:</b> «Баг или нет»</div>
+    <span class="tag t-man">стоп: баг или нет</span></div>
+  <div class="stage"><div class="num">6</div><h3>Отчёт и доставка</h3>
+    <div class="row"><b>Оставляет:</b> результат по каждому требованию; отчёт собирает код из записи</div>
+    <div class="row"><b>Документ:</b> «Отчёт по тестированию» (+ ретро по желанию)</div>
+    <span class="tag t-crit">критик</span><span class="tag t-man">стоп: перед записью наружу</span></div>
+</div>
+<div class="ups"><i>↕</i><i>↕</i><i>↕</i><i>↕</i><i>↕</i><i>↕</i></div>
+<div class="record"><b>Запись стори</b> — один файл, один писатель. <span>Источники · понимание · требования · ожидания · проверки · тесты · связи · прогоны · результаты · доказательства · пробы · красное · баги · вопросы и ответы дословно · проходы словом человека · находки · допущения · неизвестное · долги и недостачи</span></div>
+<p class="note">Рядом с этапами работает <b>дирижёр</b>: его зовут только при проблеме, для которой у кода нет хода (контекст не помещается, состояние не описано, запуск упал). Он решает сам или задаёт вопрос человеку; команд не запускает.</p>
+
+<h2>Что проверяет гейт на выходе каждого этапа</h2>
+<div class="card">
+<table>
+<tr><th>Этап</th><th>Код сверяет (наличие, связи, форма)</th><th>Критик судит</th><th>Человек</th></tr>
+<tr><td>1</td><td>Каждый названный источник прочитан или помечен недоступным с тем, что пробовали. Понимание записано. Критические вопросы заданы. У каждого требования текст и источник; каждое стоит в «проверяем» или «не проверяем».</td><td>—</td><td>Подтверждает понимание с перечнем требований</td></tr>
+<tr><td>2</td><td>Продукт запускался и смоук что-то показал — или «среды нет» с записью попытки. Факты о среде записаны в знание проекта или сказано «ничего нового».</td><td>—</td><td>Только если есть критический вопрос</td></tr>
+<tr><td>3</td><td>У каждого требования — ожидание с видом источника и проверка либо названная причина. У каждой проверки — требование, уровень, способ, обязательство. У каждого источника — требования или «нет».</td><td>Требования против источников; проверки осмысленны; пирамида соблюдена; тест и кейс не один к одному</td><td>Утверждает план тестирования</td></tr>
+<tr><td>4</td><td>У каждой проверки и теста есть требование, записанное раньше них. Каждая запланированная проверка — прогон автотеста, ручной проход с доказательством от инструмента или причина. Связи целы в обе стороны. Линтер проходит. После критика: у каждого автотеста есть проба.</td><td>Тест действительно проверяет заявленное: красная проба ломает значение, тест обязан упасть</td><td>Остановки нет</td></tr>
+<tr><td>5</td><td>У каждого красного — причина из закрытого списка, доказательство и «кто действует». Красное с причиной «тест» перезапущено. Черновик бага: шаги, ожидание с источником, факт, доказательство, воспроизведение.</td><td>—</td><td>«Баг или нет»</td></tr>
+<tr><td>6</td><td>У каждого требования — результат по каждому обязательству или причина. Открытых долгов нет. Отчёт собран кодом после последнего круга правок.</td><td>Проверено то, о чём просили; выводы сходятся с доказательствами</td><td>Отчёт; разрешение перед MR и любой записью наружу</td></tr>
+<tr><td>Везде</td><td colspan="3">У каждого обязательного раздела строка или «пусто: причина». Каждый файл, созданный или изменённый в проекте, и каждый прогон упомянуты в записи. Устаревших строк нет. Ничего наружу без разрешения человека. Документ человеку — не больше 40 строк; сообщение на остановке ссылается только на документ, а не на рабочие файлы.</td></tr>
+</table>
+</div>
+
+<h2>Порядок на гейте с критиком <small>этапы 3, 4, 6</small></h2>
+<div class="flow">
+  <div class="step s-code"><b>Условия выхода</b>код сверяет запись</div>
+  <div class="step s-code"><b>Черновик документа</b>собирает код из записи</div>
+  <div class="step s-crit"><b>Критик</b>свежий контекст, читает черновик</div>
+  <div class="step s-role"><b>Круги починки</b>свежий исполнитель, документ пересобирается, критик перепроверяет</div>
+  <div class="step s-code"><b>Условия после критика</b>на собранном документе</div>
+  <div class="step s-man"><b>Человек</b>видит только то, что видел критик</div>
+</div>
+<div class="grid g3" style="margin-top:8px">
+  <div class="card"><h3>Отказ — не тупик</h3><p>Все долги сразу, у каждого дверь. Закрытый список причин («стенд недоступен», «источник недоступен», «код ещё не написан», «нет инструмента для этой поверхности»…) плюс «другое»: оно не отвергается, а уходит наверх — критику, человеку или дирижёру.</p></div>
+  <div class="card"><h3>Слово человека проходит любой гейт</h3><p>Проход записывается и попадает в отчёт и в счётчик дашборда. В ночном и сравнительном прогоне проходов нет: гейт остаётся, остановка названа в отчёте.</p></div>
+  <div class="card"><h3>Проверка без требования — тоже дефект</h3><p>Тест или кейс без требования, записанного раньше него, гейт не пропускает. Требование — единица работы от первого этапа до отчёта.</p></div>
+</div>
+
+<h2>Потолки токенов и времени <small><span class="tag t-new">новое в v1.6 — ещё не в спеке</span></small></h2>
+<p class="lead">Потолок стоит на расход, а не на способ действия. У каждого запуска три числа: токены, время по часам, ходы. Обрывает код запускалки, а не совесть агента. Ничего не теряется: исполнитель пишет строки в запись по ходу работы.</p>
+<div class="flow">
+  <div class="step s-role"><b>Запуск этапа</b>отдельный процесс под наблюдением</div>
+  <div class="step s-new"><b>80 % потолка</b>предупреждение: «запиши сделанное и проси выход»</div>
+  <div class="step s-warn"><b>100 % — обрыв</b>событие в журнале и число на дашборде</div>
+  <div class="step s-code"><b>Свежий перезапуск</b>чистый контекст: что записано, какие долги остались</div>
+  <div class="step s-role"><b>2-й обрыв: дирижёр</b>делит группу, сужает разделы</div>
+  <div class="step s-man"><b>3-й: человек</b>дать ещё, сузить или пропустить с причиной</div>
+</div>
+<p class="note">Код продукта без слова человека не переписывается: корень продукта открыт на чтение, корень тестов — на запись. «Много читает» и «долго ничего не записывает» — предупреждения, не отказы.</p>
+
+<h2>Требование, найденное поздно <small><span class="tag t-new">новое в v1.6 — в спеке найден пробел</span></small></h2>
+<div class="flow">
+  <div class="step s-role"><b>Этап 5 нашёл требование</b>при разборе красного или коротком исследовании</div>
+  <div class="step s-code"><b>Недостача этапу 3</b>ожидание и проверка только для этой строки</div>
+  <div class="step s-code"><b>Недостача этапу 4</b>проверка выполнена</div>
+  <div class="step s-role"><b>Этап 5 продолжает</b>остальная работа не ждала</div>
+  <div class="step s-man"><b>Выведено из логики приложения?</b>это допущение: человек подтверждает в форме «баг или нет»</div>
+</div>
+
+<h2>Кто чем владеет</h2>
+<div class="grid g3">
+  <div class="card" style="border-top:5px solid var(--code)"><h3>Код — данными</h3><p>Наличие, связи, форма, счёт. Пишет запись, запускает этапы, собирает документы, записывает доказательства. Никогда не оракул: ожидание не берётся из реализации.</p></div>
+  <div class="card" style="border-top:5px solid var(--role)"><h3>Роль — суждением и исходом</h3><p>Что проверять и как, какой уровень пирамиды, что автоматизировать, какая причина у красного. Её суждение принимает тот, кто выше: критик, человек, дирижёр.</p></div>
+  <div class="card" style="border-top:5px solid var(--man)"><h3>Человек — замыслом</h3><p>Понимание, план, «баг или нет», запись наружу. Его ответ хранится дословно и доходит до того, кто по нему действует.</p></div>
+</div>
+
+<h2>Измерения и эвалы <small>чем доказывается, что фабрика работает</small></h2>
+<div class="grid g2">
+  <div class="card"><h3>Главное: против свободного агента</h3><p>Сравнительный прогон на двух мерных проектах (<code>ao3-wrapper</code>, MyBooks) по таблице правды.</p>
+    <ul><li>найдены все баги таблицы правды, ложных нет;</li><li>у каждого требования в отчёте — проверка или названная причина;</li><li>два прогона фабрики дают один вердикт и один набор багов;</li><li>время и цена — цель «не больше чем вдвое», потолок «впятеро»;</li><li>человек нужен только на названных остановках и ни разу из-за самой фабрики.</li></ul></div>
+  <div class="card"><h3>По ходу каждой стори</h3>
+    <ul><li><b>Красная проба</b> критика: тест, который не умеет упасть, не принят.</li><li><b>Сверка записи с миром</b>: каждый изменённый файл и каждый прогон упомянуты.</li><li><b>Журнал прогона</b>: токены, время, ходы, отказы гейтов, круги критика, обрывы.</li><li><b>Дашборд</b>: цена и время по агенту, этапу и стори (с «марафонцами»), переделки после критика, проходы словом человека.</li></ul></div>
+  <div class="card"><h3>Ремесло: задачи с подложенными дефектами</h3><p>У каждой страницы ремесла — маленький набор задач с известным ответом: тест, не умеющий упасть; кейсы-дубли; баг с двумя проявлениями. Правка страницы гонит её набор. Отдельное измерение: агент со страницами против агента без них.</p></div>
+  <div class="card"><h3>Что получает человек</h3><p>Пять документов: «Понимание», «План тестирования» (чеклист по уровням), «Отчёт о ручном проходе» (со скриншотами), «Отчёт по тестированию» (с прослеживаемостью), ретро по желанию. Четыре формы вопроса: критический, «утвердить», «баг или нет», вопрос дирижёра. Никаких леджеров и логов.</p></div>
+</div>
+
+<h2>Универсальность</h2>
+<div class="card"><p>Код фабрики не знает ни стека, ни трекера, ни харнесса. Закрытое разнообразие (маршруты, причины, виды ожиданий, цели доставки, точки хуков) — строки данных. Открытое — судит исполнитель и записывает найденное в знание проекта, чтобы второй запуск уже не спрашивал. Харнесс читается через один адаптер и строку профиля хоста.</p></div>
+</section>
+
+<!-- ============================ FORGE ============================ -->
+<section class="pane" id="forge">
+
+<div class="card hero" style="border-left-color:var(--role)"><b>Идея.</b> Фордж-2 строит лёгкую фабрику так, что <b>его собственный код не мешает агенту действовать правильно</b>. Инструменты экономии токенов и рэтчеты качества стоят с первого коммита, а не добавляются потом. Любое изменение поведения фабрики принимается измерением против свободного агента, а не мнением.</div>
+
+<h2>Структура репозитория <small>C:/QAFactory/forge2-repo</small></h2>
+<div class="grid g2">
+  <div class="card"><div class="tree">forge2-repo/
+├─ README.md
+├─ CLAUDE.md            <em>одни правила работника, с бюджетом размера</em>
+├─ .claude/
+│  ├─ agents/           <em>тонкие файлы ролей</em>
+│  └─ settings.json     <em>регистрация хуков</em>
+├─ forge/               <em>правила координатора, бюджеты, эталоны рэтчетов,</em>
+│  │                    <em>инструменты, хуки, тесты, копии плана и спеки</em>
+│  └─ …                 <em>+ страница бута и реестр слов владельца (v1.6)</em>
+├─ measure/             <em>мерные проекты, таблицы правды, прогоны,</em>
+│                       <em>задачи с подложенными дефектами; цена — здесь</em>
+├─ logs/journal/        <em>пишет только инструмент журнала</em>
+├─ .github/workflows/   <em>CI: тот же список задач, что и локальный шаг</em>
+└─ <span class="f">factory/</span>             <em>ТО, ЧТО УХОДИТ ПОЛЬЗОВАТЕЛЮ — только это</em>
+   ├─ craft/            <em>страницы ремесла</em>
+   ├─ data/             <em>этапы, гейты, причины, формы — строки</em>
+   ├─ templates/        <em>шаблоны документов человеку</em>
+   ├─ tools/            <em>запись, запуск этапов, сверка, критик, отчёт</em>
+   ├─ hooks/            <em>по профилю хоста</em>
+   └─ tests/</div></div>
+  <div class="grid" style="align-content:start">
+    <div class="card"><h3>Две части, которые не смешиваются</h3><p><b>factory/</b> — продукт: английский текст, ничего о конкретном проекте или харнессе. Всё остальное — <b>фордж</b>: как фабрику строят, проверяют и меряют. Правило владельца называет свою область: «для фабрики», «для форджа» или «для обоих».</p></div>
+    <div class="card"><h3>Роли</h3><p><b>Скаут</b> — разведка с трейлом. <b>Билдер</b> — код по готовой спеке. <b>Дизайнер</b> — спека из плана, развилки возвращает. <b>Критик</b> — ревью плана и кода в свежем контексте. <b>Лид</b> — раздача, приёмка. <b>Архитектор</b> — новые идеи владельца и калибровка.</p></div>
+  </div>
+</div>
+
+<h2>Основной механизм <small>как изменение попадает в фабрику</small></h2>
+<div class="loop">
+  <div class="card"><h3>Идея владельца</h3><p>Вопросы о замысле — сразу. Разведка скаутами. Вопросы о нестыковках — до дизайна.</p></div>
+  <div class="card"><h3>План</h3><p>Один документ цели: что становится каким, чем измеряется успех, фазы, цена. Владелец говорит «да».</p></div>
+  <div class="card"><h3>Спека и критик на план</h3><p>Дизайнер пишет спеку; критик ищет тупики и тихие проходы до того, как написан код.</p></div>
+  <div class="card"><h3>Карточки билдерам</h3><p>Каждая называет «готово», края, свои пути и тест. Параллельно — по непересекающимся файлам.</p></div>
+  <div class="card"><h3>Код и критик кода</h3><p>Свидетель — вывод прогона, не пересказ. Круг починки — в свежем работнике.</p></div>
+  <div class="card"><h3>Рэтчеты и CI</h3><p>CRAP, линтер, клоны, размер — только вниз, с нуля долга. Красное чинит один починщик.</p></div>
+  <div class="card" style="border-color:var(--role)"><h3>Измерение</h3><p>Изменение поведения принимается сравнительным прогоном против свободного агента и таблицы правды.</p></div>
+  <div class="card"><h3>Знание — в репозиторий</h3><p>Слова владельца, решения и уроки записываются тем же ходом. Сессия не хранит ничего, чего нет в файлах.</p></div>
+</div>
+
+<h2>Чем фордж-2 защищён от разрастания</h2>
+<div class="grid g3">
+  <div class="card"><h3>Бюджеты размера</h3><ul><li>правила работника — 12 КБ</li><li>правила координатора — 20 КБ (сейчас 85 КБ в пяти файлах)</li><li>код фабрики — 6 000 строк (сейчас 296 782)</li><li>правил гейтов — не больше 45</li><li>страница бута — до 4 КБ <span class="tag t-new">v1.6</span></li></ul></div>
+  <div class="card"><h3>Рэтчеты с первого коммита</h3><ul><li>CRAP, линтер, клоны — только вниз</li><li>рэтчет размера</li><li>счётчик универсальности: в коде фабрики нет имён проектов и харнессов</li><li>пакет — только английский</li><li>три слоя тестов, один тест с параметрами на поведение</li></ul></div>
+  <div class="card"><h3>Хуков мало</h3><ul><li>запрещают только необратимое и исходящее: пуш, релиз, запись в чужой проект, секреты</li><li>снимок перед сжатием — только пишет</li><li>напоминание после сжатия — только печатает <span class="tag t-new">v1.6</span></li></ul><p class="note">Сейчас хуков 16; по замеру хук удваивал время вызова.</p></div>
+</div>
+
+<h2>Экономия токенов и память сессии</h2>
+<div class="grid g2">
+  <div class="card"><h3>Инструменты экономии — с первого дня</h3><ul><li>журнал и заголовки раздачи пишет код;</li><li>независимые вызовы — одним сообщением;</li><li>вывод обрезается до входа в контекст;</li><li>один прогон-свидетель после всех правок;</li><li>приёмка пачкой; круг починки — свежий работник;</li><li>потолок токенов и времени на работника <span class="tag t-new">v1.6</span>.</li></ul></div>
+  <div class="card"><h3>Бут и «все знания в репозитории» <span class="tag t-new">v1.6</span></h3><ul><li><b>Страница «что, как и зачем»</b> грузится в каждую сессию: что строим, мерило, девять положений, шесть этапов, что решено.</li><li><b>Реестр слов владельца</b>: дата, слова дословно, область (фабрика / фордж / оба), где исполнено.</li><li><b>После сжатия</b> хук напоминает, что перечитать: бут, свежий снимок, открытые раздачи.</li></ul></div>
+</div>
+
+<h2>Эвалы форджа <small>что и когда измеряется</small></h2>
+<div class="card">
+<table>
+<tr><th>Измерение</th><th>Что показывает</th><th>Когда</th></tr>
+<tr><td>Базовый прогон</td><td>Что даёт свободный агент с одним промптом на мерных проектах: время, цена, найденные и ложные баги</td><td>фаза 0</td></tr>
+<tr><td>Страницы ремесла</td><td>Свободный агент со страницами против агента без них; наборы с подложенными дефектами</td><td>фаза 2 и при каждой правке страницы</td></tr>
+<tr><td>Пробный проход цепочки</td><td>Укладываются ли шесть этапов со свежим контекстом в «вдвое» — до постройки, а не после</td><td>фаза 2, перед фазой 3</td></tr>
+<tr><td>Главное измерение</td><td>Фабрика против свободного агента по определению успеха, два прогона фабрики</td><td>фаза 4 и при каждом изменении поведения</td></tr>
+<tr><td>Трение</td><td>Сколько вызовов инструментов фабрики и отказов гейтов на этап; «нужно, но не сделано» против «дефект гейта»</td><td>каждый прогон</td></tr>
+<tr><td>Цена</td><td>Метрика форджа: хранится в файлах замеров по агенту, этапу и стори вместе с датой тарифа <span class="tag t-new">v1.6</span></td><td>каждый прогон</td></tr>
+</table>
+</div>
+
+<h2>Фазы</h2>
+<div class="phases">
+  <div class="ph spec"><b>0. Место и мерило</b>новый репозиторий, мерные проекты, таблицы правды, базовый прогон</div>
+  <div class="ph spec"><b>1. Скелет форджа-2</b>правила с бюджетом, инструменты токенов, рэтчеты, CI, бут</div>
+  <div class="ph spec"><b>2. Ремесло</b>страницы, подложенные дефекты, пробный проход цепочки</div>
+  <div class="ph spec"><b>3. Запись и условия сдачи</b>схема записи, сверка, документы человеку</div>
+  <div class="ph spec"><b>4. Маршрут «стори»</b>запуск этапов, критик, остановки, потолки, дашборд, главное измерение</div>
+  <div class="ph later"><b>5. Знание проекта и онбординг</b></div>
+  <div class="ph later"><b>6. Остальные маршруты</b>баг, до кода, повторный запуск, исследование</div>
+  <div class="ph later"><b>7. Доставка наружу</b>менеджер кейсов, трекер, MR</div>
+  <div class="ph later"><b>8. Ночь, сбор, числа</b></div>
+  <div class="ph later"><b>9. Незнакомые проекты, второй харнесс</b>разворачивание фреймворка, навык настройки CI</div>
+  <div class="ph later"><b>10. Сухая стори</b></div>
+</div>
+<p class="note">Синяя полоса — фазы, на которые уже есть спека (37 карточек). Порядок: 0 → 1 и 2 параллельно → 3 → 4.</p>
+</section>
+
+<footer>Источники: <code>docs/tasks/specs/20261125-forge2-light-factory-plan.md</code> (v1.6) и пять файлов спеки рядом с ним. Метка «v1.6» — добавлено по словам владельца вечером 25.11 и ещё не проработано дизайнером.</footer>
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(function(t){
+  t.addEventListener('click',function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.setAttribute('aria-selected', x===t ? 'true':'false')});
+    document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('on', p.id===t.dataset.pane)});
+    window.scrollTo({top:0});
+  });
+});
+</script>
+</body>
+</html>
