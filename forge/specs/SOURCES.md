@@ -64,3 +64,4 @@ line references inside these copies (`plan:<n>`, `part2:<n>`, ...) resolve again
 a row marked (redacted: n) is a copy that differs from its source only in n places where the user folder name of a local path stood: it reads <user> (this repository is public); its sha256 is the copy's
 
 the rows recon/20261125-forge2-recon-run-lessons.md and recon/20261125-forge2-recon-experiments-retros.md are listed but not committed: they hold run spend figures, and publishing those is the owner's decision
+| recon/20261125-forge2-recon-ideas-lessons-carriers.md | docs/tasks/handoffs/20261125-forge2-recon-ideas-lessons-carriers.md | 912d6d1000dea3f915a440f3e1272296cb2954af | 21f3b5544aa6689a0cb90f8c9dda118e524f030505fdfa57fe6fe6dd2e606dc2 |
