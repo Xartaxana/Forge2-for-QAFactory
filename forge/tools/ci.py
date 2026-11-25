@@ -206,7 +206,9 @@ def main(argv):
     ap.add_argument("--github-output", dest="gh_path")
     a = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):  # outside text (a commit message, an id) never crashes a print
-        stream.reconfigure(errors="backslashreplace")
+        fix = getattr(stream, "reconfigure", None)  # a replaced or absent stream has none (review t-1947, N6)
+        if fix:
+            fix(errors="backslashreplace")
     try:
         rows = load(a.list_path)
         if a.head and not commit_of(a.head):

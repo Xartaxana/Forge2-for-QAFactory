@@ -163,6 +163,12 @@ def write(a):
                 lead = b"" if fh.read(1) == b"\n" else b"\n"
             fh.write(lead + (line + "\n").encode("utf-8"))
     finally:
+        if msvcrt:  # a lock left at close is freed by Windows only after a delay: unlock first (review t-1947, N3)
+            try:
+                os.lseek(fd, 0, 0)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
         os.close(fd)
     print(path)
     print(line)

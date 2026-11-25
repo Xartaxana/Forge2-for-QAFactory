@@ -46,15 +46,25 @@ def inside(root, path):
         return False
 
 
+FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")  # a fence marker, indented or not
+
+
 def parse(text):
     """Return ({name: (inline value, [path lines])}, [repeated names]). Fenced and > quoted lines are no header lines
     (R11-f); the first of a repeated name stays; a key-shaped line ends a path block, any other line joins it."""
-    out, rep, cur, fenced = {}, [], None, False
+    out, rep, cur, fence = {}, [], None, None
     for ln in text.splitlines():
-        if ln.startswith(("```", "~~~")):
-            fenced = not fenced
+        f = FENCE.match(ln)
+        if fence is None and f:
+            fence = f.group(1)
             continue
-        if fenced or ln.startswith(">"):
+        if fence is not None:
+            # closed only by its own character, at least as long, nothing after it (review t-1947, N1); an unclosed
+            # fence leaves the rest unread: a missing line is reported, never a false ok
+            if f and f.group(1)[0] == fence[0] and len(f.group(1)) >= len(fence) and not f.group(2).strip():
+                fence = None
+            continue
+        if ln.startswith(">"):
             continue
         m = HEAD.match(ln)
         if m:

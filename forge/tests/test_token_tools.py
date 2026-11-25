@@ -76,8 +76,13 @@ def test_journal_write(tmp_path, event, note, task, session, code, word):
     ([("dispatch", "t-1")], "{broken\n", 1, ["unparsable line 2 in o.jsonl", "incomplete"]),
 ])
 def test_journal_open_and_read(tmp_path, rows, tail, code, words):
-    for ev, t in rows:
-        jw(tmp_path, ev, "n", t, "o")
+    if tail:  # the one row whose journal is written by the tool: the write-then-open seam
+        for ev, t in rows:
+            jw(tmp_path, ev, "n", t, "o")
+    elif rows:  # laid down as bytes in the tool's own line form; the write road has its own test
+        put(tmp_path, "logs/journal/o.jsonl", "".join(
+            json.dumps({"ts": "2026-11-25T10:00:0%dZ" % i, "task": t, "event": ev, "by": "lead", "note": "n"}) + "\n"
+            for i, (ev, t) in enumerate(rows)).encode("utf-8"))
     if tail:
         with open(tmp_path / "logs" / "journal" / "o.jsonl", "a") as fh:
             fh.write(tail)
@@ -254,7 +259,7 @@ def test_snapshot(tmp_path, git, carriers, close, extra, words):
     if extra == "journal":
         jw(tmp_path, "dispatch", "n", "t-2", "o1")
     for i in range(205 if extra == "many" else 0):
-        put(tmp_path, "f/%d.txt" % i, b"")
+        put(tmp_path, "%d.txt" % i, b"")  # top-level: one status line each in every untracked mode
     if extra == "odd":
         put(tmp_path, "logs/journal/x.jsonl", None)
     if carriers is not None:

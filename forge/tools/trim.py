@@ -5,7 +5,8 @@ trim.py [--root D] [--last N] [--keep REGEX]... [file]     file defaults to stdi
 
 At or under N lines the text is printed whole. Over N: a first line [trimmed K of M lines] (K = lines not printed),
 the kept lines in their order, then the last N lines. Bytes read as UTF-8 with replacement; if any were replaced the
-marker is printed even when K is 0. Exit: 0, 2 for N below 1 or a pattern that does not compile.
+marker is printed even when K is 0. Exit: 0, 2 for N below 1, a pattern that does not compile or a file
+that cannot be read.
 """
 import argparse
 import collections
@@ -33,7 +34,12 @@ def main(argv=None):
             return 2
     # streamed line by line: memory is bounded by N plus the kept lines, however large the log (review t-1944, F9)
     tail, kept, m, replaced = collections.deque(maxlen=a.last), [], 0, False
-    with (open(a.file, "rb") if a.file else contextlib.nullcontext(sys.stdin.buffer)) as src:
+    try:
+        opened = open(a.file, "rb") if a.file else contextlib.nullcontext(sys.stdin.buffer)
+    except OSError:
+        print("cannot read %s" % a.file)
+        return 2
+    with opened as src:
         for chunk in src:
             try:
                 ln = chunk.decode("utf-8")
