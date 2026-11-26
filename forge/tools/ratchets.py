@@ -18,6 +18,8 @@ import sys
 import tokenize
 import warnings
 
+import words  # the owner-words registry reader (B3); words imports journal only, so no cycle
+
 TOOL_VERSION = "1"
 ROOTS = ("factory", "forge/tools", "forge/hooks", "measure/tools")  # the C1-3 roots (crap, lint, clone)
 RECORD = ("word", "decision")  # the kinds a raise or a --record may resolve to
@@ -125,10 +127,18 @@ def base_doc(root, base, rel, out):
         raise Refuse("%s:%s: not valid JSON (%s)" % (base[:12], rel, exc))
 
 
-def resolve(rid, kinds=("word",)):
-    """B3's door (F252): None when the record resolves to one of kinds, else the red line. Until B3 there is no registry,
-    so every id is red; B3's builder replaces this body with the words.py call."""
-    return "cannot resolve %s: no registry" % rid
+def resolve(root, rid, kinds=("word",)):
+    """B3's door (F252): None when the id is a live record of the tree under root whose kind is in kinds, else the red line
+    naming the cause. An absent or unreadable registry is red, never green on no data (words.resolve_id returns None)."""
+    found = words.resolve_id(root, rid)
+    if found is None:
+        return "cannot resolve %s: not in %s or registry unreadable" % (rid, words.REG)
+    kind, newer = found
+    if newer is not None:
+        return "cannot resolve %s: superseded by %s" % (rid, newer)
+    if kind not in kinds:
+        return "cannot resolve %s: kind %s, wants %s" % (rid, kind, " or ".join(kinds))
+    return None
 
 
 def judge_raises(root, base, rel, keys, out):
@@ -139,7 +149,7 @@ def judge_raises(root, base, rel, keys, out):
     lines, code = RAISE_RE.findall(log), 0
     for key, (what, kinds) in keys.items():
         ids = [i for f, k, i in lines if k == key and (rel == f or rel.endswith("/" + f))]
-        errs = [resolve(i, kinds) for i in ids]  # F1: None is a record that resolves
+        errs = [resolve(root, i, kinds) for i in ids]  # F1: None is a record that resolves
         if None in errs:
             continue
         msg = errs[0] if ids else "%s needs `ratchet-raise: %s %s -- <W-n | D-n>`" % (what, os.path.basename(rel), key)
@@ -334,7 +344,7 @@ def update(root, path, data, field, key, stale, record, kinds, scope, out=print)
     takes (each sent to git as `:(glob)`, t-1994 F2: plain pathspecs read `**` and `*` otherwise); an empty scope warns
     about the whole tree."""
     if record:
-        err = resolve(record, kinds)
+        err = resolve(root, record, kinds)
         if err:
             out(err)
             return 1
@@ -453,7 +463,7 @@ def judge(mod, a):
     # beats 1), before the python-minor drift and the scan (1 beats 3; a dead scanner must not hide that no record resolves
     # yet, L11).
     if a.update and a.record:
-        err = resolve(a.record, RECORD)
+        err = resolve(a.root, a.record, RECORD)
         if err:
             print(err)
             return 1

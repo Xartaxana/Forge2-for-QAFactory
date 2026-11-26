@@ -15,6 +15,7 @@ import ratchets  # noqa: E402
 import size_ratchet as sz  # noqa: E402
 import universality as uni  # noqa: E402
 
+REGF = "forge/owner-words.yaml"
 B = {"rules_worker": {"unit": "bytes", "paths": ["CLAUDE.md"], "ceiling": 12288},
      "factory_code": {"unit": "nonblank_lines", "paths": ["factory/tools/**/*.py"], "ceiling": 3},
      "gate_rules": {"unit": "rows", "paths": ["factory/data/gate-rules.yaml"], "ceiling": 45},
@@ -80,21 +81,31 @@ def world(tmp_path_factory, steps):
 @pytest.fixture(scope="module")
 def repo(tmp_path_factory):
     fc = B["factory_code"]
-    return world(tmp_path_factory, [(msg, rows and budg(rows)) for msg, rows in (
-        ("empty", None), ("budgets", B), ("raise", ceil(factory_code=4)),
-        ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=4)),
-        ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21)),
-        ("removed", {k: v for k, v in B.items() if k != "factory_code"}),
-        ("unit", dict(B, factory_code=dict(fc, unit="bytes"))),
-        ("paths", dict(B, factory_code=dict(fc, paths=["nothing/*.py"]))),
-        ("quoted\n\n  > ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=5)))])
+    reg = lambda rows, text=None: {REGF: text or json.dumps({"schema": "words/2", "records": rows})}
+    plain = reg([{"id": "W-1", "kind": "word"}, {"id": "D-1", "kind": "decision"}, {"id": "W-2", "kind": "word"},
+                 {"id": "W-3", "kind": "word", "supersedes": "W-2"}])
+    steps = [(msg, rows and dict(budg(rows), **extra)) for msg, rows, extra in (
+        ("empty", None, {}), ("budgets", B, plain), ("raise", ceil(factory_code=4), {}),
+        ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=4), {}),
+        ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21), {}),
+        ("removed", {k: v for k, v in B.items() if k != "factory_code"}, {}),
+        ("unit", dict(B, factory_code=dict(fc, unit="bytes")), {}),
+        ("paths", dict(B, factory_code=dict(fc, paths=["nothing/*.py"])), {}),
+        ("quoted\n\n  > ratchet-raise: budgets.json factory_code -- W-9", ceil(factory_code=5), {}),
+        ("ratchet-raise: budgets.json factory_code -- D-1", ceil(factory_code=6), {}),
+        ("ratchet-raise: budgets.json factory_code -- W-2", ceil(factory_code=7), {}),
+        ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=8), reg(None, "{not json")))]
+    return world(tmp_path_factory, steps)
 
 
 # expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit); t-1991 B2, F5, M1 (F8 rows: test_universality)
 @pytest.mark.parametrize("head, base, env, code, has, hasnt", [
     (2, 1, 0, 1, "new: forge/budgets.json::factory_code", None),
     (2, 1, 1, 1, "new: forge/budgets.json::factory_code", None),
-    (3, 1, 0, 1, "cannot resolve W-1", None),
+    (3, 1, 0, 0, "", "new:"),
+    (9, 8, 0, 1, "cannot resolve D-1: kind decision, wants word", None),
+    (10, 9, 0, 1, "cannot resolve W-2: superseded by W-3", None),
+    (11, 10, 0, 1, "cannot resolve W-1: not in forge/owner-words.yaml or registry unreadable", None),
     (3, 0, 0, 0, "born", None),
     (4, 3, 0, 1, "new: forge/budgets.json::crap_limit", "::factory_code"),
     (4, 0, 0, 0, "born", "new:"),
@@ -104,7 +115,7 @@ def repo(tmp_path_factory):
     (5, 4, 0, 1, "row removed", None),
     (6, 4, 0, 1, "scan narrowed", None),
     (7, 4, 0, 1, "scan narrowed", None),
-    (8, 4, 0, 1, "cannot resolve W-1", "needs"),
+    (8, 4, 0, 1, "cannot resolve W-9", "needs"),
 ])
 def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
     g, shas, checkout = repo
@@ -196,13 +207,6 @@ def test_update(tmp_path):
     assert c == 1 and "refused" in o
 
 
-def test_resolved_raise(repo, monkeypatch):
-    g, shas, checkout = repo
-    checkout(3)
-    monkeypatch.setattr(ratchets, "resolve", lambda i, kinds=("word",): None)
-    assert run(sz, g, "--base", shas[1])[0] == 0
-
-
 @pytest.fixture(scope="module")
 def uni_repo(tmp_path_factory):
     doc = json.loads(names()["forge/universality-names.json"])
@@ -218,7 +222,7 @@ def uni_repo(tmp_path_factory):
 
 
 # expected from: t-1991 M2, t-1992 N4, t-1994 F1 (probe P3), t-1995 P1 (answer section 8) and the brief section 4 (allow row added, allow emptied, name
-# removed, a basis change are raises, N13 `clear` and `basis`; until B3 a raise line cannot resolve; no change is green)
+# removed, a basis change are raises, N13 `clear` and `basis`; this repo has no registry, so a raise line cannot resolve; no change is green)
 @pytest.mark.parametrize("head, base, code, has, hasnt", [
     (1, 0, 1, "allow row added needs", None),
     (2, 1, 0, "", "new:"),
@@ -262,7 +266,7 @@ def test_no_list_file(tmp_path):
 
 # expected from: t-1991 F1, F4; the brief section 4 (a resolved record opens the road; the dead scanner is exit 2); t-1997
 # probe A (the Lead's ruling (2): a bad base, 2, beats an unresolved record) and probe D (X3: universality takes no --list)
-def test_doors(tmp_path, monkeypatch):
+def test_doors(tmp_path):
     put(tmp_path, dict(names([row("y")], dict(uni.basis(), python="9.9")), **{"factory/tools/y.py": "a = 'pytest'\n"}))
     assert [run(uni, tmp_path, *a)[0] for a in (["--base", "nope"], ["--update", "--record", "D-1", "--base", "nope"])] == [2, 2]
     with pytest.raises(SystemExit, match="2"):
@@ -270,7 +274,7 @@ def test_doors(tmp_path, monkeypatch):
     put(tmp_path, names([row("z")]))
     allow = lambda: json.load(open(tmp_path / "forge/universality-names.json"))["allow"]
     assert run(uni, tmp_path, "--update", "--record", "W-1")[0] == 1 and allow() == [row("z")]
-    monkeypatch.setattr(ratchets, "resolve", lambda i, kinds=("word",): None)
+    put(tmp_path, {REGF: json.dumps({"schema": "words/2", "records": [{"id": "W-1", "kind": "word"}]})})
     run(uni, tmp_path, "--update", "--record", "W-1")
     assert allow() == []
     with pytest.raises(ratchets.Refuse, match="none of the 2"):
