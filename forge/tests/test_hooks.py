@@ -353,12 +353,14 @@ SHELL = [("echo x > \"%s/a\"" % P, 1), ("echo x >> /c/Prot/Root/a", 1), ("echo x
          ("rm %s/d \\\n" % P, 1), ("git -C C:/ -C Prot/Root commit -m x", 1), ("git -C %s -C C:/work commit -m x" % P, 0),
          ("git --git-dir=%s/.git --work-tree=%s commit" % (P, P), 1), ("git --git-dir %s/.git commit" % P, 1),
          ("GIT_DIR=%s/.git git commit" % P, 1), ("GIT_WORK_TREE=%s git add ." % P, 1),
-         ("echo done \\\\\nrm -rf %s/d" % P, 1), ("GIT_DIR=.git git -C %s commit -m x" % P, 1),  # t-1984 N1, N2
-         ("GIT_DIR=C:/work/.git git -C %s checkout -- ." % P, 1), ("git -C %s --work-tree=C:/work commit -m x" % P, 1)]
+         ("echo done \\\\\nrm -rf %s/d" % P, 1), ("GIT_DIR=.git GIT_WORK_TREE=. git -C %s commit -m x" % P, 1),  # t-1984 N1, N2
+         ("GIT_DIR=C:/work/.git git -C %s checkout -- ." % P, 1), ("git -C %s --work-tree=C:/work commit -m x" % P, 1),
+         ("echo \"x \\\\\"; rm -rf %s/d" % P, 1), ("GIT_WORK_TREE=%s/new git clone https://x/y.git C:/work/y" % P, 1),  # t-1985
+         ("git init %s/new" % P, 1), ("git worktree add %s/wt" % P, 1), ("git clone --separate-git-dir=%s/g u C:/work/y" % P, 1)]
 POWER = [("Set-Content -Path \"%s/a\" -Value x" % P, 1), ("set-content C:\\Prot\\Root\\a x", 1), ("Remove-Item %s/a -Force" % P, 1),
          ("Copy-Item %s/a C:/work/b" % P, 0), ("Copy-Item C:/work/a -Destination %s/b" % P, 1), ("\"x\" | Out-File %s/a" % P, 1),
          ("echo x > %s/a" % P, 1), ("Get-Content %s/a" % P, 0), ("Move-Item %s/a C:/work/b" % P, 1),
-         ("Set-Content `\n  -Path %s/a -Value 1" % P, 1)]
+         ("Set-Content `\n  -Path %s/a -Value 1" % P, 1), ("Get-ChildItem \"C:\\work\\\"; Remove-Item %s/x" % P, 1)]  # t-1985 N7
 
 
 @pytest.mark.parametrize("tool,ti,bad", FILES)

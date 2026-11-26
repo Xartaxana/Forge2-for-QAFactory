@@ -9,10 +9,11 @@ roots file, its own error, a bad argument) exits 0 with one stderr line "foreign
 journals one line; a crash and a refusal with no session id journal nothing (stderr only; B17 owns the policy).
 Cuts: none of its own (a path or command is judged whole). A shell line continuation (an ODD run of unquoted backslashes, in
 PowerShell backticks, before a line end) joins the lines; an even run is literal text and the line end separates; inside
-quotes nothing joins.
+quotes nothing joins. The same character escapes a quote character on an odd run only.
 Residuals, named: a symlink, junction, `~`, a variable, a script, an alias or an indirect write errs GREEN; so do a UNC admin
 share (//host/C$) and an 8.3 short name (they are not resolved); so does an agent editing the roots file or a live hook (the
-acceptance diff is the net).
+acceptance diff is the net); so do git path arguments other than the work tree, git-dir, clone/init/worktree add targets
+and --separate-git-dir (e.g. worktree move, archive -o, diff --output).
 """
 import argparse
 import json
@@ -62,8 +63,8 @@ def eol(cmd, i):
 
 
 def escaped(cmd, i, cont):
-    """cmd[i] is cont: True when an odd run of cont directly precedes it, so it is literal text. A run holds no quote, so
-    an unquoted cmd[i] has an unquoted run; the walk is bounded by the run (each line end is asked once)."""
+    """True when an odd run of cont directly precedes cmd[i] (a cont or a quote), so cmd[i] is literal text. A run holds no
+    quote, so it shares cmd[i]'s quote state; the walk is bounded by the run."""
     j = i
     while j > 0 and cmd[j - 1] == cont:
         j -= 1
@@ -86,7 +87,8 @@ def tokens(cmd, ps=False):
     """Words ("w", text) and operators ("op", text): ; && || | & ( ) > >> >| >& < and a newline (as ;). Quotes are removed,
     a backslash outside them stays (Windows paths), a heredoc body is skipped, an fd prefix of a redirect is dropped. An
     unquoted backslash (ps: backtick) directly before LF or CRLF joins the lines unless it is itself escaped (t-1984 N1:
-    `\\`+LF is a literal backslash, then a new command); at the end of the command it is dropped."""
+    `\\`+LF is a literal backslash, then a new command); at the end of the command it is dropped. The same character
+    escapes a quote (inside double quotes: only `"`) on an odd run only (t-1985 N7)."""
     out, buf, have, q, i, hd, want = [], "", False, None, 0, [], False
     cont = "`" if ps else "\\"
 
@@ -102,13 +104,13 @@ def tokens(cmd, ps=False):
     while i < len(cmd):
         c = cmd[i]
         if q:
-            if c == "\\" and q == '"' and cmd[i + 1:i + 2] == '"':
-                buf, i = buf + '"', i + 1
-            elif c == q:
-                q = None
-            else:
+            if c != q:
                 buf += c
-        elif c in "'\"":
+            elif q == '"' and escaped(cmd, i, cont):  # t-1985 N7: an odd run escapes it; ps: backtick, never backslash
+                buf = buf[:-1] + c
+            else:
+                q = None
+        elif c in "'\"" and not escaped(cmd, i, cont):  # an escaped quote outside quotes is a literal (Bash it\'s)
             q, have = c, True
         elif c == cont and eol(cmd, i + 1) and escaped(cmd, i, cont):
             buf, have = buf + c, True
@@ -192,6 +194,16 @@ def dest_opt(args):
     return None
 
 
+def long_opt(args, name):
+    """The value of a long option given as `name=V` or `name V`, or None."""
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            return args[i + 1]
+        if a.startswith(name + "="):
+            return a.split("=", 1)[1]
+    return None
+
+
 def ps_paths(head, args):
     """PowerShell write cmdlets: -Path/-LiteralPath/-FilePath/-Destination values, else the first positional (Copy-Item:
     the destination; Move-Item: both). A comma list is several paths."""
@@ -221,7 +233,8 @@ def git_writes(args, cwd, env=None):
     measured): the -C chain first, each -C against the tree the previous one gave; then --git-dir/--work-tree (= or space
     form; an option beats its GIT_DIR=/GIT_WORK_TREE= prefix assignment) resolve against the tree the chain gave. BOTH places
     git writes are judged: the work tree (else the chain's tree) and the git-dir (else the chain's tree, where git finds it;
-    measured: `git -C A --work-tree=B commit` moves A's HEAD). Clone writes its destination."""
+    measured: `git -C A --work-tree=B commit` moves A's HEAD). Clone writes its destination and a given work tree; the
+    paths of init <dir>, worktree add <path> and --separate-git-dir (clone, init) are judged too (t-1985 N8, N9)."""
     tree, i, env = norm(cwd) if cwd else cwd, 0, env or {}
     raw = {"--git-dir": env.get("GIT_DIR"), "--work-tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
@@ -237,13 +250,19 @@ def git_writes(args, cwd, env=None):
     if i >= len(args):
         return []
     sub, rest = args[i], args[i + 1:]
-    if sub == "clone":
-        p = positional(rest, ("-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j"))
-        return [norm(p[1], tree)] if len(p) > 1 else (
-            [norm(re.sub(r"(\.git)?/*$", "", p[0]).rsplit("/", 1)[-1].rsplit(":", 1)[-1], tree)] if p else [])
+    named = [long_opt(rest, "--separate-git-dir")] if sub in ("clone", "init") else []  # t-1985 N9: named write targets
+    if sub == "clone":  # it ignores GIT_DIR but writes a work tree (t-1985 N8, measured)
+        p = positional(rest, ("-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j",
+                              "--separate-git-dir"))
+        dest = p[1:2] or [re.sub(r"(\.git)?/*$", "", x).rsplit("/", 1)[-1].rsplit(":", 1)[-1] for x in p[:1]]
+        return sorted({norm(x, tree) for x in dest} | {norm(x, tree) for x in named if usable(x)} | ({wt} if wt else set()))
+    if sub == "init":
+        named += positional(rest, ("-b", "--initial-branch", "--template", "--separate-git-dir", "--object-format"))[:1]
+    elif sub == "worktree" and rest[:1] == ["add"]:
+        named += positional(rest[1:], ("-b", "-B", "--reason"))[:1]
     read = sub in GIT_READ or (sub == "config" and any(a.startswith("--get") for a in rest)) or (
         sub == "worktree" and rest[:1] == ["list"]) or (sub == "remote" and "-v" in rest)
-    return [] if read else sorted({wt or tree, gd or tree})
+    return [] if read else sorted({wt or tree, gd or tree} | {norm(x, tree) for x in named if usable(x)})
 
 
 def writes(head, args, ps):
