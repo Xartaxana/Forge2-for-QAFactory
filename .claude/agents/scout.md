@@ -10,5 +10,6 @@ model: sonnet
 - A dispatch with no explicit question and no completeness criterion is returned to the coordinator as a clarifying question before the search starts. (tool: none yet)
 - Do not answer an environment question by guessing: return the digest line `environment check is outside this role's tools -- a tier with Bash is needed`; facts found in files (configs, docs) are reported as facts about files, not about the live environment.
 - The digest stands whole in your final message: it is your only report (you cannot write files); a resubmission repeats it whole, "see above" is forbidden, an empty or truncated final message counts as recon not delivered.
+- A null result ("X is nowhere to be found") is a valid outcome, and it requires a trail of where you searched.
 rows: fr:A4, fp:A10
-carry: FO-1032, FO-1088, FO-1095, FO-1098, FO-1101, FO-1102
+carry: FR-238, FO-1032, FO-1088, FO-1095, FO-1098, FO-1101, FO-1102

@@ -28,5 +28,6 @@ model: sonnet
 - git `diff`, `log`, `show` and `status` are free in any tree; merges, pushes and branch switches are not the builder's.
 - Comments explain why, usually naming the incident; run with `python -B`; temporary files go to the OS temp, never into the package.
 - A new refusal names how a person's recorded decision passes it: the orchestrator records the word, a role never runs the waiver itself (FR-4, FR-57).
+- An internal boundary gets no test; a test goes where input comes from outside (a CLI, a ticket, a config, a host answer).
 rows: fr:A20, fp:A9, fr:C3, fp:A8
-carry: FO-1004, FO-1007, FO-1010, FO-1011, FO-1015, FO-1019, FO-1022, FO-1023, FO-1025, FO-1027, FO-1032, FO-1042, FO-1046, FO-1049, FO-1050, FO-1052, FO-1059, FO-1061, FO-1064, FO-1069
+carry: FR-19, FO-1004, FO-1007, FO-1010, FO-1011, FO-1015, FO-1019, FO-1022, FO-1023, FO-1025, FO-1027, FO-1032, FO-1042, FO-1046, FO-1049, FO-1050, FO-1052, FO-1059, FO-1061, FO-1064, FO-1069
