@@ -1,0 +1,203 @@
+#!/usr/bin/env python
+# card: C1-5
+"""pre-push <remote> <url> (cards C1-5, B8, B9, P13): refuses an outward act before CI is awaited.
+
+The pushed lines arrive as `<local ref> <local sha> <remote ref> <remote sha>`. Steps run in this fixed order and stop at the
+first refusal (N14): remote named -> [B19 slot: local/ refs, old roots] -> range scan -> measure/ clearance -> release
+owner-word -> ci.py. A malformed line is refused and the others are still judged, but then ci.py is not run. Crash, git
+absent -> refuse. Each refusal that knows its repository root is journaled into logs/journal/git-hooks.jsonl; a crash refusal
+and one with no known root (git absent) write no line, only stderr (named residual: `crash refusals of git hooks journaled
+best-effort | node: B17`). Other remote: the TIP commit (the pushed sha) of each pushed ref needs owner-word (brief section
+8, A2). A remote name or URL is printed with any user[:password]@ shown as ***@ and any query as ?***.
+"""
+import datetime
+import json
+import os
+import re
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import secret_scan as ss  # noqa: E402
+from hio import io as HIO  # noqa: E402
+
+DOORS = {
+    "line": "a pushed line is <local ref> <local sha> <remote ref> <remote sha>; a malformed line is refused whole",
+    "remote": "forge/remote.json carries origin and measure_cleared (B8); the Lead writes it before the hooks are placed",
+    "other": "a push to a remote other than origin needs an owner-word line in the tip commit of each pushed ref",
+    "scan": "a secret in the pushed range leaves the history before the push; patterns change by a reviewed commit",
+    "table": ss.DOOR,
+    "measure": "measure/ leaves the machine only after the owner clears it: measure_cleared is an owner-word line (F88)",
+    "release": "a release push carries owner-word: <words> <date> in the pushed commit, a person's recorded word",
+    "ci": "ci.py is green before a push; fix the red job, then push",
+    "git": "git must run to judge the push; fix git, then push",
+}
+OWNER = re.compile(r"\s*owner-word: «(.+)» (\d{4}-\d{2}-\d{2})\s*", re.ASCII)
+HEX = re.compile(r"[0-9a-f]{40}")
+
+
+def owner_word(text):
+    """A message line `owner-word: «<words>» <date>`: greedy words, non-blank, a real calendar date, not `>`-quoted."""
+    for line in text.split("\n"):
+        m = OWNER.fullmatch(line)
+        if m and m.group(1).strip():
+            try:
+                datetime.date.fromisoformat(m.group(2))
+                return True
+            except ValueError:
+                pass
+    return False
+
+
+USERINFO = r"^((?:[A-Za-z][A-Za-z0-9+.-]*://)?)[^/]*@"
+
+
+def url_key(u):
+    """A remote URL for comparing: no user[:password]@, no .git, no trailing slash."""
+    return re.sub(r"(\.git)?/*$", "", re.sub(USERINFO, r"\1", u.strip()))
+
+
+def mask(u):
+    """The URL (or remote name) for a message: the userinfo and a query (from the first ? on, printed ?***; t-1984 N4) are
+    never shown. The userinfo goes first, so a ? inside a password cannot leave its head printed."""
+    return re.sub(r"\?.*", "?***", re.sub(USERINFO, r"\1***@", u.strip()), flags=re.S)
+
+
+def revs(root, f, name):
+    """rev-list arguments of one pushed line: old..new; a new ref or an old sha this store lacks = every commit on no
+    remote ref (errs toward scanning more)."""
+    try:
+        if set(f[3]) == {"0"}:
+            raise ss.Cannot("new ref")
+        ss.git(root, "cat-file", "-e", f[3] + "^{commit}")
+        return [f[3] + ".." + f[1]]
+    except ss.Cannot:
+        return [f[1], "--not", "--remotes=" + name]
+
+
+def message(root, c):
+    return ss.git(root, "log", "-1", "--format=%B", c).decode("utf-8", "replace")
+
+
+def read_cfg(root):
+    """forge/remote.json -> (cfg, None), or (None, (text, door)) when it is absent, unreadable or lacks origin or
+    measure_cleared."""
+    p = os.path.join(root, "forge", "remote.json")
+    try:
+        with open(p, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+        if not isinstance(cfg, dict) or not isinstance(cfg.get("origin"), str) or "measure_cleared" not in cfg:
+            raise ValueError("needs a string origin and the key measure_cleared")
+    except (OSError, ValueError) as exc:
+        return None, ("remote.json (B8): %s: %s" % (p, exc), "remote")
+    return cfg, None
+
+
+def other_remote(root, cfg, name, url, act):
+    """A push to a remote other than origin: each pushed tip needs an owner-word line; the first refusal, or None."""
+    if url_key(url) != url_key(cfg["origin"]):
+        for f in act:  # the tip names the push; older commits of the range need no line (A2)
+            c = f[1]  # the pushed sha: an empty range (a rewind, a tip on a remote ref) is judged too (t-1984 N3)
+            if not owner_word(message(root, c)):
+                return "push to remote %s (%s), not origin: tip commit %s lacks an owner-word line" % (
+                    mask(name), mask(url), c[:12]), "other"
+    return None
+
+
+def measure_refusal(cleared):
+    """measure/ is in the pushed range: None when measure_cleared is an owner-word line, else the refusal."""
+    if isinstance(cleared, str) and owner_word(cleared):
+        return None
+    if isinstance(cleared, str) and re.fullmatch(r"W-\d+", cleared):
+        return "measure/ in the pushed range: cannot resolve %s: words.py not built (B3)" % cleared, "measure"
+    if cleared is None:
+        return "measure/ in the pushed range and measure_cleared is null: F88's question is not answered", "measure"
+    return "measure/ in the pushed range and measure_cleared is malformed", "measure"
+
+
+def release_refusal(root, act):
+    """A pushed release tag or branch needs an owner-word line in its commit; the first refusal, or None."""
+    for f in act:
+        if re.fullmatch(r"refs/tags/v.*|refs/heads/release", f[2]):
+            try:
+                commit = ss.git(root, "rev-parse", "--verify", f[1] + "^{commit}").decode("ascii", "replace").strip()
+            except ss.Cannot:
+                return "cannot judge release %s: %s is not a commit" % (f[2], f[1]), "release"
+            if not owner_word(message(root, commit)):
+                return "release %s: commit %s lacks owner-word: <words> <date>" % (f[2], commit[:12]), "release"
+    return None
+
+
+def steps(root, name, url, act, do_ci):
+    """Return the first refusal as (text, door key), or None. do_ci is False for a delete-only or malformed push."""
+    cfg, refusal = read_cfg(root)
+    if refusal:
+        return refusal
+    cache = {}
+
+    def walked(f):
+        if f[1] + f[3] not in cache:
+            cache[f[1] + f[3]] = ss.walk(root, revs(root, f, name))
+        return cache[f[1] + f[3]]
+
+    refusal = other_remote(root, cfg, name, url, act)
+    if refusal:
+        return refusal
+    # step slot: B19 (local/ refs, local-only history, old roots) lands here, after B17
+    try:
+        ents = sorted({(c[:12], pa, s) for f in act for c, pa, s in walked(f)[1]})
+        found = ss.scan(root, ss.load_table(root), ents) if act else []
+    except ss.Cannot as exc:
+        return str(exc), "table" if ss.TABLE in str(exc) else "git"
+    if found:
+        return "\n".join(found), "scan"
+    if any(pa.startswith("measure/") for _, pa, _ in ents):
+        refusal = measure_refusal(cfg["measure_cleared"])
+        if refusal:
+            return refusal
+    refusal = release_refusal(root, act)
+    if refusal:
+        return refusal
+    return run_ci(root) if do_ci else None
+
+
+def run_ci(tree):
+    """The ci.py step: one function of a tree (B14 swaps in a clean worktree). None when ci.py exits 0, else (text, door).
+    The full GIT_* scrub stays: ci.py must not inherit the pushing repository."""
+    ci = os.path.join(tree, "forge", "tools", "ci.py")
+    if not os.path.isfile(ci):
+        return "ci.py absent: %s" % ci, "ci"
+    try:
+        code = subprocess.run([sys.executable, "-B", ci], cwd=tree, env=HIO.genv()).returncode
+    except OSError as exc:
+        return "ci.py not startable: %s" % exc, "ci"
+    return ("ci.py exit %d" % code, "ci") if code else None
+
+
+def body(lines, note):
+    if lines is None:
+        return HIO.refuse_git(None, "pre-push", "cannot judge the pushed lines: %s" % note, DOORS["line"])
+    if not lines:
+        return 0
+    root = None
+    try:
+        root = ss.toplevel()
+        ok, bad = [], []
+        for n, line in enumerate(lines, 1):
+            f = (line or "").split()
+            if len(f) >= 4 and HEX.fullmatch(f[1]) and HEX.fullmatch(f[3]):
+                ok.append(f[:4])
+            else:
+                bad.append("cannot judge pushed line %d" % n)
+        for text in bad:
+            HIO.refuse_git(root, "pre-push", text, DOORS["line"])
+        act = [f for f in ok if set(f[1]) != {"0"}]  # a delete carries no commit: nothing to scan, nothing to wait for
+        name, url = (sys.argv[1:] + ["", ""])[:2]
+        r = steps(root, name, url, act, bool(act) and not bad)
+        return HIO.refuse_git(root, "pre-push", r[0], DOORS[r[1]]) if r else int(bool(bad))
+    except ss.Cannot as exc:
+        return HIO.refuse_git(root, "pre-push", str(exc), DOORS["git"])
+
+
+if __name__ == "__main__":
+    sys.exit(HIO.guard(body, 1, "lines"))

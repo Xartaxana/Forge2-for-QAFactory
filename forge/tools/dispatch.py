@@ -81,6 +81,24 @@ def parse(text):
     return out, rep
 
 
+def problems(n, h, role, root):
+    """The problem lines of header name n (empty when it is fine)."""
+    if n not in h:
+        return ["missing: " + n] if n != "test" or role == "builder" else []
+    v, paths = h[n]
+    if n not in PATHS:
+        if not v or (n == "DoD" and not TICKS.search(v)):
+            return ["missing: %s" % n + (" (no backticked command)" if n == "DoD" and v else "")]
+        return []
+    bad = []
+    paths = ([v] if v else []) + paths
+    if n == "owns" and role == "builder" and not paths:
+        bad.append("missing: owns")
+    paths = [p[1:-1] if len(p) > 1 and p[0] == p[-1] == "`" else p for p in paths]
+    return bad + ["owns path not absolute or not inside the root: %s" % p for p in paths
+                  if n == "owns" and not inside(root, p)]
+
+
 def check(text, root):
     h, rep = parse(text)
     role = h.get("role", ("", []))[0]
@@ -89,20 +107,7 @@ def check(text, root):
         return 2
     bad = ["repeated: " + n for n in rep]
     for n in NAMES:
-        if n not in h:
-            if n != "test" or role == "builder":
-                bad.append("missing: " + n)
-            continue
-        v, paths = h[n]
-        if n in PATHS:
-            paths = ([v] if v else []) + paths
-            if n == "owns" and role == "builder" and not paths:
-                bad.append("missing: owns")
-            paths = [p[1:-1] if len(p) > 1 and p[0] == p[-1] == "`" else p for p in paths]
-            bad += ["owns path not absolute or not inside the root: %s" % p for p in paths
-                    if n == "owns" and not inside(root, p)]
-        elif not v or (n == "DoD" and not TICKS.search(v)):
-            bad.append("missing: %s" % n + (" (no backticked command)" if n == "DoD" and v else ""))
+        bad += problems(n, h, role, root)
     print("\n".join(bad) if bad else "ok")
     return 1 if bad else 0
 

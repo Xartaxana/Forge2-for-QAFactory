@@ -1,0 +1,21 @@
+{
+  "basis": {
+    "tool": "1",
+    "python": "3.12",
+    "constants": {
+      "kinds": ["language", "runner", "framework", "tracker", "case_manager", "harness"],
+      "match": "word-bounded, case-insensitive",
+      "cyrillic": "U+0400-U+04FF"
+    },
+    "roots": ["factory/tools", "factory/hooks", "factory"]
+  },
+  "names": {
+    "language": ["python", "java", "javascript", "typescript", "kotlin", "csharp", "golang", "ruby", "php", "swift"],
+    "runner": ["pytest", "unittest", "junit", "testng", "nunit", "xunit", "jest", "mocha", "vitest", "rspec"],
+    "framework": ["selenium", "playwright", "cypress", "appium", "webdriverio", "puppeteer"],
+    "tracker": ["jira", "youtrack", "redmine", "gitlab"],
+    "case_manager": ["testrail", "qase", "zephyr", "testlink", "allure"],
+    "harness": ["claude", "codex", "anthropic", "openai"]
+  },
+  "allow": []
+}
