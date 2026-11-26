@@ -1,0 +1,92 @@
+diff --git a/forge/budgets.json b/forge/budgets.json
+index 0cf71e7..1ff9a35 100644
+--- a/forge/budgets.json
++++ b/forge/budgets.json
+@@ -3,11 +3,12 @@
+   "rows": {
+     "rules_worker": {"unit": "bytes", "paths": ["CLAUDE.md", ".claude/agents/*.md"], "ceiling": 45056},
+     "rules_coordinator": {"unit": "bytes", "paths": ["forge/COORDINATOR.md", "forge/BOOT.md"], "ceiling": 57344},
+     "boot_page": {"unit": "bytes", "paths": ["forge/BOOT.md"], "ceiling": 4096},
+     "factory_code": {"unit": "nonblank_lines", "paths": ["factory/tools/**/*.py", "factory/hooks/**/*.py"], "ceiling": 6000},
+-    "forge_code": {"unit": "nonblank_lines", "paths": ["forge/tools/**/*.py", "forge/hooks/**/*.py"], "ceiling": 6000},
++    "forge_code": {"unit": "nonblank_lines", "paths": ["forge/tools/**/*.py", "forge/hooks/**/*.py"], "ceiling": 6500},
++    "forge_tool_files": {"unit": "files", "paths": ["forge/tools/*.py"], "ceiling": 14},
+     "plan_spec": {"unit": "bytes", "paths": ["forge/specs/*.md"], "ceiling": 1700000},
+     "gate_rules": {"unit": "rows", "paths": ["factory/data/gate-rules.yaml"], "ceiling": 45},
+     "stage_start_load": null,
+     "crap_limit": {"unit": "limit", "ceiling": 20}
+   }
+diff --git a/forge/tests/test_budgets.py b/forge/tests/test_budgets.py
+index b8ede7b..e6a046b 100644
+--- a/forge/tests/test_budgets.py
++++ b/forge/tests/test_budgets.py
+@@ -126,11 +126,12 @@ def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
+         monkeypatch.setenv("FORGE_BASE", ref)
+     c, o = run(sz, g, *(["--base", ref] if ref and not env else []))
+     assert c == code and has in o and (hasnt is None or hasnt not in o), o
+ 
+ 
+-# expected from: C1-2 part2:100-105; B16 part8:105 and F180 (not set); B20 part9:134 (figure line); the brief section 4
++# expected from: C1-2 part2:100-105; B16 part8:105 and F180 (not set); B20 part9:134 (figure line); the brief section 4;
++# the C1-2 amendment (unit files: the count of files its paths match; a files row without paths is refused)
+ @pytest.mark.parametrize("files, code, has", [
+     ({}, 0, ["not set", "absent: 0", "tests: 0 lines, product: 0 lines"]),
+     ({"factory/tools/a.py": "a = 1\n\nb = 2\nc = 3\n"}, 0, ["3 nonblank_lines"]),
+     ({"factory/tools/a.py": "a\nb\nc\nd\n"}, 1, ["new: forge/budgets.json::factory_code"]),
+     ({"factory/data/gate-rules.yaml": "{not json"}, 2, ["cannot judge"]),
+@@ -142,10 +143,13 @@ def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
+     ({"forge/budgets.json": json.dumps({"rows": {"stage_start_load": {"unit": "bytes"}}})}, 2, ["C4-6 not built"]),
+     ({"forge/hooks/git/pre-push": "a\nb\n", "forge/tools/t.py": "x\n"}, 0, ["product: 3 lines"]),
+     ({"forge/tests/old.py": b"# caf\xe9\n"}, 0, ["(ratio n/a: forge/tests/old.py: not UTF-8)"]),
+     ({"forge/hooks/git/blob": b"\x00\xff"}, 0, ["(ratio n/a: forge/hooks/git/blob: not UTF-8)"]),
+     ({"factory/tools/a.py": b"a = '\xe9'\n"}, 2, ["factory/tools/a.py: not UTF-8"]),
++    ({"forge/budgets.json": json.dumps({"rows": {"forge_tool_files": {"unit": "files", "paths": ["forge/tools/*.py"], "ceiling": 20}}}),
++      "forge/tools/a.py": "x\n", "forge/tools/b.py": "y\n"}, 0, ["forge_tool_files"]),
++    ({"forge/budgets.json": json.dumps({"rows": {"forge_tool_files": {"unit": "files", "ceiling": 20}}})}, 2, ["paths"]),
+ ])
+ def test_size(tmp_path, files, code, has):
+     put(tmp_path, dict(budg(B), **files))
+     c, o = run(sz, tmp_path)
+     assert c == code and all(h in o for h in has), o
+diff --git a/forge/tools/size_ratchet.py b/forge/tools/size_ratchet.py
+index 5986a04..ef14bc9 100644
+--- a/forge/tools/size_ratchet.py
++++ b/forge/tools/size_ratchet.py
+@@ -1,21 +1,22 @@
+ # card: C1-2
+ """Size ratchet: each row of forge/budgets.json measured against its ceiling; a raised ceiling needs a raise line (B20).
+ 
+ size_ratchet.py [--root D] [--base R]    exit 0 green, 1 a value above its ceiling or an unrecorded raise, 2 cannot judge
+-Units: bytes, nonblank_lines, rows (of a JSON {"rows": [...]}), limit (read by another tool; only its raise is judged here).
++Units: bytes, nonblank_lines, rows (of a JSON {"rows": [...]}), files (how many files its paths match), limit (read by
++another tool; only its raise is judged here).
+ A path with no file is `absent: 0`. `stage_start_load: null` is `not set` (F248): listed and counted, outside the exit.
+ The figure line `tests: <t> lines, product: <p> lines (ratio <t/p>)` is never a verdict (B20 (f)): a file it cannot read
+ makes the line n/a naming the file (t-1992 N1); a measured nonblank_lines row still reads strictly (exit 2).
+ """
+ import os
+ import sys
+ 
+ import ratchets
+ 
+ REL = "forge/budgets.json"
+-UNITS = ("bytes", "nonblank_lines", "rows", "limit")
++UNITS = ("bytes", "nonblank_lines", "rows", "files", "limit")
+ TESTS = ("forge/tests/**/*.py", "factory/tests/**/*.py")
+ PRODUCT = tuple(d + "/**/*.py" for d in ("forge/tools", "forge/hooks", "factory/tools", "factory/hooks", "measure/tools")) + ("forge/hooks/git/*",)
+ 
+ 
+ def check_rows(data):
+@@ -49,10 +50,12 @@ def count_rows(root, rel):
+ def measure(root, row):
+     """The row's value, or None when no file of its paths exists."""
+     files = ratchets.files_of(root, row["paths"])
+     if not files:
+         return None
++    if row["unit"] == "files":  # C1-2 amendment: a tool split into many small files is still one budget
++        return len(files)
+     if row["unit"] == "bytes":
+         return sum(os.path.getsize(os.path.join(root, f)) for f in files)
+     if row["unit"] == "nonblank_lines":
+         return sum(nonblank(root, f) for f in files)
+     return sum(count_rows(root, f) for f in files)

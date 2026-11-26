@@ -1,0 +1,86 @@
+diff --git a/forge/tests/test_token_tools.py b/forge/tests/test_token_tools.py
+index 97691cb..96bf48a 100644
+--- a/forge/tests/test_token_tools.py
++++ b/forge/tests/test_token_tools.py
+@@ -136,6 +136,20 @@ def test_journal_odd_files(tmp_path, files, write, code, words):
+     assert run("journal.py", ["read"], tmp_path)[0] == code
+ 
+ 
++# expected from: the card B7 amendment (snapshot section `last rejects`: the last 5 reject lines, oldest first, each
++# with its task, agent and note; none -> `none`)
++@pytest.mark.parametrize("n,has,hasnt", [
++    (7, ["t-2 builder: r2", "t-6 builder: r6"], ["t-1 builder"]),
++    (0, ["## last rejects\nnone"], ["builder:"]),
++])
++def test_snapshot_rejects(tmp_path, n, has, hasnt):
++    put(tmp_path, "logs/journal/s1.jsonl", ("".join(jl(ts="2026-11-20T10:00:%02dZ" % i, event="reject", task="t-%d" % i,
++        agent="builder", note="r%d" % i) for i in range(n)) or jl(ts="2026-11-20T10:00:00Z", event="dispatch", task="t-9")).encode())
++    got, out = run("snapshot.py", [], tmp_path)
++    text = open(out.strip().splitlines()[-1], encoding="utf-8").read()
++    assert got == 0 and all(h in text for h in has) and not any(h in text for h in hasnt), text
++
++
+ # expected from: card C1-4 (read prints in ts order across files; --last N keeps the last N)
+ @pytest.mark.parametrize("args,want", [([], ["y", "x"]), (["--last", "1"], ["x"]), (["--session", "a"], ["x"])])
+ def test_journal_read_order(tmp_path, args, want):
+diff --git a/forge/tools/snapshot.py b/forge/tools/snapshot.py
+index b0881fb..12ad0e5 100644
+--- a/forge/tools/snapshot.py
++++ b/forge/tools/snapshot.py
+@@ -4,7 +4,8 @@
+ snapshot.py [--root D] [--close]     print the path; --close first prints each row of forge/carriers.json
+                                      (card B7: array of rows with `carrier` and `what goes there`) as <what> -> <carrier>
+ 
+-Sections: open tasks, last 20 journal lines, git status --short (over 200 lines cut with a marker), branch.
++Sections: open tasks, last 20 journal lines, last 5 rejects (task, agent, note), git status --short (over 200 lines cut
++with a marker), branch.
+ It never refuses: git failing or carriers.json absent / malformed is said in the text and the snapshot is written.
+ """
+ import argparse
+@@ -19,6 +20,7 @@ import journal  # noqa: E402
+ 
+ ROOT = journal.ROOT
+ STATUS_MAX = 200
++REJECTS_MAX = 5
+ 
+ 
+ def git(root, *args):
+@@ -62,6 +64,25 @@ def journal_text(root):
+     return opened, "\n".join(e[3] for e in entries[-20:]) or none
+ 
+ 
++def rejects(root):
++    """The last REJECTS_MAX reject lines, oldest first, as `<task> <agent>: <note>` (card B7 amendment: the next session
++    sees what came back before it reads the open tasks)."""
++    d = os.path.join(root, "logs", "journal")
++    found = []
++    for name in sorted(os.listdir(d)) if os.path.isdir(d) else []:
++        if not name.endswith(".jsonl"):
++            continue
++        with open(os.path.join(d, name), encoding="utf-8", errors="replace") as fh:
++            for raw in fh:
++                try:
++                    o = json.loads(raw)
++                except ValueError:
++                    continue
++                if isinstance(o, dict) and o.get("event") == "reject":
++                    found.append("%s %s: %s" % (o.get("task", "?"), o.get("agent", "?"), o.get("note", "")))
++    return "\n".join(found[-REJECTS_MAX:]) or "none"
++
++
+ def status(root):
+     rows = git(root, "status", "--short", "--untracked-files=all").split("\n")
+     if len(rows) > STATUS_MAX:
+@@ -80,8 +101,10 @@ def main(argv=None):
+         opened, last = journal_text(a.root)
+     except Exception as exc:  # the snapshot is read by the next session: whatever the journal does, the file is written
+         opened = last = "journal failed: %s" % exc
+-    text = "# Snapshot\n\n## open tasks\n%s\n\n## last 20 journal lines\n%s\n\n## git status --short\n%s\n\n## branch\n%s\n" % (
+-        opened, last, guard("git status", lambda: status(a.root)),
++    # the rejects section has its own guard: a journal_text failure above must not take it down, and the reverse
++    text = ("# Snapshot\n\n## open tasks\n%s\n\n## last 20 journal lines\n%s\n\n## last rejects\n%s\n\n"
++            "## git status --short\n%s\n\n## branch\n%s\n") % (
++        opened, last, guard("rejects", lambda: rejects(a.root)), guard("git status", lambda: status(a.root)),
+         guard("branch", lambda: git(a.root, "branch", "--show-current") or "(none)"))
+     d = os.path.join(a.root, "logs", "journal", "snapshots")
+     os.makedirs(d, exist_ok=True)

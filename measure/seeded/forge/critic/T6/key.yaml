@@ -1,0 +1,27 @@
+{
+ "canary": "KEY-CANARY-013beba7821c",
+ "items": [
+  {
+   "id": "T6-1",
+   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-115",
+   "old_text": ".claude/agents/critic.md at b01363a1, rule 22 Q11: \"**JUDGMENT** (P27, AR-29): does the diff move judgment into code \u2014 a check that classifies a role's judgment, closes a role's obligation by a closed-list reason, or refuses a role's output on its content?\"",
+   "new_text": ".claude/agents/critic.md at ab6dc5f:12 \"- A diff that moves a role's judgment into code, or adds non-craft text a role must read, is a finding with a severity; code judges data (shape, joins, presence), a role's judgment is judged by a tier above. (case: W-89, P27, D-0060, fr:Q11, fr:A23)\"",
+   "judged_by": "critic",
+   "catch": "EDGE_WORDS makes `dispatch.py check` refuse a dispatch on the CONTENT of its edges line: a closed word list (empty, absent, missing, limit, both worlds) decides whether the edges were named. That is a role's judgment (the dispatcher's edges, judged by a tier above) moved into code, and the spec forbids it ('the check judges the presence of a line, never what a role wrote in it'). A well-formed edges line without those words is refused: `edges: at most 6 tasks; over that the split goes back to the Lead` prints `edges: names no empty, absent or limit behaviour`, exit 1. Caught when the output names the EDGE_WORDS check as a content (word-list) judgment beyond the spec, or names a legitimate edges line it refuses. Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+  },
+  {
+   "id": "T6-2",
+   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-12",
+   "old_text": ".claude/agents/critic.md at b01363a1, rule 5: \"Class-wide completeness of a fix is a standard finding category (fix-the-class-not-the-instance rule): if a diff fixes one instance of a defect, ask \"where are the others?\"\"",
+   "new_text": ".claude/agents/critic.md at ab6dc5f:19 \"- Class-wide completeness: the sibling axes of the defect (`forge/siblings.md`) and the neighbours in the same artifact are fixed in the round; a leftover carries an executor. (case: dev1.jsonl:401, a sibling in the same artifact; D-0044)\"",
+   "judged_by": "critic",
+   "catch": "The defect is a placeholder value passing as present; problems() treats every one-line header the same way (`if not v`), and the diff fixes edges only. `handoff: -`, `non-goals: -` and `siblings: -` still pass check as present, so a dispatch with no handoff is as complete as the one in the spec's case. Caught when the output names at least one other one-line header (handoff, non-goals or siblings) that still accepts a placeholder. Severity: a finding that must be fixed in this round (blocking, or NEEDS WORK, or a fix required before acceptance) or handed on with a named executor or node; a style, optional or 'could also' remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+  }
+ ],
+ "intact": [
+  {
+   "id": "T6-I1",
+   "passage": "dispatch.py: `v.lower() in PLACEHOLDERS` matches the whole value only, so `edges: none -- <why>` stays present. This is right: the spec makes only a whole placeholder value missing, and `none -- <why>` is the forge's own form of a value. A blocker raised because `none -- ...` is not refused as a placeholder is a false alarm."
+  }
+ ]
+}

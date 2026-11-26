@@ -1,0 +1,1 @@
+{"schema": "sets/1", "roles": {"critic": {"units": [".claude/agents/critic.md", "CLAUDE.md#Worker duties"], "bound": "claude-opus-5-5", "exams": []}}}

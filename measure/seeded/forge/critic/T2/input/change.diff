@@ -1,0 +1,119 @@
+diff --git a/forge/tests/test_token_tools.py b/forge/tests/test_token_tools.py
+index 97691cb..b9f8345 100644
+--- a/forge/tests/test_token_tools.py
++++ b/forge/tests/test_token_tools.py
+@@ -148,2 +148,15 @@ def test_journal_read_order(tmp_path, args, want):
+ 
++# expected from: the C1-4 amendment (Loaded.files names the session files load read, an empty one included) and its
++# reader `retro.py missing`, which now names a session whose file holds no line
++def test_journal_files_and_empty_session(tmp_path):
++    put(tmp_path, "logs/journal/s1.jsonl", jl(ts="2026-11-20T10:00:00Z", event="dispatch", task="t-1").encode())
++    put(tmp_path, "logs/journal/s2.jsonl", b"")
++    put(tmp_path, "logs/journal/git-hooks.jsonl", jl(ts="2026-11-20T10:00:01Z", event="refuse", note="x: y").encode())
++    sys.path.insert(0, T)
++    import journal
++    assert journal.load(str(tmp_path)).files == ["s1.jsonl", "s2.jsonl"]
++    got, out = run("retro.py", ["missing"], tmp_path)
++    assert got == 0 and "missing: 2" in out and "s2" in out
++
++
+ # expected from: card B7 and the dispatch of C1-4 (FORGE_SESSION names the file; else the newest file but git-hooks;
+diff --git a/forge/tools/journal.py b/forge/tools/journal.py
+index 513c4f7..392a459 100644
+--- a/forge/tools/journal.py
++++ b/forge/tools/journal.py
+@@ -13,2 +13,3 @@ the session), and a note that starts with a hyphen is given as --note=<text> (ar
+ import argparse
++import collections
+ import json
+@@ -45,2 +46,3 @@ SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
+ LOCK_WAIT_S = 10
++Loaded = collections.namedtuple("Loaded", "entries bad found files")  # C1-4 amendment: readers name the fields
+ 
+@@ -57,4 +59,5 @@ def files(root):
+ def load(root, session=None):
+-    """Return (entries, bad, found): entries (ts, file, n, raw, obj) in ts order; bad = problem texts (an unparsable
+-    line, an object whose task or event is no string, an unreadable file); found = any file."""
++    """Return Loaded(entries, bad, found, files): entries (ts, file, n, raw, obj) in ts order; bad = problem texts (an
++    unparsable line, an object whose task or event is no string, an unreadable file); found = any file; files = the
++    session files read, in name order, an empty one included (it has no entry to show it)."""
+     paths = files(root)
+@@ -62,3 +65,3 @@ def load(root, session=None):
+         paths = [p for p in paths if os.path.basename(p) == session + ".jsonl"]
+-    out, bad = [], []
++    out, bad, seen = [], [], []
+     for p in paths:
+@@ -71,2 +74,4 @@ def load(root, session=None):
+             continue
++        if name != "git-hooks.jsonl":
++            seen.append(name)
+         for n, raw in enumerate(rows, 1):
+@@ -84,3 +89,3 @@ def load(root, session=None):
+     out.sort(key=lambda e: (e[0], e[1], e[2]))
+-    return out, bad, bool(paths)
++    return Loaded(out, bad, bool(paths), seen)
+ 
+@@ -90,3 +95,3 @@ def open_tasks(root, loaded=None):
+     loaded is a result of load(root), so a caller that read the journal does not read it twice."""
+-    entries, bad, found = loaded or load(root)
++    entries, bad, found, _ = loaded or load(root)
+     if not found:
+@@ -219,3 +224,3 @@ def main(argv=None):
+     if a.cmd == "read":
+-        entries, bad, _ = load(a.root, a.rsession)
++        entries, bad, _, _ = load(a.root, a.rsession)
+         shown = entries[-a.last:] if a.last and a.last > 0 else entries
+diff --git a/forge/tools/retro.py b/forge/tools/retro.py
+index 7f3c8d1..3e71207 100644
+--- a/forge/tools/retro.py
++++ b/forge/tools/retro.py
+@@ -113,3 +113,3 @@ def git_word(loaded, end=None):
+     t-2029 F3), none journaled for no line (up to `end`), else None."""
+-    entries, bad, _ = loaded
++    entries, bad = loaded.entries, loaded.bad
+     if UNREAD + GIT in bad:
+@@ -153,3 +153,3 @@ def problems(loaded, own, win):
+     file (its lines are unknown: an earlier slug may be among them, t-2029 F1)."""
+-    entries, bad, _ = loaded
++    entries, bad = loaded.entries, loaded.bad
+     mine = ["unparsable line %d in %s" % (n, f) for ts, f, n in dated_bad(entries)
+@@ -163,3 +163,3 @@ def counts_block(loaded, session, win=None):
+     `win` given (check, sum: the file's window line) is used as is; else the window is the own file's (write)."""
+-    entries, _, found = loaded
++    entries, found = loaded.entries, loaded.found
+     if not found:
+@@ -173,5 +173,6 @@ def counts_block(loaded, session, win=None):
+ 
+-def sessions(entries, bad=()):
+-    """Stems of the session files: those with lines, and those load could not open (lines unknown, t-2029 F1)."""
+-    return sorted({e[1][:-6] for e in entries if e[1] != GIT} |
++def sessions(entries, bad=(), files=()):
++    """Stems of the session files: those with lines, those load could not open (lines unknown, t-2029 F1) and those it
++    read with no line at all (Loaded.files: an empty file has no entry)."""
++    return sorted({e[1][:-6] for e in entries if e[1] != GIT} | {f[:-6] for f in files if f != GIT} |
+                   {b[len(UNREAD):-6] for b in bad if b.startswith(UNREAD) and b != UNREAD + GIT})
+@@ -183,3 +184,3 @@ def retro_path(root, session):
+ 
+-def missing_list(root, entries, bad, before=None):
++def missing_list(root, entries, bad, before=None, files=()):
+     """Sessions with no retro file; with `before`, only those whose first ts is earlier than it (the card: the earlier ones).
+@@ -190,3 +191,3 @@ def missing_list(root, entries, bad, before=None):
+             first[e[1][:-6]] = min(e[0], first.get(e[1][:-6], e[0]))
+-    return [s for s in sessions(entries, bad) if not os.path.exists(retro_path(root, s)) and
++    return [s for s in sessions(entries, bad, files) if not os.path.exists(retro_path(root, s)) and
+             (before is None or s not in first or first[s] < before)]
+@@ -261,3 +262,3 @@ def cmd_write(root, session):
+         return 2
+-    if loaded[2] and session not in sessions(loaded[0]):
++    if loaded.found and session not in sessions(loaded.entries):  # an empty file has no line to count: still refused
+         print("refused: no journal lines of session %s" % session)
+@@ -341,3 +342,3 @@ def cmd_sum(root, since):
+ def cmd_missing(root):
+-    entries, bad, found = load(root)
++    entries, bad, found, files = load(root)
+     if not found:
+@@ -345,3 +346,3 @@ def cmd_missing(root):
+         return 0
+-    miss = missing_list(root, entries, bad)
++    miss = missing_list(root, entries, bad, files=files)
+     print("missing: %d" % len(miss))

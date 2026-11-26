@@ -1,0 +1,72 @@
+diff --git a/forge/tests/test_words.py b/forge/tests/test_words.py
+index fd9abff..65f7839 100644
+--- a/forge/tests/test_words.py
++++ b/forge/tests/test_words.py
+@@ -114,18 +114,20 @@ CHECK = [  # (records, files, exit, fragments in the output, expected from)
+ 
+ @pytest.mark.parametrize("records,files,code,frags,source", CHECK)
+ def test_check(tmp_path, records, files, code, frags, source):
+     got, out = run(world(tmp_path, records, files), "check")
+     assert got == code and all(f in out for f in frags), out
+ 
+ 
+ BAD = [  # (mutation of a valid word record, fragment of the refusal, expected from)
+     ({"words": ""}, "words is missing or empty", "card B3 edge: empty words"),
++    ({"asked": "é" * 4096 + "a"}, "asked is 8193 bytes, over 8192", "B14 amendment: asked over WORDS_MAX bytes refused"),
++    ({"asked": "é" * 4096, "id": "W-2"}, None, "B14 amendment: asked of exactly 8192 bytes accepted"),
+     ({"scope": "both2"}, "scope 'both2' is not one of", "card B3 edge: scope outside the set"),
+     ({"date": "2026-13-45"}, "date '2026-13-45' is not YYYY-MM-DD", "card B3 edge: bad date"),
+     ({"id": "W-1"}, "id W-1 exists: a record is never changed", "card B3 K3: duplicate id / edit attempt"),
+     ({"kind": "note"}, "kind 'note' is not one of word, decision", "card B3 edge: kind outside the set"),
+     ({"carrier": None}, "carrier is missing or empty", "card B3 edge: a word without carrier"),
+     ({"extra": 1}, "unknown field 'extra' for kind word", "card B3 (every bad field named)"),
+     ({"executed_in": [], "open": None}, "open is missing or empty", "card B3: `[]` with `open: <why>`"),
+     ({"executed_in": "x"}, "executed_in must be a list", "card B3 common fields"),
+     ({"supersedes": "W-77"}, "supersedes 'W-77' names no earlier record", "card B3 edge: supersedes"),
+diff --git a/forge/tools/words.py b/forge/tools/words.py
+index 769a5ce..93e4a72 100644
+--- a/forge/tools/words.py
++++ b/forge/tools/words.py
+@@ -32,19 +32,19 @@ PLAN = "forge/specs/20261125-forge2-light-factory-plan.md"
+ BOOT = "forge/BOOT.md"
+ PRINCIPLES = "forge/PRINCIPLES.md"
+ P_FILES = ("CLAUDE.md", "forge/COORDINATOR.md", BOOT)  # plus .claude/agents/*.md; a missing file is skipped
+ P_CITE_RE = re.compile(r"\bP\d{1,2}\b(?!-\d)")  # t-2054: "fix P11-1" is a fix id, not a principle citation
+ P_LINE_RE = re.compile(r"- (P\d{1,2}):")
+ SCHEMA = "words/2"
+ KINDS = ("word", "decision")
+ SCOPES = ("factory", "forge", "both", "unknown")
+ WHO = ("owner", "lead")
+-WORDS_MAX = 8192
++WORDS_MAX = 8192  # bytes of UTF-8: the cap of `words` and, since the B14 amendment, of `asked`
+ COMMON = ("id", "kind", "date", "scope", "scope_by", "asked", "carrier", "executed_in", "open", "supersedes")
+ FIELDS = {"word": COMMON + ("words",), "decision": COMMON + ("text", "decided_by", "rests_on", "basis")}
+ ORDER = COMMON[:7] + ("words", "text", "decided_by", "rests_on", "basis") + COMMON[7:]
+ ID_RE = {"word": re.compile(r"W-[1-9]\d*"), "decision": re.compile(r"D-[1-9]\d*")}
+ DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})(~([01]\d|2[0-3]):[0-5]\d)?")
+ CITE_RE = re.compile(r"(?<![\w-])([WD])-([1-9]\d*)\b")
+ CASE_W_RE = re.compile(r"\(case:\s*(W-[^)]*)\)")
+ EXEMPT = (re.compile(r"decided by the owner: forge/owner-words\.yaml"), re.compile(r"phase \d+: .+ -- \S+"))
+ EXEMPT_DIRS = ("forge/specs", "forge/tests")
+@@ -118,18 +118,21 @@ def common_problems(rec, known):
+     if not (isinstance(rid, str) and ID_RE[rec["kind"]].fullmatch(rid)):
+         out.append("id %r does not match %s" % (rid, ID_RE[rec["kind"]].pattern))
+     elif rid in known:
+         out.append("id %s exists: a record is never changed; write a new record with `supersedes`" % rid)
+     out += date_problems(rec.get("date"))
+     for key, allowed in (("scope", SCOPES), ("scope_by", WHO)):
+         if rec.get(key) not in allowed:
+             out.append("%s %r is not one of %s" % (key, rec.get(key), ", ".join(allowed)))
+     out += text_problem(rec, "asked") + text_problem(rec, "carrier") + executed_problems(rec)
++    asked = rec.get("asked")
++    if isinstance(asked, str) and asked.strip() and len(asked) > WORDS_MAX:  # an empty one is refused above, once
++        out.append("asked is %d bytes, over %d; quote the question, the chat stays at its carrier" % (len(asked), WORDS_MAX))
+     if sup is not None and (not isinstance(sup, str) or sup not in known):
+         out.append("supersedes %r names no earlier record" % (sup,))
+     return out
+ 
+ 
+ def word_problems(rec):
+     out, n = text_problem(rec, "words"), len(str(rec.get("words")).encode("utf-8", "surrogatepass"))
+     if not out and n > WORDS_MAX:
+         out.append("words is %d bytes, over %d; split into records by topic, each verbatim" % (n, WORDS_MAX))

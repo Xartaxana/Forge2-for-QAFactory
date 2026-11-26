@@ -1,0 +1,83 @@
+diff --git a/forge/tests/test_token_tools.py b/forge/tests/test_token_tools.py
+index 97691cb..1e02167 100644
+--- a/forge/tests/test_token_tools.py
++++ b/forge/tests/test_token_tools.py
+@@ -172,7 +172,7 @@ def test_journal_concurrent_writers(tmp_path):
+ 
+ 
+ BASE = ["new", "--role", "builder", "--task", "t-9", "--given", "a.md", "--non-goals", "n", "--handoff", "h", "--edges",
+-        "e", "--dod", "python -B x.py", "--siblings", "none -- s", "--test", "none -- t"]
++        "empty input -> refused", "--dod", "python -B x.py", "--siblings", "none -- s", "--test", "none -- t"]
+ 
+ 
+ # expected from: card C1-4 and card B5 (the caps line in both worlds, the header lines, the owns rule) and R11-f (an
+@@ -216,12 +216,13 @@ def test_dispatch_caps_hook_not_loadable(tmp_path, monkeypatch, src):  # t-2032
+ 
+ 
+ def full(tmp_path):
+-    return ("task: t\nrole: builder\ncaps: x\ngiven:\na.md\nowns:\n%s/a.py\nnon-goals: n\nhandoff: h\nedges: e\n"
++    return ("task: t\nrole: builder\ncaps: x\ngiven:\na.md\nowns:\n%s/a.py\nnon-goals: n\nhandoff: h\nedges: empty input -> refused\n"
+             "DoD: `c`\nsiblings: s\ntest: t\n" % str(tmp_path).replace("\\", "/"))
+ 
+ 
+ # expected from: card C1-4 and R11-f (check names each absent line; roles; one-line values; header lines are outside
+-# fences and quotes; a key-shaped line ends a path block; a path with spaces is in backticks)
++# fences and quotes; a key-shaped line ends a path block; a path with spaces is in backticks); the C1-4 defect round
++# (a placeholder edges value is missing, a whole-value match only; an edges value names its empty/absent behaviour)
+ @pytest.mark.parametrize("edit,code,word", [
+     (lambda f: f, 0, "ok"),
+     (lambda f: f.replace("`c`", "c"), 1, "missing: DoD"),
+@@ -234,6 +235,10 @@ def full(tmp_path):
+     (lambda f: f.replace("a.py\n", "a.py\nfeature: F19\n"), 0, "ok"),
+     (lambda f: f.replace("/a.py", "/../x.py"), 1, "not inside"),
+     (lambda f: f.replace("/a.py", "/a b/c.py").replace("\nowns:\n", "\nowns:\n`").replace("c.py\n", "c.py`\n"), 0, "ok"),
++    (lambda f: f.replace("edges: empty input -> refused", "edges: -"), 1, "missing: edges"),
++    (lambda f: f.replace("edges: empty input -> refused", "edges: TBD"), 1, "missing: edges"),
++    (lambda f: f.replace("edges: empty input -> refused", "edges: none -- read-only scan, an empty input changes nothing"), 0, "ok"),
++    (lambda f: f.replace("edges: empty input -> refused", "edges: the third retry goes back to the Lead"), 1, "edges: names no"),
+ ] + [(lambda f, n=n: re.sub(r"(?m)^%s:.*\n" % n, "", f), 1, "missing: " + n) for n in NAMES if n not in ("owns", "given")]
+   + [(lambda f, n=n: f.replace("\n%s:\n" % n, "\n"), 1, "missing: " + n) for n in ("owns", "given")])
+ def test_dispatch_check(tmp_path, edit, code, word):
+@@ -248,7 +253,7 @@ def test_dispatch_check(tmp_path, edit, code, word):
+     (BASE[:-2] + ["--test", "a\nb"], 2, "--test", ""),
+     (["check", "NO-SUCH-FILE"], 2, "cannot read", "Traceback"),
+     (["new", "--role", "critic", "--test", "", "--task", "t", "--given", "a", "--non-goals", "n", "--handoff", "h",
+-      "--edges", "e", "--dod", "c", "--siblings", "s"], 0, "role: critic", "test:"),
++      "--edges", "empty input -> refused", "--dod", "c", "--siblings", "s"], 0, "role: critic", "test:"),
+     (BASE[:-2] + ["--test", ""], 1, "missing: test", ""),
+ ])
+ def test_dispatch_other(tmp_path, args, code, word, absent):
+diff --git a/forge/tools/dispatch.py b/forge/tools/dispatch.py
+index 6d6b93d..1f3dadd 100644
+--- a/forge/tools/dispatch.py
++++ b/forge/tools/dispatch.py
+@@ -6,7 +6,8 @@ dispatch.py [--root D] new --role R --task T --given P... --owns P... --non-goal
+ dispatch.py [--root D] check <file | ->                 one line `missing: <name>` per absent line; else ok
+ 
+ Exit: 0 ok, 1 something missing or repeated or an owns path not absolute / outside the root, 2 unknown role, a newline
+-in a value or a file that cannot be read. Lines inside fences or after > are no header lines.
++in a value or a file that cannot be read. Lines inside fences or after > are no header lines. An edges value that is only
++a placeholder (-, none, n/a, tbd) is missing; an edges value names its empty, absent or limit behaviour.
+ A called tool: it gates nothing. The caps line reads forge/caps.json (card B5), a JSON array of rows with role,
+ tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent, malformed or with no worker row -> `caps: missing`; a role
+ without its row -> the strictest worker row and a note (reader: hooks/budget.py; not loadable -> `caps: missing` naming it).
+@@ -24,6 +25,8 @@ PATHS = ("given", "owns")
+ HEAD = re.compile(r"^(%s):(.*)$" % "|".join(re.escape(n) for n in NAMES))
+ TICKS = re.compile(r"`[^`\n]+`")
+ KEY = re.compile(r"^[A-Za-z0-9_-]+:(\s|$)")  # a drive path (C:/x) has a slash after its colon, so it is no key
++PLACEHOLDERS = ("-", "none", "n/a", "tbd")  # a WHOLE value that only holds a place (case: `edges: -` passed as present)
++EDGE_WORDS = ("empty", "absent", "missing", "limit", "both worlds")  # what an edges line is for (R11: edges named)
+ 
+ 
+ BUDGET = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks", "budget.py")
+@@ -95,6 +98,10 @@ def problems(n, h, role, root):
+     if n not in PATHS:
+         if not v or (n == "DoD" and not TICKS.search(v)):
+             return ["missing: %s" % n + (" (no backticked command)" if n == "DoD" and v else "")]
++        if n == "edges" and v.lower() in PLACEHOLDERS:  # the whole value only: `none -- <why>` is a value
++            return ["missing: edges (a placeholder: %s)" % v]
++        if n == "edges" and not any(w in v.lower() for w in EDGE_WORDS):
++            return ["edges: names no empty, absent or limit behaviour"]
+         return []
+     bad = []
+     paths = ([v] if v else []) + paths
