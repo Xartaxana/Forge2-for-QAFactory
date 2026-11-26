@@ -1,0 +1,7 @@
+[
+  {"role": "builder", "tokens_warn": 250000, "tokens_stop": 400000, "wall_warn_s": 2880, "wall_stop_s": 3600, "raised": []},
+  {"role": "scout", "tokens_warn": 250000, "tokens_stop": 400000, "wall_warn_s": 2880, "wall_stop_s": 3600, "raised": []},
+  {"role": "critic", "tokens_warn": 250000, "tokens_stop": 400000, "wall_warn_s": 2880, "wall_stop_s": 3600, "raised": []},
+  {"role": "designer", "tokens_warn": 250000, "tokens_stop": 400000, "wall_warn_s": 2880, "wall_stop_s": 3600, "raised": []},
+  {"role": "main", "tokens_warn": 300000, "tokens_stop": null, "wall_warn_s": null, "wall_stop_s": null, "raised": []}
+]

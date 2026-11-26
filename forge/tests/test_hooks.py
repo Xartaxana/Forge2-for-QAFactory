@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -541,3 +542,96 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     assert len(at.encode()) == 6144 and "[cut" not in at and "[cut: open list]" in start(root, "resume")[1]
     monkeypatch.setattr(sst, "compose", lambda *a: 1 / 0)
     assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
+
+
+def fx(tmp_path, ctx=None, role="builder", out=1000, cut=False, caps=True):
+    """B5 fixture: a root with caps.json, a worker transcript (dispatch lines, then one usage line of ctx tokens)."""
+    root = mkroot(tmp_path / "r", ci=False)
+    if caps:
+        shutil.copy(os.path.join(ROOT, "forge", "caps.json"), root + "/forge/caps.json")
+    tp = str(tmp_path / "t" / "sess.jsonl")
+    disp = ("role: %s\n" % role if role else "") + "handoff: %s\n" % (tmp_path / "rep.md")
+    lines = [{"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": disp}]}}]
+    if ctx is not None:
+        u = {"input_tokens": ctx - 100, "cache_creation_input_tokens": 50, "cache_read_input_tokens": 50, "output_tokens": out}
+        lines.append({"type": "assistant", "message": {"usage": u}})
+    put(tp.replace(".jsonl", "") + "/subagents/agent-a1.jsonl", "".join(json.dumps(x) + "\n" for x in lines))
+    return root, tp
+
+
+def call(root, tp, tool="Read", agent="a1", age=None, seed={}, **ti):
+    if age is not None:  # wall: the sidecar says the worker's first call was `age` s ago
+        put(root + "/logs/budget/%s.json" % agent, json.dumps({"t0": time.time() - age, "role": "builder", "task": "t-1", **seed}))
+    p = {"session_id": "s1", "transcript_path": tp, "agent_id": agent, "tool_name": tool, "tool_input": ti, "cwd": root}
+    return hook("budget.py", ["--root", root], root, json.dumps(p).encode())
+
+
+def events(root):
+    return [json.loads(x) for x in open(root + "/logs/journal/s1.jsonl")] if os.path.exists(root + "/logs/journal/s1.jsonl") else []
+
+
+@pytest.mark.parametrize("tool,ti,code", [
+    ("SubagentHandback", {"message": "x"}, 0), ("Write", {"file_path": "REP"}, 0), ("Edit", {"file_path": "REP"}, 0),
+    ("Write", {"file_path": "other.md"}, 2), ("Read", {"file_path": "x"}, 2), ("Bash", {"command": "git commit -m x"}, 0),
+    ("Bash", {"command": "git diff --stat"}, 0), ("Bash", {"command": "git status && rm -r ."}, 2),
+    ("PowerShell", {"command": "git add -A; git push"}, 2), ("Bash", {"command": "git push"}, 2), ("Bash", {"command": "ls"}, 2)])
+def test_budget_cut_passes_only_three_moves(tmp_path, tool, ti, code):
+    root, tp = fx(tmp_path, 400000)
+    ti = {k: str(tmp_path / "rep.md") if v == "REP" else v for k, v in ti.items()}
+    got = call(root, tp, tool, **ti)
+    assert got[0] == code and (code == 0 or "budget cut: role:builder tokens 400000 of 400000" in got[1])
+    assert [e["event"] for e in events(root)] == ["cut"] and events(root)[0]["note"].startswith("role:builder tokens 400000 of 400000")
+
+
+@pytest.mark.parametrize("ctx,age,want", [
+    (249999, None, ""), (250000, None, "role:builder tokens 250000 of 250000 spend 251000"),
+    (399999, None, "tokens 399999 of 250000"), (None, 2879, ""), (None, 2880, "role:builder wall 2880 of 2880 s"),
+    (None, 3599, "wall 3599 of 2880 s")])
+def test_budget_warn_once_at_and_beyond(tmp_path, ctx, age, want):
+    root, tp = fx(tmp_path, ctx)
+    got = call(root, tp, age=age)
+    again = call(root, tp)
+    ev = [e for e in events(root) if e["event"] == "cap_warning"]
+    assert got[0] == again[0] == 0 and (want in got[1]) and "write what is done" not in again[1] and len(ev) == bool(want)
+    assert not want or ev[0]["note"].startswith("role:builder ")
+
+
+@pytest.mark.parametrize("age,ctx", [(3599, None), (3600, None), (3601, 10)])
+def test_budget_wall_cut_and_unreadable_transcript(tmp_path, age, ctx):
+    root, tp = fx(tmp_path, ctx)
+    got = call(root, tp.replace("sess", "gone") if ctx is None else tp, age=age)
+    assert got[0] == (2 if age > 3599 else 0) and ("tokens unmeasured" in got[1]) == (ctx is None and age < 3600) and got[1].count("unmeasured") < 2
+    assert (call(root, tp.replace("sess", "gone"))[0] == 2 or age < 3600) and ("cut" in str(events(root))) == (age > 3599)
+
+
+@pytest.mark.parametrize("role", [None, "wizard", "main"])
+def test_budget_unknown_role_is_strictest_row(tmp_path, role):
+    root, tp = fx(tmp_path, 260000, role)
+    got = call(root, tp)
+    assert got[0] == 0 and got[1].count("strictest worker row") == 1 and "role:unknown tokens 260000 of 250000" in str(events(root))
+    assert "strictest" not in call(root, tp)[1]
+
+
+@pytest.mark.parametrize("ctx,had,levels", [(299999, 0, 0), (300000, 0, 1), (349999, 1, 0), (350000, 1, 1), (400000, 2, 1)])
+def test_budget_main_warned_never_cut(tmp_path, ctx, had, levels):
+    root, tp = fx(tmp_path, ctx)
+    put(tp, json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": ctx}}}) + "\n")
+    put(root + "/logs/budget/main-s1.json", json.dumps({"t0": 1, "level": had}))
+    got = call(root, tp, agent=None)
+    assert got[0] == 0 and len([e for e in events(root) if e["note"].startswith("role:main")]) == levels and (levels == 0 or "spend %d" % ctx in got[1])
+
+
+@pytest.mark.parametrize("caps,crash,want", [(False, False, "caps missing"), (True, True, "hook_failed")])
+def test_budget_caps_missing_and_crash_pass(tmp_path, caps, crash, want):
+    root, tp = fx(tmp_path, 900000, caps=caps)
+    if crash:
+        put(root + "/forge/caps.json", '[{"role": "main"}, {"role": "builder", "tokens_warn": "x", "tokens_stop": "y"}]')
+    got = call(root, tp, "Bash", command="rm -rf /")
+    assert got[0] == 0 and want in (got[1] + str(events(root)))
+
+
+def test_budget_newest_line_without_usage_keeps_last_value(tmp_path):
+    root, tp = fx(tmp_path, 260000)
+    with open(tp.replace(".jsonl", "") + "/subagents/agent-a1.jsonl", "a") as fh:
+        fh.write(json.dumps({"type": "user", "message": {"content": "r" * 80000}}) + "\n")
+    assert "tokens 260000 of 250000 spend 261000" in call(root, tp)[1]
