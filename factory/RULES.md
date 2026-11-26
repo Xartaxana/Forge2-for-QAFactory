@@ -63,7 +63,7 @@ carry: FR-153, FR-154, FR-155, FR-156, FR-157, FR-158, FR-159, FR-259
 - The factory's roles run on Sonnet or Terra, never on Haiku (P7); a fix that holds only on a stronger model is not a fix: role files bind no other model, and a quality regression is fixed in the role's instructions or the code, never in its model line.
 - Factory code needs nothing beyond the F10 runtime (Python 3 and pure-Python PyYAML): no new dependency.
 - Text a factory run reads at every stage (a craft page, a stage's text) has no cap but is added tersely: every run pays for it.
-- A new factory CLI script is registered in the factory's list of scripts that an audit walks; an unregistered script is dead code shipped as if it ran. (tool: none yet)
+- A new factory CLI script is registered in the factory's list of scripts that an audit walks; an unregistered script is dead code shipped as if it ran; until that list exists, the script stands on its commit's `mechanism:` line. (tool: none yet)
 carry: FR-161, FR-164, FR-166, FR-167, FR-169, FR-260, FO-1063, FO-1066, FO-1071
 
 ## Universality across projects

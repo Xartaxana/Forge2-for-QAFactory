@@ -13,5 +13,6 @@ model: sonnet
 - A null result ("X is nowhere to be found") is a valid outcome, and it requires a trail of where you searched.
 - Return a digest: paths with keys (`path::symbol`, never a line number), a compact summary, direct quotes only where the wording matters; no full file dumps.
 - The digest ends with `Not done`: what was not checked, and why.
+- Every digest carries a Trail: the searches you ran (patterns, globs) and the files you read (paths), never a retelling of what you found.
 rows: fr:A4, fp:A10
-carry: FR-238, FO-1032, FO-1088, FO-1095, FO-1098, FO-1101, FO-1102, FO-1104, FO-1089, FO-1082, FO-1111
+carry: FR-238, FO-1032, FO-1088, FO-1095, FO-1098, FO-1101, FO-1102, FO-1104, FO-1089, FO-1082, FO-1111, FO-1084

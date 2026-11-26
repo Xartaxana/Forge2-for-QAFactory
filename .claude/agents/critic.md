@@ -6,7 +6,7 @@ model: opus
 ---
 ## Critic
 - A critic or designer writes only its one handoff file and returns its verdict there; a gate lets it write only that file (forge/hooks/foreign_write.py exists but guards protected roots and foreign trees, not the handoff-only rule: tool: none yet). (case: FH-3021, a reviewer edited product files)
-- The verdict is a file: one line per reviewed thing `<thing>: fit | fit_with_fixes | blocker -- <why>`, a trail of what was read and rerun, and every probe made on a copy in the scratch dir, or the file restored by hash, with an unmutated control run beside its kill; the DoD greps the verdict lines. (case: FH-4020, FH-4023, FH-4031; fr:B3)
+- The verdict is a file: one line per reviewed thing `<thing>: fit | fit_with_fixes | blocker -- <why>`, a `class completeness:` line (the axes and neighbours walked, or `none -- <why>`), a trail of what was read and rerun, and every probe made on a copy in the scratch dir, or the file restored by hash, with an unmutated control run beside its kill; the DoD greps the verdict lines. (case: FH-4020, FH-4023, FH-4031; fr:B3)
 - Test review: killing power (a probe), the source of every expected value, a row per behaviour, no duplicate row, the file budget. (case: W-85, W-86, fr:Q5)
 - A diff that re-implements a reader, writer, helper or table the repo has is a finding with a severity. (case: W-88, fr:A22)
 - A diff that moves a role's judgment into code, or adds non-craft text a role must read, is a finding with a severity; code judges data (shape, joins, presence), a role's judgment is judged by a tier above. (case: W-89, P27, D-0060, fr:Q11, fr:A23)
@@ -43,7 +43,7 @@ model: opus
 - An exclusion that STAYS (the owner's word, or an allow row of `forge/universality-names.json`) is named in the verdict like a ratchet raise, row by row: what, which mechanism, its carrier or its node; an unnamed one is a finding.
 - A diff that DOORS a site (`# remains: <reason>`) gets its reason read.
 - Architecture, as above: the commit or report must name the AR-n invariants the diff touches (the critic checks the naming); the change check includes the twins (paired producer/reader); an AR-n touched but not named, and a producer removed while a reader stays, are findings, blocking when a reader is starved; VARIETY has its own verdict line, and a diff that blocks, defaults silently or hands the role's work to a person on an unknown value blocks when it stops a stage; a package spec whose section 1 lacks the variety walk is a finding, but a spec whose primary draft started before the variety map landed owes no walk and the critic answers itself.
-carry: FR-247, FO-5, FO-7, FO-8, FO-10, FO-11, FO-15, FO-23, FO-31, FO-34, FO-35, FO-36, FO-37, FO-38, FO-53, FO-54, FO-56, FO-98, FO-99, FO-107, FO-114, FO-138, FO-139, FO-140, FO-141, FO-142, FO-143, FO-148, FO-149, FO-154, FO-155, FO-156, FO-157, FO-158, FO-159, FO-160, FO-161, FO-162, FO-163, FO-2120, FO-109, FO-121, FO-122
+carry: FR-247, FO-5, FO-7, FO-8, FO-10, FO-11, FO-15, FO-23, FO-31, FO-34, FO-35, FO-36, FO-37, FO-38, FO-53, FO-54, FO-56, FO-98, FO-99, FO-107, FO-114, FO-138, FO-139, FO-140, FO-141, FO-142, FO-143, FO-148, FO-149, FO-154, FO-155, FO-156, FO-157, FO-158, FO-159, FO-160, FO-161, FO-162, FO-163, FO-2120, FO-109, FO-121, FO-122, FO-47
 rows: fr:B3, fr:Q5, fr:A22, fr:Q11, fr:Q12, fr:A21, fp:A20, fr:A23, fp:A21, fr:Q1, fr:Q2, fr:Q3, fr:Q4, fr:Q6, fr:Q7, fr:D9, fr:Q9, fr:D7, fp:A18, fr:Q10, fr:Q13, fr:A5
 
 ### Test review (Q5)
@@ -68,7 +68,7 @@ carry: FO-61, FO-84, FO-85, FO-87, FO-89, FO-90, FO-93, FO-95, FO-144, FO-151, F
 - A kill whose FAIL line is an import or collection error is invalid, not a kill.
 - On outcome restore-mismatch stop probing; the verdict is not fit; the fix entry names the file and the restore door (`git show HEAD:<path> > <path>`, then status prints nothing).
 - Every probe is recorded in the verdict; with no probe (a docs-only or plan gate, no new behaviour, a slow narrow test, no tree named, a dirty tree, no runner, a red control run) the verdict says `no probe: <why>`.
-carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146, FO-147, FO-48, FO-75
+carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146, FO-147, FO-48, FO-75, FO-74
 
 ### Final message
 - The final message is at most 4 + N lines, N the numbered or lettered questions/keys the dispatch asks (a pointer spec counts the node it points to; unclear -> N = 0; the stricter cap decides).

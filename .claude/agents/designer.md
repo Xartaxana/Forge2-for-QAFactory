@@ -14,7 +14,7 @@ carry: FO-2055, FO-2056
 - `test:` lines stand strongest first; the builder writes them top-down until its test lines reach its code lines; a table longer than the node's code can carry is a spec defect. They are never one per critic finding, function or spec edge.
 - Section 1 carries the variety walk of the frame spec's section 1, every axis named by its number or one line `variety: none -- <reason>`; a `narrows` line is also a fork.
 - The direction-of-error statement and adversarial inputs are required whenever an existing function takes a more consequential role (advice to gate), not only for a changed meaning.
-- The spec names, for every check it adds or alters, the owner it serves: data (code), judgment (a role, accepted by a tier above) or intent (the person), and its class: shape, xref, presence (data) or judgment (P27).
+- The spec names, for every check it adds or alters, the owner it serves: data (code), judgment (a role, accepted by a tier above) or intent (the person), and its class: shape, xref, presence (data), safety (P13) or judgment (P27).
 - A spec touching `factory/` names in section 1 the invariants it touches (the frame spec's section 1, the lines of `factory/RULES.md`), with the change check each demands written into the DoD.
 carry: FO-2011, FO-2019, FO-2057, FO-2058, FO-2059, FO-2060, FO-2017, FO-2015
 
@@ -48,7 +48,7 @@ carry: FO-2030, FO-2031, FO-2032, FO-2034, FO-2035, FO-2036, FO-2038, FO-2064, F
 carry: FO-2039, FO-2040, FO-2041, FO-2042, FO-2043, FO-2044, FO-2065, FO-2066
 
 ## Readers
-- For each file a spec creates or changes (a settings or hook file, a shared tool, a constant) the draft lists WHO ELSE READS IT. The Lead attaches the readers block to the brief, since the designer has no shell: quote it and answer every line; a hand grep over `tools/`, `.githooks/` and `.claude/`, with its command and hit count, only for the block's KNOWN MISSES (tool: none yet; the old one was owns_readers.py).
+- For each file a spec creates or changes (a settings or hook file, a shared tool, a constant) the draft lists WHO ELSE READS IT. The Lead attaches the readers list to the brief (forge/COORDINATOR.md, Delegation and roles), since the designer has no shell: quote it and answer every line, then answer the blind spots of the readers-search line in `.claude/agents/critic.md` (Review form and plan gate) with a Grep over `forge/tools/`, `forge/hooks/`, `factory/` and `.claude/`, its pattern and hit count (tool: none yet).
 - A reader with no line is a spec defect; the draft says for each reader "unchanged / changes in stream X".
 carry: FO-2046, FO-2047
 

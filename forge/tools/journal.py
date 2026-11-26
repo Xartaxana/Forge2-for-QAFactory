@@ -28,12 +28,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning", "cut", "hook_failed", "refuse",
           "ask_owner", "decomposable",  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
           "dispatch_skipped",  # t-2059 B4: COORDINATOR.md makes this event the Lead's only legal door to do a role's work itself
-          "escalated")  # old rule 1047, returned by the owner 26.11.2026: work moved one tier up
-# dispatch_skipped and escalated neither open nor close a task: only dispatch opens one (open_tasks); an escalated task
-# stays open and the higher tier's dispatch continues it (the Lead's answer to t-2061)
+          "escalated",  # old rule 1047, returned by the owner 26.11.2026: work moved one tier up
+          "lead_degraded", "lead_restored")  # old rules 1141-1145 (t-2066): the Lead degradation window, COORDINATOR.md
+# dispatch_skipped, escalated, lead_degraded and lead_restored neither open nor close a task: only dispatch opens one
+# (open_tasks); an escalated task stays open and the higher tier's dispatch continues it (the Lead's answer to t-2061)
 NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "escalated")
 # the line has no agent field: these events carry the agent as the note's prefix `<agent>: <reason>` (t-2061)
-AGENT_NOTE = ("dispatch_skipped", "escalated")
+AGENT_NOTE = ("dispatch_skipped", "escalated", "lead_degraded", "lead_restored")
 AGENT_NOTE_RE = re.compile(r"[a-z][a-z0-9-]*: ")
 CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300

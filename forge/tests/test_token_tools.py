@@ -59,6 +59,10 @@ def put(root, rel, data):
     ("escalated", "lead tier: beyond my level", "t-1", "s1", 2, "<agent>: <reason>"),
     ("escalated", " ", "t-1", "s1", 2, "empty"),
     ("escalated", "n", None, "s1", 2, "task"),
+    ("lead_degraded", "builder: lead model refused", None, "s1", 0, ""),  # old rules 1141-1145 (t-2066)
+    ("lead_degraded", "lead model refused", None, "s1", 2, "<agent>: <reason>"),
+    ("lead_restored", "lead: window accepted", None, "s1", 0, ""),
+    ("lead_restored", "window accepted", None, "s1", 2, "<agent>: <reason>"),
     ("cut", "n", None, "s1", 2, "task"),
     ("accept", "a\nb", "t-1", "s1", 0, ""),
     ("accept", "n", "t-1", "y" * 128, 0, ""),

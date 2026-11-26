@@ -13,7 +13,7 @@ Read by every worker at entry. Each role's rules are in its own `.claude/agents/
 - Refer to a document by its key -- card id, `W-<n>`/`D-<n>`, `L-<n>`, `P<n>` (an owner principle, resolved in `forge/PRINCIPLES.md`), `plan <h>` -- never by a line number. (tool: B13 `refs.py`, not built) (case: RELATED_WORK section 8 item 4, 113 line references measured in the spec)
 - Session start prints now, last, snapshot, hooks, old processes and worktrees; with none of it in your context the start hook did not run: read forge/BOOT.md and forge/COORDINATOR.md by hand. (case: FH-1007, FH-4151, the old forge printed the rule files at every start)
 - An optional hand-back line `snag: <problem> -> <impact> -> <smallest fix>`; the Lead turns it into a work-list record. (tool: B11 `worklist.py`, not built) (case: plan record 25.11.2026 22:20)
-- Write only your dispatch's owns, in your own linked worktree on `w/<task>`; stores are written only through their tools (a hand edit of a journal draws at most a warning, never a refusal: owner's word 24.11.2026); you never write accept or reject (forge/COORDINATOR.md Parallel writers (3), (4); Acceptance).
+- Write only your dispatch's owns, in your own linked worktree on `w/<task>`; stores are written only through their tools (an Edit/Write of a journal draws a warning, never a refusal: owner's word 24.11.2026; tool: none yet); you never write accept or reject (forge/COORDINATOR.md Parallel writers (3), (4); Acceptance).
 - A task that does not fit the ceiling or splits into independent parts is returned to the Lead with the hand-back line `decomposable: <how it splits>` -- never done whole past the ceiling, never cut silently. (case: S9, dev1.jsonl:5031, a designer draft that did not fit 40,000 bytes)
 - A writing or parallel dispatch with no manifest, or any dispatch with no DoD, is returned as questions before any work. (case: FR-239, FR-243)
 - Read the repo freely beyond the manifest; only writes are bound by `owns` (name what you needed beyond it in the hand-back). (case: FR-242)
@@ -29,4 +29,4 @@ Read by every worker at entry. Each role's rules are in its own `.claude/agents/
 - A hook that "cannot find" its script: stop and tell the owner. (case: FR-59)
 - In chat with the owner write in Russian. (case: FR-76)
 rows: fr:A30, fp:A28, fr:A6, fp:A25, fr:D10, fr:A1, fp:A7, fr:A29
-carry: FR-59, FR-66, FR-68, FR-70, FR-71, FR-76, FR-79, FR-84, FR-86, FR-87, FR-89, FR-235, FR-239, FR-242, FR-243, FR-248, FR-249, FR-250, FR-251, FR-252, FR-5, FR-64
+carry: FR-59, FR-66, FR-68, FR-70, FR-71, FR-76, FR-79, FR-84, FR-86, FR-87, FR-89, FR-235, FR-239, FR-242, FR-243, FR-248, FR-249, FR-250, FR-251, FR-252, FR-5, FR-64, FR-63, FR-73

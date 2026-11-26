@@ -33,7 +33,7 @@ model: sonnet
 - When the dispatch names a `handoff:` path, the full report, witness included, is written there and the final message is its digest; with no such path, or a refused Write, the full report goes into the final message and the 2,000-character cap does not apply.
 - The builder neither starts CI nor waits for it.
 - No `git -c core.hooksPath=...` workaround: commit through the checkout's own hooks.
-- An absent given or owned path is a question returned before work.
+- An absent given path, or an absent owned path the dispatch does not say it creates, is a question returned before work.
 - Every reader of a file or name you change is kept green, or you return `changes needed outside owns: <path>` and stop; never an edit outside owns.
 - When your change alters a file's interface, find its readers yourself: a case-insensitive search of its name with a positive control.
 rows: fr:A20, fp:A9, fr:C3, fp:A8
