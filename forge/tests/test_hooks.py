@@ -511,6 +511,27 @@ def test_session_start_open(tmp_path, want, evs):
         assert "(incomplete: 1 unreadable journal lines)" in start(root, "startup")[1]
 
 
+# expected from: plan S6 (the re-read line names the Lead's rules file) and S10 (ahead/behind of main, never a fetch, exit 0)
+@pytest.mark.parametrize("mode,want", [
+    ("ahead", "main: ahead 1, behind 0 of origin/main (no fetch)"), ("behind", "main: ahead 0, behind 1 of origin/main (no fetch)"),
+    ("noorigin", "main: ahead/behind unknown (origin/main missing)"), ("nomain", "main: ahead/behind unknown (main missing)"),
+    ("norepo", "main: ahead/behind unknown (git exit "), ("nogit", "main: ahead/behind unknown (git not found)")])
+def test_session_start_rules_file_and_main_sync(tmp_path, mode, want):
+    root = mkrepo(tmp_path) if mode not in ("norepo", "nogit") else mkroot(tmp_path, ci=False)
+    if mode not in ("norepo", "nogit"):
+        a = commit(root, "a")
+        b = commit(root, "b")
+        if mode not in ("nomain", "noorigin"):
+            git(root, "update-ref", "refs/remotes/origin/main", a if mode == "ahead" else b)
+        if mode == "behind":
+            git(root, "update-ref", "refs/heads/main", a)
+        if mode == "nomain":
+            git(root, "branch", "-m", "other")
+    code, out = hook("session_start.py", ["--root", root], ROOT, b'{"source": "startup"}', **({"PATH": ""} if mode == "nogit" else {}))
+    assert code == 0 and want in out and "re-read: forge/BOOT.md" in out and "forge/COORDINATOR.md (Lead, Architect)" in out
+    assert "main: ahead" not in start(root, "resume")[1] and "main: ahead/behind" not in start(root, "compact")[1]
+
+
 def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     root = mkroot(tmp_path, ci=False)
     put(root + "/forge/BOOT.md", "B" * 4096)
@@ -574,7 +595,8 @@ def events(root):
     ("SubagentHandback", {"message": "x"}, 0), ("Write", {"file_path": "REP"}, 0), ("Edit", {"file_path": "REP"}, 0),
     ("Write", {"file_path": "other.md"}, 2), ("Read", {"file_path": "x"}, 2), ("Bash", {"command": "git commit -m x"}, 0),
     ("Bash", {"command": "git diff --stat"}, 0), ("Bash", {"command": "git status && rm -r ."}, 2),
-    ("PowerShell", {"command": "git add -A; git push"}, 2), ("Bash", {"command": "git push"}, 2), ("Bash", {"command": "ls"}, 2)])
+    ("PowerShell", {"command": "git add -A; git push"}, 2), ("Bash", {"command": "git push"}, 2), ("Bash", {"command": "ls"}, 2),
+    ("Bash", {"command": "git add logs/budget/a1.json"}, 2)])  # t-2045 M1: a cut worker's plain git naming the state stays refused
 def test_budget_cut_passes_only_three_moves(tmp_path, tool, ti, code):
     root, tp = fx(tmp_path, 400000)
     ti = {k: str(tmp_path / "rep.md") if v == "REP" else v for k, v in ti.items()}
@@ -594,6 +616,14 @@ def test_budget_warn_once_at_and_beyond(tmp_path, ctx, age, want):
     ev = [e for e in events(root) if e["event"] == "cap_warning"]
     assert got[0] == again[0] == 0 and (want in got[1]) and "write what is done" not in again[1] and len(ev) == bool(want)
     assert not want or ev[0]["note"].startswith("role:builder ")
+
+
+def test_budget_warn_on_refused_shell_call_shown_and_journaled_once(tmp_path):  # expected from: t-2045 F1
+    root, tp = fx(tmp_path, 300000)
+    got = call(root, tp, "Bash", command="grep x logs/budget/a1.json")
+    again = call(root, tp, "Bash", command="grep x logs/budget/a1.json")
+    assert got[0] == again[0] == 2 and "tokens 300000 of 250000" in got[1] and "write what is done" not in again[1]
+    assert [e["event"] for e in events(root)] == ["cap_warning", "refuse"]
 
 
 @pytest.mark.parametrize("age,ctx", [(3599, None), (3600, None), (3601, 10)])

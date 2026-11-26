@@ -4,7 +4,8 @@
 session_start.py [--root D]   D defaults to this repository. Input: the event JSON on stdin, field `source`
 (startup|resume|clear|compact); empty, broken or unknown -> as startup.
 Blocks: (1) forge/BOOT.md on startup|clear|compact; (2) the re-read line, always; (3) the carriers checklist on compact;
-(4) the previous session's end on startup. Any error -> one line `reminder failed: <error>; read forge/BOOT.md by hand`.
+(4) the previous session's end on startup; (5) on startup one line `main: ahead <a>, behind <b> of origin/main (no fetch)`, or
+`main: ahead/behind unknown (<why>)` (S10). Any error -> one line `reminder failed: <error>; read forge/BOOT.md by hand`.
 Cap 6144 emitted bytes: the open list is cut first, then the checklist, each with a `[cut: <what>]` marker; a valid
 UTF-8 BOOT never; a non-UTF-8 BOOT last, to the cap, then a marker line: `shown with replacement characters` or `cut after file byte <k> of <total>`.
 The hook is inert until the Lead registers it in .claude/settings.json (the net is not the guarantee: the gates are).
@@ -12,6 +13,7 @@ The hook is inert until the Lead registers it in .claude/settings.json (the net 
 import glob
 import os
 import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +22,7 @@ from hio import io as HIO  # noqa: E402
 
 CAP = 6144
 OPEN_MAX = 10
+GIT_WAIT_S = 5
 BOOT_SOURCES = ("startup", "clear", "compact")
 
 
@@ -109,7 +112,7 @@ def render(p, cut_open, cut_list):
     """p: the parts dict; the open list and the checklist are the two cuttable pieces."""
     line = "%ssnapshot: %s | open: %s" % (p["field"], p["snap"], "[cut: open list]" if cut_open else p["open"])
     check = ("[cut: checklist]" if cut_list else p["check"]) if p["check"] else ""
-    return "\n".join(x for x in (p["boot"], line, check, p["prev"]) if x)
+    return "\n".join(x for x in (p["boot"], line, p.get("git", ""), check, p["prev"]) if x)
 
 
 def emitted(text):
@@ -136,14 +139,46 @@ def fit(p):
         n -= max(1, emitted(text) - CAP)
 
 
+def git_out(root, *args):
+    """(stdout, None) of one git command in root, or (None, why): absent, failing or slower than GIT_WAIT_S. Never a fetch."""
+    try:
+        r = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=GIT_WAIT_S)
+    except FileNotFoundError:
+        return None, "git not found"
+    except subprocess.TimeoutExpired:
+        return None, "git slower than %d s" % GIT_WAIT_S
+    except OSError as exc:
+        return None, "git failed: %s" % exc
+    if r.returncode:
+        return None, "git exit %d" % r.returncode
+    return r.stdout, None
+
+
+def main_sync(root):
+    """Plan S10: how far the local `main` is from `origin/main` (refs are shared by worktrees), from the refs as they are --
+    no fetch. A missing ref or a failing git is said as unknown, never an error (the hook exits 0 anyway)."""
+    for ref in ("main", "origin/main"):
+        got, why = git_out(root, "rev-parse", "--verify", "--quiet", ref + "^{commit}")
+        if got is None and why != "git exit 1":
+            return "main: ahead/behind unknown (%s)" % why
+        if got is None:
+            return "main: ahead/behind unknown (%s missing)" % ref
+    got, why = git_out(root, "rev-list", "--left-right", "--count", "main...origin/main")
+    nums = (got or "").split()
+    if len(nums) != 2 or not all(n.isdigit() for n in nums):
+        return "main: ahead/behind unknown (%s)" % (why or "unreadable git output")
+    return "main: ahead %s, behind %s of origin/main (no fetch)" % tuple(nums)
+
+
 def compose(root, source, eval_arm):
     sys.path.insert(0, os.path.join(HERE, "..", "tools"))
     import journal  # noqa: E402 -- lazily: a broken journal.py is a fallback line, not a crash at import
     loaded = journal.load(root)
     status, tasks, bad = journal.open_tasks(root, loaded)
     boot, present, badtext = boot_block(root, eval_arm, source in BOOT_SOURCES)
-    field = "re-read: forge/BOOT.md | " if present else "" if eval_arm else "re-read: forge/BOOT.md (not written yet, B1) | "
-    return fit({"boot": boot, "bad": badtext, "field": field,
+    rules = ", forge/COORDINATOR.md (Lead, Architect) | "  # plan S6: workers get no SessionStart; the Lead's rules file is named here
+    field = "re-read: forge/BOOT.md" + rules if present else "" if eval_arm else "re-read: forge/BOOT.md (not written yet, B1)" + rules
+    return fit({"boot": boot, "bad": badtext, "field": field, "git": main_sync(root) if source == "startup" else "",
                 "snap": newest_snapshot(root), "open": open_text(status, tasks, bad),
                 "check": checklist(root) if source == "compact" else "",
                 "prev": previous(loaded[0], loaded[2]) if source == "startup" else ""})

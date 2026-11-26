@@ -47,6 +47,8 @@ def put(root, rel, data):
     ("refuse", "n", None, "s1", 0, ""),
     ("ask_owner", "n", None, "s1", 0, ""),
     ("session_end", "n", None, "s1", 0, ""),
+    ("decomposable", "split: a, b", None, "s1", 0, ""),  # plan S9
+    ("decomposable", " ", None, "s1", 2, "empty"),
     ("cut", "n", None, "s1", 2, "task"),
     ("accept", "a\nb", "t-1", "s1", 0, ""),
     ("accept", "n", "t-1", "y" * 128, 0, ""),

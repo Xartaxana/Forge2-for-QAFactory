@@ -399,7 +399,7 @@ def evaluate(payload, root):
     if cuts:
         return 2, "\n".join([CUT_TEXT % cuts[0]] + info), []
     if door:
-        return 2, "\n".join([door] + info), []
+        return 2, "\n".join([door] + info + warns), []  # t-2045 F1: tell() journaled the warn and marked it said; show it now
     return 0, "", info + warns
 
 

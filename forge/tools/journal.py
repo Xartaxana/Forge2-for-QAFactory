@@ -26,7 +26,7 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning", "cut", "hook_failed", "refuse",
-          "ask_owner")
+          "ask_owner", "decomposable")  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
 NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut")
 CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300
