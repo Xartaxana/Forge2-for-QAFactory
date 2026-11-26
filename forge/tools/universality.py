@@ -8,6 +8,7 @@ non-letter or a camelCase step: lower to upper, or an acronym's end, a capital b
 common word that is a name errs red, its door an allow row; a name joined to a word with no case step or non-letter errs
 green (pytestish, JIRAAPI, JIRAs).
 In code, comments and strings. Cyrillic U+0400-U+04FF: every file of factory/ (factory/data is not name-scanned, its text is).
+A file that is not UTF-8 is a red finding naming it (exit 1), as crap, lint and clone report a file they cannot parse.
 An allow row is {file, token, reason}, no line. A row that suppresses nothing is `stale:` and red; one without a reason is red.
 The list, basis, stale and reason rules, the --update road, the file-set and text readers are ratchets.py's (F246); this
 file keeps no copy.
@@ -60,19 +61,24 @@ def pattern(names):
     return re.compile(r"(?:(?<![A-Za-z])|%s)(?i:(%s))(?:(?![A-Za-z])|%s)" % (EDGE, alts, EDGE))  # F8, N5
 
 
+def file_scan(rx, rel, text):
+    """One file's (name sites [((file, token), 'file:line')], Cyrillic findings [(identity, 'file:line')])."""
+    in_names, hits, cyr = rel.startswith(tuple(r + "/" for r in NAME_ROOTS)), [], []
+    for n, line in enumerate(text.split("\n"), 1):
+        if CYRILLIC.search(line):
+            cyr.append(("%s::cyrillic" % rel, "%s:%d" % (rel, n)))
+        if in_names:
+            hits += [((rel, m.group(1).lower()), "%s:%d" % (rel, n)) for m in rx.finditer(line)]
+    return hits, cyr
+
+
 def scan(root, a, data):
-    """The name sites [((file, token), 'file:line')] and the Cyrillic findings, as one Scan; a file read is counted when read."""
-    rx, hits, cyr, files = pattern(check_names(data.get("names"))), [], [], ratchets.files_of(root, SCOPE)
-    read = 0
-    for rel in files:
-        in_names = rel.startswith(tuple(r + "/" for r in NAME_ROOTS))
-        for n, line in enumerate(ratchets.text_file(root, rel).split("\n"), 1):
-            if CYRILLIC.search(line):
-                cyr.append(("%s::cyrillic" % rel, "%s:%d" % (rel, n)))
-            if in_names:
-                hits += [((rel, m.group(1).lower()), "%s:%d" % (rel, n)) for m in rx.finditer(line)]
-        read += 1
-    return ratchets.Scan(hits, [], len(files), read, lines=[], red=cyr)
+    """The name sites and the Cyrillic findings, as one Scan. ratchets.parse_all reads and counts the files (t-1998 F2): a
+    file that is not UTF-8 or cannot be read is a red `cannot parse` finding (exit 1), the run's other findings kept."""
+    rx, files = pattern(check_names(data.get("names"))), ratchets.files_of(root, SCOPE)
+    found, broken, read = ratchets.parse_all(root, files, lambda rel, text: file_scan(rx, rel, text), ratchets.utf8_of)
+    return ratchets.Scan([h for hs, _ in found for h in hs], broken, len(files), read, lines=[],
+                         red=[c for _, cs in found for c in cs])
 
 
 def names_removed(old, data):

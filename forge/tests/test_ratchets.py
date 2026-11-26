@@ -273,7 +273,8 @@ def test_unreadable(tmp_path, name, src):
 
 # expected from: PART 2 N29 and F246 (one driver: an unresolved --record is exit 1 before any scan; a scope no file of which could
 # be read at all is exit 2, N2; one read but not parsed is still read, c13's red in all three); t-1997 probe A (the Lead's
-# ruling (2): a bad base, 2, beats an unresolved record) and probe F (N23: a row id is one token, a hand row with a space is 2)
+# ruling (2): a bad base, 2, beats an unresolved record) and probe F (N23: a row id is one token, a hand row with a space is 2);
+# t-1998 F1 probe and the Lead's ruling Q2 (non-python basis drift 2 > unresolved record 1 > python-minor drift 3)
 @pytest.mark.parametrize("name", list(TOOLS))
 @pytest.mark.parametrize("files, args, deny, code, has", [
     ({}, ["--update", "--record", "D-1"], False, 1, "cannot resolve D-1"),
@@ -282,12 +283,18 @@ def test_unreadable(tmp_path, name, src):
      [], False, 2, 'row id "a b.py::h5" holds whitespace'),
     ({"factory/tools/bad.py": "x = 1\n"}, [], True, 2, "read none of the 1 files"),
     ({"factory/tools/bad.py": "def (:\n"}, [], False, 1, "cannot parse"),
+    ({"forge/baselines/%s.json" % n: json.dumps({"basis": {}, "rows": []}) for n in TOOLS}, ["--update", "--record", "D-1"],
+     False, 2, "basis tool missing"),  # t-1998 F1 (Lead Q2): a non-python basis drift, 2, beats an unresolved record
+    ({"forge/baselines/%s.json" % n: {"python": "0.0"} for n in TOOLS}, ["--update", "--record", "D-1"], False, 1,
+     "cannot resolve D-1"),  # t-1998 F1: an unresolved record, 1, beats a python-minor drift, 3 (a dict: the tool's basis)
 ])
 def test_driver(tmp_path, monkeypatch, name, files, args, deny, code, has):
     def denied(root, rel):
         raise PermissionError(13, "denied")
     if deny:
         monkeypatch.setattr(ratchets, "raw_of", denied)
+    files = {rel: json.dumps({"basis": dict(TOOLS[name].basis(), **t), "rows": []}) if isinstance(t, dict) else t
+             for rel, t in files.items()}
     c, o = run(TOOLS[name], world(tmp_path, files, "absent"), *args)
     assert c == code and has in o, o
 

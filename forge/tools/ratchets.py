@@ -164,11 +164,17 @@ def raw_of(root, rel):
         return fh.read()
 
 
+def utf8_of(root, rel):
+    """The strict UTF-8 text reader: bytes that are not UTF-8 raise UnicodeDecodeError, a ValueError, so in BAD (universality
+    reads through parse_all with it: a broken file is a red finding, exit 1, t-1998 F2)."""
+    return raw_of(root, rel).decode("utf-8")
+
+
 def text_file(root, rel):
-    """The strict-UTF-8 text reader (names, size, universality): a file that is not UTF-8 is exit 2 naming it. Python source
-    is read by read_source, the other kind."""
+    """utf8_of for an aggregate (size): a file that is not UTF-8 is exit 2 naming it, since a sum over files has no per-file
+    finding to print (t-1998 Q3). Python source is read by read_source, the other kind."""
     try:
-        return raw_of(root, rel).decode("utf-8")
+        return utf8_of(root, rel)
     except UnicodeDecodeError:
         raise Refuse("%s: not UTF-8" % rel)
 
@@ -192,16 +198,17 @@ def tree_of(build):
     return lambda rel, source: build(rel, ast.parse(source, filename=rel))
 
 
-def parse_all(root, files, each):
-    """([each(rel, source) per file], [(rel, why)], files read): a file that cannot be read, or that each() raises on, is
-    broken, never clean; a file whose bytes could not be read at all (an OSError) is not counted as read (N2, the Lead's
-    ruling (1)). The one per-file loop of crap, lint and clone, so that rule is written once (t-1997 X6)."""
+def parse_all(root, files, each, read=read_source):
+    """([each(rel, read(root, rel)) per file], [(rel, why)], files read): a file that cannot be read, or that each() raises
+    on, is broken, never clean; a file whose bytes could not be read at all (an OSError) is not counted as read (N2, the
+    Lead's ruling (1)). The one per-file loop of the four list tools, so that rule is written once (t-1997 X6, t-1998 F2:
+    universality passes read=utf8_of)."""
     done, broken, unread = [], [], 0
     for rel in files:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                done.append(each(rel, read_source(root, rel)))
+                done.append(each(rel, read(root, rel)))
         except BAD as exc:
             broken.append((rel, describe(exc)))
             unread += isinstance(exc, OSError)
@@ -441,14 +448,15 @@ def judge(mod, a):
     if spec.validate:
         spec.validate(data)
     base = base_of(a.root, a.base)
-    # The Lead's ruling (2), t-1997 X1: after the inputs are read (a refused list or base, 2, beats 1), before the drift and
-    # the scan (1 beats 3; a dead scanner must not hide that no record resolves yet, L11).
+    drift = check_basis(data["basis"], mod.basis(), door(spec.rel))  # a non-python drift raises: the list file is refused
+    # The Lead's rulings (2) and Q2, t-1997 X1, t-1998 F1: after every refused input (a list, base or non-python basis, 2,
+    # beats 1), before the python-minor drift and the scan (1 beats 3; a dead scanner must not hide that no record resolves
+    # yet, L11).
     if a.update and a.record:
         err = resolve(a.record, RECORD)
         if err:
             print(err)
             return 1
-    drift = check_basis(data["basis"], mod.basis(), door(spec.rel))
     if drift:
         print("not judged here: python %s, basis %s" % (python_minor(), drift))
         return 3

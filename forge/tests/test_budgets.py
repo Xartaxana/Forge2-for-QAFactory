@@ -144,7 +144,8 @@ def test_files_absent(tmp_path):
 
 
 # expected from: C1-2 part2:100 (case-insensitive, word-bounded, code/comments/strings; factory/data not counted); B20 part9:129,
-# 131-132; t-1992 N5 and the Lead's edge (PytestRunner, JiraClient, getJiraIssue, playwrightConfig flagged, pytestish not)
+# 131-132; t-1992 N5 and the Lead's edge (PytestRunner, JiraClient, getJiraIssue, playwrightConfig flagged, pytestish not);
+# t-1998 F2 probe and the Lead's ruling Q3 (a non-UTF-8 file is a red finding, 1, and the run's other findings are kept)
 @pytest.mark.parametrize("files, allow, code, has, hasnt", [
     ({"factory/tools/x.py": "# runs PyTest\nr = 'pytestish'\n", "factory/data/d.yaml": "r: pytest\n"}, [], 1,
      "factory/tools/x.py:1", "x.py:2"),
@@ -160,12 +161,13 @@ def test_files_absent(tmp_path):
     ({"factory/tools/y.py": "a = 1\n"}, [row("y")], 2, "found nothing", None),
     ({"factory/tools/y.py": "a = 1\n"}, [row("y"), row("y")], 2, "duplicate", None),
     ({"factory/notes.md": "ok\nzh \u0436\n"}, [], 1, "factory/notes.md:2", None),
-    ({"factory/bad.txt": b"\xff\xfe\x00x"}, [], 2, "factory/bad.txt", None),
+    ({"factory/bad.txt": b"\xff\xfe\x00x"}, [], 1, "new: factory/bad.txt cannot parse", None),  # t-1998 F2 (Lead Q3): 1, as crap
+    ({"factory/bad.txt": b"\xff", "factory/notes.md": "zh \u0436\n"}, [], 1, ("factory/bad.txt", "factory/notes.md:1"), None),
 ])
 def test_universality(tmp_path, files, allow, code, has, hasnt):
     put(tmp_path, dict(names(allow), **files))
     c, o = run(uni, tmp_path)
-    assert c == code and has in o and (hasnt is None or hasnt not in o), o
+    assert c == code and all(h in o for h in (has if isinstance(has, tuple) else (has,))) and (hasnt is None or hasnt not in o), o
 
 
 # expected from: B20 part9:130, 139 (basis drift exit 2, another Python minor exit 3); C1-2 part2:100 (kinds); AR-28 (an empty table)
