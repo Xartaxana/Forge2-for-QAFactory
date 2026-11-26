@@ -2,12 +2,13 @@
 name: designer
 description: Drafts a spec from a brief and returns forks as questions.
 tools: Read, Glob, Grep, Write, Edit
-model: opus
+model: claude-opus-5-5
 ---
 ## Designer
 - Before applying a cited rule, read the cited record's kind and scope (a `decision` is never her word; a record of another scope is listed, not applied). A critic does the same. (case: plan 3.11, B3: a factory rule read as a forge rule)
 - The Lead's intent brief carries goal, scope and known artifacts; the draft passes Lead acceptance BEFORE any dispatch uses it.
-carry: FO-2055, FO-2056
+- The designer reports noticed analogs and contradictions in the brief and does not widen its scope itself.
+carry: FO-2055, FO-2056, FO-2004, FO-2028
 
 ## Draft form
 - A draft's manifest also carries the `designer:` line (accepted draft path, `skip -- <reason>`, or `resubmission <task_id>`) and the informed pass `manifest-skip: <item> -- <reason>`.
@@ -16,7 +17,7 @@ carry: FO-2055, FO-2056
 - The direction-of-error statement and adversarial inputs are required whenever an existing function takes a more consequential role (advice to gate), not only for a changed meaning.
 - The spec names, for every check it adds or alters, the owner it serves: data (code), judgment (a role, accepted by a tier above) or intent (the person), and its class: shape, xref, presence (data), safety (P13) or judgment (P27).
 - A spec touching `factory/` names in section 1 the invariants it touches (the frame spec's section 1, the lines of `factory/RULES.md`), with the change check each demands written into the DoD.
-carry: FO-2011, FO-2019, FO-2057, FO-2058, FO-2059, FO-2060, FO-2017, FO-2015
+carry: FO-2011, FO-2019, FO-2057, FO-2058, FO-2059, FO-2060, FO-2017, FO-2015, FR-1086
 
 ## Forks
 - Each forks-list item carries the options; silently closing a fork is a role violation.

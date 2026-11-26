@@ -21,9 +21,9 @@ def run(tool, args, root, stdin=b"", env=None):
     return r.returncode, (r.stdout + r.stderr).decode("utf-8", "replace")
 
 
-def jw(root, event, note, task="t-1", session="s1"):
-    return run("journal.py", ["--event", event, "--note", note, "--session", session] + (["--task", task] if task else []),
-               root)
+def jw(root, event, note, task="t-1", session="s1", by="lead"):
+    return run("journal.py", ["--event", event, "--note", note, "--session", session] + (["--task", task] if task else [])
+               + (["--by", by] if by else []), root)
 
 
 def put(root, rel, data):
@@ -71,9 +71,13 @@ def put(root, rel, data):
     ("accept", "n", "t-1", "a/b", 2, "session"),
     ("accept", "n", "t-1", "s\u00e9", 2, "session"),
     ("accept", "n", "t-1", "", 2, "session"),
+    ("defect_found", "builder: the witness missed a branch", "t-1", "s1", 0, ""),  # t-2071 F3, dispatch t-2077 E3
+    ("defect_found", "builder: x", None, "s1", 2, "task"),
+    ("calibrated", "weekly reading through 2026-11-26", None, "s1", 0, ""),
+    ("accept", "n", "t-1", "s1", 2, "--by"),  # t-2071 F4: an accept naming no acceptor is refused, never read as lead
 ])
 def test_journal_write(tmp_path, event, note, task, session, code, word):
-    got, out = jw(tmp_path, event, note, task, session)
+    got, out = jw(tmp_path, event, note, task, session, by=None if word == "--by" else "lead")
     assert got == code and word in out
     assert bool(list((tmp_path / "logs" / "journal").glob("*.jsonl"))) == (code == 0)
     if code == 0:
@@ -158,7 +162,7 @@ def test_journal_session_pick(tmp_path, env, files, pattern):
 # expected from: card C1-4 (a lock serialises writers: every line lands whole)
 def test_journal_concurrent_writers(tmp_path):
     ps = [subprocess.Popen([sys.executable, "-B", os.path.join(T, "journal.py"), "--root", str(tmp_path), "--event",
-                            "accept", "--task", "t", "--note", "w%d" % i, "--session", "r"],
+                            "accept", "--task", "t", "--by", "lead", "--note", "w%d" % i, "--session", "r"],
                            stdout=subprocess.DEVNULL) for i in range(8)]
     assert [p.wait(timeout=60) for p in ps] == [0] * 8
     lines = (tmp_path / "logs" / "journal" / "r.jsonl").read_text().splitlines()

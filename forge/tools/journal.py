@@ -1,7 +1,7 @@
 # card: C1-4
 """The journal: one JSON line per event in logs/journal/<session>.jsonl (cards C1-4, B2, B7, B9).
 
-journal.py [--root D] --event E --note T [--task ID] [--by WHO] [--session S]   append one line
+journal.py [--root D] --event E --note T [--task ID] [--by WHO] [--session S]   append one line (--by required on accept)
 journal.py [--root D] read [--session S] [--last N]                              print the lines, ts order
 journal.py [--root D] open                                                        task ids dispatched, not closed
 
@@ -29,12 +29,15 @@ EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning"
           "ask_owner", "decomposable",  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
           "dispatch_skipped",  # t-2059 B4: COORDINATOR.md makes this event the Lead's only legal door to do a role's work itself
           "escalated",  # old rule 1047, returned by the owner 26.11.2026: work moved one tier up
-          "lead_degraded", "lead_restored")  # old rules 1141-1145 (t-2066): the Lead degradation window, COORDINATOR.md
-# dispatch_skipped, escalated, lead_degraded and lead_restored neither open nor close a task: only dispatch opens one
+          "lead_degraded", "lead_restored",  # old rules 1141-1145 (t-2066): the Lead degradation window, COORDINATOR.md
+          "defect_found", "calibrated")  # t-2071 F3: COORDINATOR.md's defect record (task = the ORIGINAL accept) and
+# calibration record had no event the one writer accepts
+# dispatch_skipped, escalated, lead_degraded, lead_restored, defect_found and calibrated neither open nor close a task:
+# only dispatch opens one; a late defect is recorded against accepted work, never by reopening it (COORDINATOR.md)
 # (open_tasks); an escalated task stays open and the higher tier's dispatch continues it (the Lead's answer to t-2061)
-NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "escalated")
+NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "escalated", "defect_found")
 # the line has no agent field: these events carry the agent as the note's prefix `<agent>: <reason>` (t-2061)
-AGENT_NOTE = ("dispatch_skipped", "escalated", "lead_degraded", "lead_restored")
+AGENT_NOTE = ("dispatch_skipped", "escalated", "lead_degraded", "lead_restored", "defect_found")
 AGENT_NOTE_RE = re.compile(r"[a-z][a-z0-9-]*: ")
 CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300
@@ -162,12 +165,15 @@ def write(a):
     if a.event in AGENT_NOTE and not (m and note[m.end():].strip()):
         print("the note of %s must have the form `<agent>: <reason>` (agent [a-z][a-z0-9-]*, a non-blank reason)" % a.event)
         return 2
+    if a.event == "accept" and not a.by:  # t-2071 F4: a default acceptor read every unnamed accept as the Lead's
+        print("--by is required for accept: name the acceptor, read as a rank against the executor's")
+        return 2
     session = pick_session(a.root, a.session)
     if not SESSION_RE.fullmatch(session):
         print("the session id must match [A-Za-z0-9_-]{1,128}")
         return 2
     obj = {"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "task": a.task or "", "event": a.event,
-           "by": a.by, "note": note}
+           "by": a.by or "lead", "note": note}
     line = json.dumps(obj, ensure_ascii=False)
     os.makedirs(jdir(a.root), exist_ok=True)
     lock = os.path.join(jdir(a.root), ".lock")
@@ -198,7 +204,7 @@ def main(argv=None):
     p.add_argument("--event")
     p.add_argument("--note")
     p.add_argument("--task")
-    p.add_argument("--by", default="lead")
+    p.add_argument("--by")  # lead when absent, except on accept (write refuses it)
     p.add_argument("--session")
     sub = p.add_subparsers(dest="cmd")
     r = sub.add_parser("read")

@@ -7,7 +7,7 @@ One row per old weekly calibration check (PROCESS/WEEKLY_CALIBRATION_PROTOCOL.md
 | 1 | dropped: machinery -- routing/journal check on the coordinator itself (recon C: checks 1-7) | - | - |
 | 2 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
 | 3 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
-| 4 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
+| 4 | none yet in forge 2; kept because forge/COORDINATOR.md Tiers and roles ("reconciled at calibration", FR-1060) relies on it (old check 4) | a role's self-declared model differs from the model that actually ran, and its result counts as that tier's word | weekly reading: each dispatch's recorded model (journal) against the actual execution models in the transcripts; a discrepancy is itself a calibration event (tool: none yet) |
 | 5 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
 | 6 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
 | 7 | dropped: machinery -- routing check on the coordinator itself (recon C: 1-7) | - | - |
@@ -21,7 +21,7 @@ One row per old weekly calibration check (PROCESS/WEEKLY_CALIBRATION_PROTOCOL.md
 | 15 | dropped: no caught case -- search `grep -ciE 'recurring critic|repeated critic finding' <journal>` found no line naming a catch (positive control, same shape: grep -ciE 'second road|duplicate row' <journal> (finds journal line 4721, count 4)). The one hit (line 3286) is a Lead re-check of a finding, not a codification catch. | - | - |
 | 16 | dropped: no caught case -- search `grep -ciE 'two-pass|external recon' <journal>` found no line naming a catch (positive control, same shape: grep -ciE 'second road|duplicate row' <journal> (finds journal line 4721, count 4)). Hits 221 and 4725 are the calibration run itself and a path note, not catches. | - | - |
 | 17 | dropped: machinery -- size and cost of the machinery (recon C) | - | - |
-| 18 | dropped: machinery -- economic trend; 18(e) is machinery size (recon C) | - | - |
+| 18 | 18(a)-(d) dropped: machinery -- economic trend (recon C); 18(e) kept because CLAUDE.md Worker duties ("read at calibration", FR-5) relies on it (old check 18(e)) | independent calls go out in one message, in a worker and in the Lead alike | weekly reading 18(e): for the Lead and each worker role, the share of turns carrying one tool call and the share repeating the kind of the one-call turn before them, against the baseline of old check 18(e), 17-23.11.2026 (one-call turns: coordinator 85 %, builder 77 %, critic 95 %, designer 66 %, scout 22 %); a role whose share does not fall is a finding (tool: none yet) |
 | 19 | dropped: machinery -- hook list and liveness probe (recon C) | - | - |
 | 20 | dropped: machinery -- judge, dormant, not used (recon C) | - | - |
 | 21 | dropped: no caught case -- search `grep -ciE 'not in HEAD|never reached main|accepted work missing' <journal>` found no line naming a catch (positive control, same shape: grep -ciE 'second road|duplicate row' <journal> (finds journal line 4721, count 4)). | - | - |
@@ -36,7 +36,7 @@ One row per old weekly calibration check (PROCESS/WEEKLY_CALIBRATION_PROTOCOL.md
 | 30 | dropped: no caught case -- search `grep -ciE 'opportunity scan' <journal>` found no line naming a catch (positive control, same shape: grep -ciE 'second road|duplicate row' <journal> (finds journal line 4721, count 4)). | - | - |
 | 31 | dropped: machinery -- features and attribution (recon C: 31, 32, 33, 37, 39, 45, 49, 52) | - | - |
 | 32 | dropped: machinery -- compact snapshots (recon C) | - | - |
-| 33 | dropped: machinery -- piles and batches (recon C) | - | - |
+| 33 | 33(a)-(g) dropped: machinery -- piles and batches (recon C); 33(h) kept: old check 33(h), boot form (FG7-51), and `.claude/skills/boot-diet/SKILL.md` relies on it | a rule restated outside its home, an overgrown section or a boot heading nothing routes to costs every session its context | weekly reading 33(h): sample CLAUDE.md, forge/COORDINATOR.md and forge/BOOT.md for a rule restated outside its home, a section over 50 lines and a boot heading with no contents line; each is a finding (tool: none yet; B13 `refs` not built) |
 | 34 | dropped: machinery -- hand-back and digest form (recon C: 26, 28, 34) | - | - |
 | 35 | dropped: the catch lives only in the frozen package (A27 detectors; no package code in forge 2) | - | - |
 | 36 | dropped: no caught case -- search `grep -ciE 'architecture kept|AR-[0-9]+ broken' <journal>` found no line naming a catch (positive control, same shape: grep -ciE 'second road|duplicate row' <journal> (finds journal line 4721, count 4)). | - | - |
@@ -57,4 +57,8 @@ One row per old weekly calibration check (PROCESS/WEEKLY_CALIBRATION_PROTOCOL.md
 | 51 | C:/QAFactory/forge-repo/logs/journal/dev1.jsonl:5754 (names: `never told at plan/tests/reds`) | a requirement discovered only at the report, never told before the work | weekly reading: the told-before-work walk of the window |
 | 52 | dropped: machinery -- retro reduction (recon C) | - | - |
 | B1 | forge/owner-words.yaml W-102 (boot page: minimal vs grown) | the boot page grows session by session until it costs more than it saves, or loses what the owner already explained | weekly reading: compare the page at its first size with its current size -- owner repeats and forgotten explanations in the window vs bytes added; a line nobody needed is cut |
-| B9 | owner 25.11 ~21:22 (plan:2261-2264) | what got in the agents' way reaches a fix | weekly: `retro.py sum --since <last reading>`; reasons read; per class `fix: <node>` / `already fixing: <node>` / `not fixing: <reason>`; `retro.py missing` count written; the row ends `read through <date>` |
+| B9 | owner 25.11 ~21:22 (plan:2261-2264) | what got in the agents' way reaches a fix | weekly: `retro.py sum --since <last reading>`; reasons read; per class `fix: <node>` / `already fixing: <node>` / `not fixing: <reason>`; `retro.py missing` count written; the row ends `read through <date>`; the class lines persist between readings in the `B9 classes` list under this table, so a `not fixing` class stays on record and its next entry raises the class's count instead of reopening the analysis |
+
+B9 classes: none yet.
+
+carry: FS-48, FS-204
