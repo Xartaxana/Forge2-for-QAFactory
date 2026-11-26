@@ -73,3 +73,5 @@ the rows recon/20261125-forge2-recon-run-lessons.md and recon/20261125-forge2-re
 | 20261126-forge2-light-factory-spec-part7.md | docs/tasks/specs/20261126-forge2-light-factory-spec-part7.md | eba5426af02fb4796b640b675df90bdb8bbc6fb1 | f74d60dc133e2f35ccd07be7d8f1bf4a5c701c8a712a31dc7bc1e6aabcd553a3 |
 | 20261126-forge2-light-factory-spec-part8.md | docs/tasks/specs/20261126-forge2-light-factory-spec-part8.md | eba5426af02fb4796b640b675df90bdb8bbc6fb1 | 429ec1bf42008c9b6a19b2211a812f2f4e387e0b1a3d007cc0334ab864f38d4c |
 | reviews/t-1949-forge2-plan-two-looks.md | docs/tasks/specs/reviews/t-1949-forge2-plan-two-looks.md | eba5426af02fb4796b640b675df90bdb8bbc6fb1 | 95df0ff8ef9812abbbeaf67e45e10b914276183b4a84caa0931a350bcfb53984 |
+| reviews/t-1965-forge2-plan-a27-a30.md | docs/tasks/specs/reviews/t-1965-forge2-plan-a27-a30.md | f7123c874a65d9afac19edaa21c90a254462064b | 8ba5a4b90ad6ca3557ba93315ff3eadede54c2c9d63748b0d4187894b8ad9268 |
+| reviews/t-1966-forge2-plan-b14-b16.md (redacted: 1) | docs/tasks/specs/reviews/t-1966-forge2-plan-b14-b16.md | f7123c874a65d9afac19edaa21c90a254462064b | 96e7c5e2181b53a4a56fe4501ec0cdefd92eeb70ba0e70fdc1c33f4e1d161c67 |
