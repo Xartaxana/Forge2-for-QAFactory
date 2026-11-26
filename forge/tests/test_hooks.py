@@ -529,7 +529,7 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     m = re.search(r"cut after file byte (\d+) of 4096, fix the file", out)  # k = file bytes whose text was printed
     assert m and int(m.group(1)) == out.count("�") < 4096 and out.rstrip().split("\n")[0].startswith("�")
     with open(root + "/forge/BOOT.md", "wb") as fh:
-        fh.write(b"ab\xffcd")
+        fh.write(b"ab\xe2\x82cd")  # a bad multi-byte run: one U+FFFD (t-2018 M1)
     out = start(root, "clear")[1]
     assert "ab�cd\nforge/BOOT.md not UTF-8: shown with replacement characters, fix the file" in out and "cut" not in out
     put(root + "/forge/BOOT.md", "B")
