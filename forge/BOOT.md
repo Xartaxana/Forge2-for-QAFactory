@@ -11,7 +11,7 @@ Why this page: every forge 2 session knows from its first turn what we build, ho
 
 The yardstick is the free agent with one prompt (plan 3.9)
 A behaviour change of the factory is accepted only by a run on a measured project against the truth table and against the free agent; ordinary tests check tool code only (plan 3.1)
-Worse than the free agent on even one row of the comparison table: the change is not accepted (plan 4.1)
+Worse than the free agent on even one row of the comparison table, or over five times its time and cost: the change is not accepted (plan 4.1)
 
 ## The nine provisions
 
