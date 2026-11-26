@@ -26,8 +26,11 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning", "cut", "hook_failed", "refuse",
-          "ask_owner", "decomposable")  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
-NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut")
+          "ask_owner", "decomposable",  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
+          "dispatch_skipped",  # t-2059 B4: COORDINATOR.md makes this event the Lead's only legal door to do a role's work itself
+          "escalated")  # old rule 1047, returned by the owner 26.11.2026: work moved one tier up
+# dispatch_skipped and escalated neither open nor close a task: only dispatch opens one (open_tasks)
+NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "escalated")
 CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")

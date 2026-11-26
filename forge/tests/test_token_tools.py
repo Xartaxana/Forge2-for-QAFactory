@@ -49,6 +49,11 @@ def put(root, rel, data):
     ("session_end", "n", None, "s1", 0, ""),
     ("decomposable", "split: a, b", None, "s1", 0, ""),  # plan S9
     ("decomposable", " ", None, "s1", 2, "empty"),
+    ("dispatch_skipped", "designer: a narrow node", None, "s1", 0, ""),  # t-2059 B4
+    ("dispatch_skipped", " ", None, "s1", 2, "empty"),
+    ("escalated", "beyond my level: opus", "t-1", "s1", 0, ""),  # old rule 1047
+    ("escalated", " ", "t-1", "s1", 2, "empty"),
+    ("escalated", "n", None, "s1", 2, "task"),
     ("cut", "n", None, "s1", 2, "task"),
     ("accept", "a\nb", "t-1", "s1", 0, ""),
     ("accept", "n", "t-1", "y" * 128, 0, ""),
