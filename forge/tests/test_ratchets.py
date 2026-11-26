@@ -369,6 +369,7 @@ OLD = [row("a"), row("b"), row("nb", "not_built")]
 def repo(tmp_path_factory):
     root, shas = str(tmp_path_factory.mktemp("cirepo")), {}
     env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
 
     def git(*a):
         return subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"] + list(a),
@@ -402,36 +403,38 @@ def go(tmp_path, now, args, shas):
     return code, buf.getvalue()
 
 
-# expected from: C1-6 part2:139-141 (check: not_built only shrinks, a built row is not deleted, a retire-job line retires it) and
-# plan record 25.11 23:27 item 3 (retire-job: <id> -- <reason>); exit 2 for a base that cannot be judged
+# expected from: shrink-only part4b-2:16 and TESTING.md rule 6; a built row is not deleted, retire-job: <id> -- <reason> door: plan
+# 20261125-forge2-light-factory-plan.md:2643-2646 item 3; exit 2 on an unjudgeable base: part2:141. has = the id the verdict names
+# (None: the exit code only)
 @pytest.mark.parametrize("now, args, code, has", [
-    (OLD, [], 0, "no base"),
-    (OLD, ["--base", "@c0"], 0, "born"),
-    (OLD, ["--base", "@c1", "--head", "@c1"], 0, "ok   not_built did not grow"),
-    (OLD + [row("n2", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "not_built grew against"),
-    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "built row absent against"),
-    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 0, "retired: b -- merged away"),
-    (OLD, ["--base", "@c3", "--head", "@c3"], 2, "not UTF-8"),
-    (OLD, ["--base", "nope"], 2, "not a commit"),
+    (OLD, [], 0, None),
+    (OLD, ["--base", "@c0"], 0, None),
+    (OLD, ["--base", "@c1", "--head", "@c1"], 0, None),
+    (OLD + [row("n2", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "n2"),
+    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "b"),
+    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 0, "b"),
+    ([row("b"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 1, "a"),
+    (OLD, ["--base", "@c3", "--head", "@c3"], 2, None),
+    (OLD, ["--base", "nope"], 2, None),
 ])
 def test_ci_check(tmp_path, ci_repo, now, args, code, has):
     c, o = go(tmp_path, now, ["check"] + args, ci_repo)
-    assert c == code and has in o, o
+    assert c == code and (has is None or re.search(r"\b%s\b" % has, o.split(" (")[0])), o  # the parenthesised tail is ci.py's prose
 
 
-# expected from: C1-6 part2:139-141 and B8 part4b-2:21 (matrix: one JSON object count/include/not_built; $GITHUB_OUTPUT lines)
-@pytest.mark.parametrize("args, tail", [
-    ([], None),
-    (["--base", "@c1", "--head", "@c2"], "base=%(c1)s\nhead=%(c2)s\n"),
-    (["--head", "@c2"], "base=\nhead=%(c2)s\n"),
+# expected from: the output lines' reader .github/workflows/ci.yml:17-21, 45, 75-79 (a data joint, TESTING.md rule 2) and part4b-2:16
+# (green, not built: N (<ids>)); base= and head= are empty when not given
+@pytest.mark.parametrize("args, base, head", [
+    ([], "", ""),
+    (["--base", "@c1", "--head", "@c2"], "c1", "c2"),
+    (["--head", "@c2"], "", "c2"),
 ])
-def test_ci_matrix(tmp_path, ci_repo, args, tail):
+def test_ci_matrix(tmp_path, ci_repo, args, base, head):
     gh = os.path.join(str(tmp_path), "out.txt")
-    c, o = go(tmp_path, OLD, ["matrix"] + args + (["--github-output", gh] if tail else []), ci_repo)
-    assert c == 0 and json.loads(o) == {"count": 2, "include": [{"id": "a"}, {"id": "b"}], "not_built": ["nb"]}, o
-    if tail:
-        inc = json.dumps({"include": [{"id": "a"}, {"id": "b"}]})
-        assert open(gh, encoding="utf-8").read() == "include=%s\ncount=2\nnb_line=not built: 1 (nb)\n" % inc + tail % ci_repo
+    c, o = go(tmp_path, OLD, ["matrix"] + args + ["--github-output", gh], ci_repo)
+    out = dict(l.split("=", 1) for l in open(gh, encoding="utf-8").read().splitlines())
+    assert c == 0 and json.loads(out["include"]) == {"include": [{"id": "a"}, {"id": "b"}]} and out["count"] == "2", out
+    assert out["nb_line"] == "not built: 1 (nb)" and out["base"] == ci_repo.get(base, "") and out["head"] == ci_repo.get(head, ""), out
 
 
 # expected from: TESTING.md rules 6-7 and C1-6 part2:139-141 (exit 3 is not judged here, red on Actions; a token with no value is 3;
@@ -458,25 +461,25 @@ def bad(**kw):
     return [dict(row("a"), **kw)]
 
 
-# expected from: C1-6 part2:139-141 (the list is one array of rows with exactly four fields; every other shape is exit 2, cannot judge)
-@pytest.mark.parametrize("text, has", [
-    (b"{not json", "not valid JSON"),
-    (b"", "not valid JSON"),
-    (b"\xff\xfe", "not UTF-8"),
-    (b'{"a": 1}', "one JSON array"),
-    (b"[1]", "row 0 must hold exactly"),
-    (b'[[{"id": "a"}]]', "row 0 must hold exactly"),
-    (json.dumps(bad(extra=1)).encode(), "row 0 must hold exactly"),
-    (json.dumps([{"id": "a", "card": "x", "state": "built"}]).encode(), "row 0 must hold exactly"),
-    (json.dumps(bad(id="")).encode(), "row 0 has no id"),
-    (json.dumps(bad(id="a\nb")).encode(), "must match"),
-    (json.dumps(bad(id="A")).encode(), "must match"),
-    (json.dumps(bad() + bad()).encode(), "duplicate id a"),
-    (json.dumps(bad(state="done")).encode(), "unknown state"),
-    (json.dumps(bad(card=" ")).encode(), "no card"),
-    (json.dumps(bad(command=5)).encode(), "must be a string"),
-    (json.dumps(bad(command=" ")).encode(), "holds no command"),
+# expected from: part2:141 (ci-jobs.json absent or malformed -> exit 2 naming it); 'cannot judge' is the dispatch's word
+@pytest.mark.parametrize("text", [
+    (b"{not json"),
+    (b""),
+    (b"\xff\xfe"),
+    (b'{"a": 1}'),
+    (b"[1]"),
+    (b'[[{"id": "a"}]]'),
+    (json.dumps(bad(extra=1)).encode()),
+    (json.dumps([{"id": "a", "card": "x", "state": "built"}]).encode()),
+    (json.dumps(bad(id="")).encode()),
+    (json.dumps(bad(id="a\nb")).encode()),
+    (json.dumps(bad(id="A")).encode()),
+    (json.dumps(bad() + bad()).encode()),
+    (json.dumps(bad(state="done")).encode()),
+    (json.dumps(bad(card=" ")).encode()),
+    (json.dumps(bad(command=5)).encode()),
+    (json.dumps(bad(command=" ")).encode()),
 ])
-def test_ci_rows_refused(tmp_path, ci_repo, text, has):
+def test_ci_rows_refused(tmp_path, ci_repo, text):
     c, o = go(tmp_path, text, [], ci_repo)
-    assert c == 2 and o.startswith("cannot judge: ") and has in o, o
+    assert c == 2 and "cannot judge" in o and os.path.join(str(tmp_path), "jobs.json") in o, o
