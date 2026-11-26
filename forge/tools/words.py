@@ -223,9 +223,6 @@ class PlanAbsent(Exception):
 
 def boot_line(root, s):
     """The class of one BOOT line: an exempt marker, `ok`, or the red text (B1's classes: plan, exempt; no word class)."""
-    for i, pat in enumerate(EXEMPT):
-        if pat.fullmatch(s):
-            return "exempt:%d" % i
     m = re.search(r"\(plan (\S+)\)$", s)
     # t-2025 F3, t-2028 F5: the page states principles, her words stay records (W-101); a W or D id anywhere is refused
     kinds = {c.group(1) for c in CITE_RE.finditer(s)}
@@ -233,6 +230,10 @@ def boot_line(root, s):
         return "owner word on BOOT: cite the plan item that states the rule"
     if "D" in kinds:
         return "decision cited as owner's word"
+    # t-2030 F6: ids are read before the exempt patterns, so an exempt line holding an id is refused too
+    for i, pat in enumerate(EXEMPT):
+        if pat.fullmatch(s):
+            return "exempt:%d" % i
     if m:
         return {True: "ok", False: "plan id absent: " + m.group(1), None: "plan copy unreadable"}[plan_key_ok(root, m.group(1))]
     return "uncited line"
