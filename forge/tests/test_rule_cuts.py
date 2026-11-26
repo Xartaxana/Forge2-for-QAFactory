@@ -170,13 +170,14 @@ def test_kept(roots, subs, extra, log, code, has):
     (SPEC, [("the Lead drafting it anyway is legal ONLY with a dispatch_skipped event", "")], "", 1, ['cut "the Lead drafting']),
     ("\n- Zinc yak roams.\n", [J6], "", 0, ['paired: CLAUDE.md::Worker%20duties "- Alfa', "(0.60)"]),
     # t-2082 R1: a number a wrap left alone on its line is rule text, both ordinal shapes
-    ("\nA wait is capped at\n4800.\n", [("\n4800.", "\n9600.")], "", 1, ['cut "4800."']),
+    ("\nA wait is capped at\n4800. \n", [("\n4800. ", "\n9600. ")], "", 1, ['cut "4800."']),
     ("\nThe rounds stop at\n5)\n", [("\n5)", "\n6)")], "", 1, ['cut "5)"']),
     # t-2082 M2b: a short gist covers only the fragments it equals (E25), never the ones holding it
     ("\nepsilon.\n- Epsilon wolf fades quietly now.\n", [("\nepsilon.\n- Epsilon wolf fades quietly now.", "")],
      'rule-cut: "epsilon" -- W-1', 1, ['cut "- Epsilon wolf', "2 fragments", "1 covered"]),
     # t-2082 N1: the door printed for a short fragment is one the gate reads, a `"` inside it dropped
-    ("\nepsilon.\n", [("\nepsilon.", "")], "", 1, ['needs rule-cut: "epsilon." -- <W-n>', "!words of it"]),
+    ("\nepsilon.\n", [("\nepsilon.", "")], "", 1,
+     ['needs rule-cut: "epsilon." -- <W-n>, or rule-reworded: "epsilon." -- "<new, 3+ words>"', "!words of it"]),
     ("\nsay \"zed\".\n", [('\nsay "zed".', "")], 'rule-cut: "say zed." -- W-1', 0, ["1 covered"]),
 ])
 def test_added(roots, add, subs, log, code, has):

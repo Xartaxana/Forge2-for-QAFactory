@@ -279,9 +279,10 @@ def need(frag, rid, gone, cfg):
                 "<W-n>" % (ratchets.encode(gone[rid]), rid))
     if short(frag.text, cfg):  # t-2082 N1: under gist_min words the door is the whole fragment, typed as printed here
         door = frag.text.replace('"', "")
-        return 'cut "%s" -- needs rule-cut: "%s" -- <W-n>, or rule-reworded: "%s" -- "<new>"' % (shown(frag.text), door, door)
-    return ('cut "%s" -- needs rule-cut: "<%d+ words of it>" -- <W-n>, or rule-reworded: "<old>" -- "<new>"'
-            % (shown(frag.text), cfg["gist_min"]))
+        return ('cut "%s" -- needs rule-cut: "%s" -- <W-n>, or rule-reworded: "%s" -- "<new, %d+ words>"'
+                % (shown(frag.text), door, door, cfg["gist_min"]))
+    return ('cut "%s" -- needs rule-cut: "<%d+ words of it>" -- <W-n>, or rule-reworded: "<old>" -- "<new, %d+ words>"'
+            % (shown(frag.text), cfg["gist_min"], cfg["gist_min"]))
 
 
 def cover(cuts, gone, lines, cfg, out):
