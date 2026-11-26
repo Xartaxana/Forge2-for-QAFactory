@@ -258,10 +258,13 @@ def test_no_list_file(tmp_path):
     assert not os.path.exists(path) and said == []
 
 
-# expected from: t-1991 F1, F4; the brief section 4 (a resolved record opens the road; the dead scanner is exit 2)
+# expected from: t-1991 F1, F4; the brief section 4 (a resolved record opens the road; the dead scanner is exit 2); t-1997
+# probe A (the Lead's ruling (2): a bad base, 2, beats an unresolved record) and probe D (X3: universality takes no --list)
 def test_doors(tmp_path, monkeypatch):
     put(tmp_path, dict(names([row("y")], dict(uni.basis(), python="9.9")), **{"factory/tools/y.py": "a = 'pytest'\n"}))
-    assert run(uni, tmp_path, "--base", "nope")[0] == 2
+    assert [run(uni, tmp_path, *a)[0] for a in (["--base", "nope"], ["--update", "--record", "D-1", "--base", "nope"])] == [2, 2]
+    with pytest.raises(SystemExit, match="2"):
+        run(uni, tmp_path, "--list")
     put(tmp_path, names([row("z")]))
     allow = lambda: json.load(open(tmp_path / "forge/universality-names.json"))["allow"]
     assert run(uni, tmp_path, "--update", "--record", "W-1")[0] == 1 and allow() == [row("z")]

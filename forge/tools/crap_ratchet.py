@@ -228,8 +228,11 @@ def add_options(ap):
 
 
 def check_args(a):
+    """Usage, then --coverage-json read and validated before the driver judges anything (t-1997 X2: a named input that
+    cannot be read is 2, which beats an unresolved --record, 1, and a basis drift, 3)."""
     if a.tests_exit is not None and a.coverage_json is None:
         raise ratchets.Refuse("usage: --tests-exit needs --coverage-json")
+    a.coverage = read_cov(a.coverage_json, a.root) if a.coverage_json is not None else None
 
 
 def basis():
@@ -250,9 +253,9 @@ def coverage_part(a, root, given, need, limit):
 
 
 def scan(root, a, data):
-    given = read_cov(a.coverage_json, root) if a.coverage_json is not None else None  # F4: a named input is read first
+    given = a.coverage  # F4: read and validated in check_args
     files = ratchets.scope(root, ratchets.ROOTS)
-    found, broken, read = ratchets.parse_all(root, files, function_rows)
+    found, broken, read = ratchets.parse_all(root, files, ratchets.tree_of(function_rows))
     funcs = [f for fs in found for f in fs]
     if not funcs:
         return ratchets.Scan([], broken, len(files), read)

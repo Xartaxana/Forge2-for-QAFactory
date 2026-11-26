@@ -293,7 +293,7 @@ def basis():
 
 def scan(root, a, data):
     files = ratchets.scope(root, ratchets.ROOTS)
-    found, broken, read = ratchets.parse_all(root, files, collect)
+    found, broken, read = ratchets.parse_all(root, files, ratchets.tree_of(collect))
     groups = clone_groups([f for _, fs, _ in found for f in fs], [x for _, _, ls in found for x in ls])
     notes, green = row_notes(data[SPEC.field], groups, {rel for rel, _, _ in found})
     return ratchets.Scan([(g["fp"], detail(g)) for g in groups], broken, len(files), read, notes=notes, green=green)

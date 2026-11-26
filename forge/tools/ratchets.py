@@ -187,15 +187,21 @@ def describe(exc):
     return "%s: %s" % (type(exc).__name__, lines[0][:200]) if lines else type(exc).__name__
 
 
-def parse_all(root, files, build):
-    """([build(rel, tree) per file], [(rel, why)], files read): a file that cannot be read or parsed is broken, never clean; a
-    file whose bytes could not be read at all (an OSError) is not counted as read (N2)."""
+def tree_of(build):
+    """parse_all's per-file function for a tool that reads the tree (crap, clone): build(rel, the parsed source)."""
+    return lambda rel, source: build(rel, ast.parse(source, filename=rel))
+
+
+def parse_all(root, files, each):
+    """([each(rel, source) per file], [(rel, why)], files read): a file that cannot be read, or that each() raises on, is
+    broken, never clean; a file whose bytes could not be read at all (an OSError) is not counted as read (N2, the Lead's
+    ruling (1)). The one per-file loop of crap, lint and clone, so that rule is written once (t-1997 X6)."""
     done, broken, unread = [], [], 0
     for rel in files:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                done.append(build(rel, ast.parse(read_source(root, rel), filename=rel)))
+                done.append(each(rel, read_source(root, rel)))
         except BAD as exc:
             broken.append((rel, describe(exc)))
             unread += isinstance(exc, OSError)
@@ -343,18 +349,21 @@ def ident(row):
     rid = row["id"]
     if not isinstance(rid, str) or not rid.strip():
         raise ValueError("an id is a non-empty string")
+    if re.search(r"\s", rid):  # t-1997 X5: a site is encoded, so such a row would print stale and new with one identity
+        raise Refuse("row id %s holds whitespace (N23: an identity is one token, whitespace written %%20)" % json.dumps(rid))
     return rid
 
 
 class Spec:
     """A list tool's constants: rel (its list file), key(row), field (the rows' name), scope (globs for --update's warning),
     labels (the `row added` and `emptied` raise texts), extra(old, data) -> {key: text} (a tool's own raise keys), validate(data)
-    (a Refuse for a malformed non-list part), must_exist (a list file that is never born absent)."""
+    (a Refuse for a malformed non-list part), must_exist (a list file that is never born absent), listing (the tool takes
+    --list; False: the flag is not registered, so it is a usage error, t-1997 X3)."""
 
     def __init__(self, rel, key=ident, field="rows", scope=(), labels=("baseline row added", "list emptied"), extra=None,
-                 validate=None, must_exist=False):
+                 validate=None, must_exist=False, listing=True):
         self.rel, self.key, self.field, self.scope, self.labels = rel, key, field, scope, labels
-        self.extra, self.validate, self.must_exist = extra, validate, must_exist
+        self.extra, self.validate, self.must_exist, self.listing = extra, validate, must_exist, listing
 
 
 class Scan:
@@ -428,15 +437,17 @@ def conclude(mod, a, held, scan):
 def judge(mod, a):
     spec = mod.SPEC
     path = os.path.join(a.root, spec.rel)
-    if a.update and a.record:  # before the scan: a dead scanner must not hide that no record resolves yet (L11)
-        err = resolve(a.record, RECORD)
-        if err:
-            print(err)
-            return 1
     data, _ = load_list(path, spec.rel, spec.key, spec.field, spec.must_exist)
     if spec.validate:
         spec.validate(data)
     base = base_of(a.root, a.base)
+    # The Lead's ruling (2), t-1997 X1: after the inputs are read (a refused list or base, 2, beats 1), before the drift and
+    # the scan (1 beats 3; a dead scanner must not hide that no record resolves yet, L11).
+    if a.update and a.record:
+        err = resolve(a.record, RECORD)
+        if err:
+            print(err)
+            return 1
     drift = check_basis(data["basis"], mod.basis(), door(spec.rel))
     if drift:
         print("not judged here: python %s, basis %s" % (python_minor(), drift))
@@ -446,8 +457,9 @@ def judge(mod, a):
 
 def drive(mod, argv):
     ap = parser(mod.__doc__.split("\n")[0])
-    for flag in ("--update", "--basis", "--list"):
+    for flag in ("--update", "--basis") + (("--list",) if mod.SPEC.listing else ()):
         ap.add_argument(flag, action="store_true")
+    ap.set_defaults(list=False)
     ap.add_argument("--record")
     getattr(mod, "add_options", lambda p: None)(ap)
     a = ap.parse_args(argv)
@@ -463,5 +475,5 @@ def entry(mod, argv):
     try:
         return guarded(drive, mod, argv)
     except Exception as exc:
-        print("cannot judge: %s: %s" % (type(exc).__name__, exc))
+        print("cannot judge: %s" % describe(exc))  # t-1997 X4: describe keeps an OSError's absolute path out
         return 2

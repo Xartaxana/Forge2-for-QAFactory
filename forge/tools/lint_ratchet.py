@@ -9,7 +9,6 @@ by a row. Scope, source reading, the driver and every list rule are ratchets.py'
 """
 import importlib
 import sys
-import warnings
 
 import ratchets
 
@@ -62,27 +61,19 @@ def sites_of(rel, flakes):
             for i, ms in seen.items()]
 
 
-def lint_file(api, root, rel):
+def lint_file(api, rel, source):
+    """(sites, [(rel, the first error pyflakes reported)]) of one file; parse_all reads it and counts it (t-1997 X6)."""
     col = Collector()
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        api.check(ratchets.read_source(root, rel), rel, col)
-    return sites_of(rel, col.flakes), col.errors
+    api.check(source, rel, col)
+    return sites_of(rel, col.flakes), [(rel, e) for e in col.errors[:1]]
 
 
 def scan(root, a, data):
     api = importlib.import_module("pyflakes.api")
     files = ratchets.scope(root, ratchets.ROOTS + EXTRA, tests=True)
-    sites, broken, read = [], [], len(files)
-    for rel in files:
-        try:
-            found, errors = lint_file(api, root, rel)
-        except ratchets.BAD as exc:
-            found, errors = [], [ratchets.describe(exc)]
-            read -= isinstance(exc, OSError)
-        sites += found
-        broken += [(rel, errors[0])] if errors else []
-    return ratchets.Scan(sites, broken, len(files), read)
+    found, broken, read = ratchets.parse_all(root, files, lambda rel, source: lint_file(api, rel, source))
+    broken = sorted(broken + [b for _, errors in found for b in errors])  # file order, as the files are sorted
+    return ratchets.Scan([s for sites, _ in found for s in sites], broken, len(files), read)
 
 
 def main(argv):

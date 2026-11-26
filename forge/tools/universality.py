@@ -82,7 +82,7 @@ def names_removed(old, data):
 
 
 SPEC = ratchets.Spec(REL, key_of, "allow", SCOPE, ("allow row added", "allow emptied"), names_removed,
-                     lambda data: check_names(data.get("names")), must_exist=True)
+                     lambda data: check_names(data.get("names")), must_exist=True, listing=False)  # t-1997 X3: no --list
 
 
 def main(argv):

@@ -88,6 +88,7 @@ LAY["forge/hooks/git/pre-x"] = HOOK + fn("f20", 20) + fn("f21", 21)
 OUT = {"forge/hooks/git/pre-x.next": HOOK + fn("f22", 22), "forge/hooks/b.py.next": fn("f22", 22), "forge/tools/d.json": "{}",
        "forge/hooks/git/sh": "#!/bin/sh\n" + fn("f22", 22), "factory/tests/test_t.py": fn("t22", 22)}
 H5, ALL = {P: fn("h5", 5)}, {"f20", "f21", "g25", "g26", "v5"}
+DRIFT = dict(H5, **{"forge/baselines/crap.json": json.dumps({"basis": dict(crap.basis(), python="0.0"), "rows": []})})
 
 
 # expected from: C1-3 part2:109-113 and the brief (PART 2 section 4 limits, coverage, F241 (a), F253 (a), F255 (a), F256)
@@ -134,6 +135,8 @@ def test_crap(tmp_path, monkeypatch, files, kw, code, ids, has):
     ('{"files": {}}', ["--tests-exit", "0"], 2, "usage", H5),
     ("{not json", ["--coverage-json", "{j}", "--tests-exit", "1"], 2, "coverage JSON", H5),  # F4: 2 beats 3
     (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON", {P: fn("h4", 4)}),  # F4: read first, though no function needs coverage
+    (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON", DRIFT),  # t-1997 X2 probe E: 2 beats drift 3
+    ("{not json", ["--coverage-json", "{j}", "--tests-exit", "0", "--update", "--record", "D-1"], 2, "coverage JSON", H5),  # X2
 ])
 def test_coverage_input(tmp_path, text, args, code, has, files):
     root = world(tmp_path, files)
@@ -187,6 +190,7 @@ IDS = ["factory/tools/x.py::UnusedImport:os", "factory/tools/x.py::UnusedImport:
 @pytest.mark.parametrize("src, rows, basis, args, code, has, left", [
     ("\n" * 10 + SRC, "ok", {}, [], 0, "", 2),
     (SRC, "bare", {}, [], 1, "row has no reason", 2),
+    (SRC, "bare", {}, ["--update"], 1, "row has no reason", 2),  # t-1997 mutant M2: a reasonless row keeps --update red
     (SRC, "ok", {"python": "3.0"}, [], 3, "not judged here", 2),
     (SRC, "ok", {"tool": "pyflakes 0.0"}, [], 2, "0.0", 2),
     (SRC, "ok", {"roots": ["factory", "forge/tools", "forge/hooks", "measure/tools"]}, [], 2, "roots", 2),
@@ -268,10 +272,14 @@ def test_unreadable(tmp_path, name, src):
 
 
 # expected from: PART 2 N29 and F246 (one driver: an unresolved --record is exit 1 before any scan; a scope no file of which could
-# be read at all is exit 2, N2; one read but not parsed is still read, c13's red in all three)
+# be read at all is exit 2, N2; one read but not parsed is still read, c13's red in all three); t-1997 probe A (the Lead's
+# ruling (2): a bad base, 2, beats an unresolved record) and probe F (N23: a row id is one token, a hand row with a space is 2)
 @pytest.mark.parametrize("name", list(TOOLS))
 @pytest.mark.parametrize("files, args, deny, code, has", [
     ({}, ["--update", "--record", "D-1"], False, 1, "cannot resolve D-1"),
+    ({}, ["--update", "--record", "D-1", "--base", "nope"], False, 2, "base nope: not a commit"),
+    ({"forge/baselines/%s.json" % n: json.dumps({"basis": {}, "rows": [{"id": "a b.py::h5", "reason": "r"}]}) for n in TOOLS},
+     [], False, 2, 'row id "a b.py::h5" holds whitespace'),
     ({"factory/tools/bad.py": "x = 1\n"}, [], True, 2, "read none of the 1 files"),
     ({"factory/tools/bad.py": "def (:\n"}, [], False, 1, "cannot parse"),
 ])
@@ -282,6 +290,15 @@ def test_driver(tmp_path, monkeypatch, name, files, args, deny, code, has):
         monkeypatch.setattr(ratchets, "raw_of", denied)
     c, o = run(TOOLS[name], world(tmp_path, files, "absent"), *args)
     assert c == code and has in o, o
+
+
+# expected from: t-1997 probe B (an unexpected error is exit 2, its line never an absolute path: entry prints describe)
+def test_entry(tmp_path, monkeypatch):
+    def boom(mod, argv):
+        raise PermissionError(13, "denied", "/abs/secret/b.py")
+    monkeypatch.setattr(ratchets, "drive", boom)
+    c, o = run(crap, tmp_path)
+    assert c == 2 and "cannot judge: PermissionError: denied" in o and "secret" not in o, o
 
 
 # expected from: PART 2 section 4 (an empty file is green; K1 the empty repository; pyflakes first, exit 2 with the door)
