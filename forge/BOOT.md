@@ -4,14 +4,17 @@
 
 We build the light test factory, set out in nine provisions below (plan 1)
 Forge 2 is the rules and tools that build and change the light factory; its first requirement: no code that hinders the agent acting correctly, and token-saving tools from day one (plan 3)
-Why light: over half of the old factory's pile nodes (about 1270 of 2063) fixed its own code and rules, not testing; growth is held by seven mechanisms, each with a number or a run (plan 4)
+Why light: in two comparison runs the free agent with one prompt gave a report in minutes, the old factory none in hours; the new factory does no less than the free agent, and more, with better quality and predictability (plan 7.1)
+Growth guard: over half of the old factory's pile nodes (about 1270 of 2063) fixed its own code and rules, not testing, so growth is held by seven mechanisms, each with a number or a run (plan 4)
 Why this page: every forge 2 session knows from its first turn what we build, how and why (plan 3.9)
 
 ## The yardstick
 
 The yardstick is the free agent with one prompt (plan 3.9)
+Goal: not worse than the free agent on any row of the comparison table, and better on requirements, traceability and repeatability (plan 7.2)
 A behaviour change of the factory is accepted only by a run on a measured project against the truth table and against the free agent; ordinary tests check tool code only (plan 3.1)
 Worse than the free agent on even one row of the comparison table, or over five times its time and cost: the change is not accepted (plan 4.1)
+Time and cost of a story: at most twice the free agent's as the goal, at most five times as the ceiling (plan 7.3)
 
 ## The nine provisions
 

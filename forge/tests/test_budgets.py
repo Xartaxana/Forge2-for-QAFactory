@@ -98,7 +98,8 @@ def repo(tmp_path_factory):
     return world(tmp_path_factory, steps)
 
 
-# expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit); t-1991 B2, F5, M1 (F8 rows: test_universality)
+# expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit); t-1991 B2, F5, M1 (F8 rows: test_universality);
+# rows (9,8), (10,9), (11,10): F252 and the t-2023 brief (red on a kind outside kinds, on a superseded record, on an absent or unreadable registry)
 @pytest.mark.parametrize("head, base, env, code, has, hasnt", [
     (2, 1, 0, 1, "new: forge/budgets.json::factory_code", None),
     (2, 1, 1, 1, "new: forge/budgets.json::factory_code", None),

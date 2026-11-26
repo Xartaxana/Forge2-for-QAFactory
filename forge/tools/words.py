@@ -222,13 +222,13 @@ class PlanAbsent(Exception):
 
 
 def boot_line(root, s):
-    """The class of one BOOT line: an exempt marker, `ok`, or the red text (B1's classes: word, plan, exempt)."""
+    """The class of one BOOT line: an exempt marker, `ok`, or the red text (B1's classes: plan, exempt; no word class)."""
     for i, pat in enumerate(EXEMPT):
         if pat.fullmatch(s):
             return "exempt:%d" % i
     m = re.search(r"\(plan (\S+)\)$", s)
-    if re.search(r"\(W-[1-9]\d*\)$", s):
-        return "ok"
+    if re.search(r"\(W-[1-9]\d*\)$", s):  # t-2025 F3: the page states principles, her words stay records (W-101)
+        return "owner word on BOOT: cite the plan item that states the rule"
     if re.search(r"\(D-[1-9]\d*\)$", s):
         return "decision cited as owner's word"
     if m:
