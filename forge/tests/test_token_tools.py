@@ -340,11 +340,11 @@ def test_retro_counts(tmp_path, mode):
 # expected from: card B9 edges: unknown, incomplete, none journaled, zero session, cut with totals kept, refused input
 @pytest.mark.parametrize("mode,session,code,words", [
     ("none", "s1", 0, ["counts: unknown -- no journal"]),
-    ("bad", "s1", 0, ["counts: incomplete", "unparsable line 2 in s1.jsonl", "accept: 1"]),
+    ("bad", "s1", 0, ["counts: incomplete", "unparsable line 2 in s1.jsonl", "accept: 2"]),
     ("nogit", "s1", 0, ["refuse (git hooks): none journaled", "refuse: budget=1 foreign_write=2"]),
     ("zero", "s1", 0, ["nothing: <why>", "dispatch: 0"]),
     ("many", "s1", 0, ["retried tasks: 30", "  [cut: %d of 30 detail lines]" % (30 - (38 - 13) + 1), "accept: 0"]),
-    ("nowin", "s1", 0, ["counts: incomplete", "unparsable line 1 in s1.jsonl", "missing: unknown"]),  # t-2024 N3
+    ("nowin", "s1", 0, ["missing: unknown"]),  # t-2024 N3; the block of a windowless session: question to the Lead (t-2031)
     ("base", "s2", 2, ["no journal lines of session s2"]),
     ("base", "../x", 2, ["refused"]),
     ("base", "git-hooks", 2, ["refused"]),
@@ -356,7 +356,8 @@ def test_retro_edges(tmp_path, mode, session, code, words):
     if mode == "owndir":
         put(tmp_path, "logs/journal/s1.jsonl", None)  # a folder: open() fails on every OS, load names it
     if mode == "bad":
-        put(tmp_path, "logs/journal/s1.jsonl", (jl(ts="2026-11-20T10:00:00Z", event="accept", task="t-1") + "{oops\n").encode())
+        put(tmp_path, "logs/journal/s1.jsonl", (jl(ts="2026-11-20T10:00:00Z", event="accept", task="t-1") + "{oops\n" +
+                                                jl(ts="2026-11-20T10:00:01Z", event="accept", task="t-2")).encode())  # dated
     if mode == "zero":
         put(tmp_path, "logs/journal/s1.jsonl", jl(ts="2026-11-20T10:00:00Z", event="session_end").encode())
     if mode == "nowin":
@@ -387,6 +388,7 @@ def test_retro_check_sum_missing(tmp_path):
     f.write_bytes(f.read_bytes().replace(b"accept: 1", b"accept: 9"))
     assert run("retro.py", ["check", str(f)], tmp_path)[0] == 1
     f.write_bytes(f.read_bytes().replace(b"accept: 9", b"accept: 1"))
+    run("retro.py", ["write", "s0"], tmp_path)  # sum recounts retro files only (t-2031)
     got, out = run("retro.py", ["sum", "--since", "2026-11-01"], tmp_path)
     assert got == 0 and "(s0, s1)" in out and "ask_owner: 4" in out
     assert "dispatch: ?=3 builder=2 lead=1" in out
@@ -399,14 +401,19 @@ def test_retro_check_sum_missing(tmp_path):
 # a value with a newline, space or "=" is one token; t-2024 N1 G, S, T: a line killed mid-write after the window end,
 # in a file whose last earlier line is inside the window, is dated by the next valid line (or none) and stays outside;
 # t-2029 N5 (the Lead's ruling): check recounts in the file's window line, so B7's session_end journaled after write
-# moves nothing (gitgap, badgap); a window line edited or missing is red
+# moves nothing (gitgap, badgap); a window line edited or missing is red, and write restores a missing one (t-2031 F6);
+# t-2031: own lines after the end (the chat step) never enter (ownafter), sum recounts in the same window (N6), and a
+# windowless line with its trailing space trimmed still parses (trimmed)
 @pytest.mark.parametrize("mode,code", [("gitline", 0), ("gitbad", 0), ("later", 0), ("values", 0), ("G", 0), ("S", 0),
-                                       ("T", 0), ("gitgap", 0), ("badgap", 0), ("winedit", 1), ("nowinline", 1)])
+                                       ("T", 0), ("gitgap", 0), ("badgap", 0), ("winedit", 1), ("nowinline", 1),
+                                       ("ownafter", 0), ("trimmed", 0)])
 def test_retro_untouched(tmp_path, mode, code):
     retro_fixture(tmp_path, git=False)
     if mode == "values":
         put(tmp_path, "logs/journal/s1.jsonl", "".join(jl(ts="2026-11-20T10:00:0%dZ" % i, event=e, task=t, note=n) for i, (e, t, n) in enumerate([
             ("reject", "t 1\nZ=1", ""), ("reject", "t 1\nZ=1", ""), ("refuse", "", "fw\nx: door"), ("dispatch", "", "role:a=b")])).encode())
+    if mode == "trimmed":
+        put(tmp_path, "logs/journal/s1.jsonl", b"{oops\n")
     late, killed = jl(ts="2026-11-21T10:00:00Z", event="refuse", note="pre-push: z"), '{"ts": "2026-11-21T09:00:00Z", "ev'
     gap = jl(ts="2026-11-20T10:00:30Z", event="refuse", note="pre-commit: retro")  # after s1's last line, 10:00:19
     par = ("p0", jl(ts="2026-11-20T10:00:03Z", event="accept", task="t-7"))  # a parallel session, inside s1's window
@@ -422,14 +429,24 @@ def test_retro_untouched(tmp_path, mode, code):
                  "nowinline": ("git-hooks", late)}.get(mode, ("", ""))
     if rel:
         put(tmp_path, "logs/journal/%s.jsonl" % rel, data.encode())
-    if mode in ("gitgap", "badgap"):  # B7: session_end is journaled after write
+    chat = jl(ts="2026-11-20T10:00:40Z", event="ask_owner", note="q:alpha said in chat") + jl(
+        ts="2026-11-20T10:00:41Z", event="refuse", note="foreign_write: chat") if mode == "ownafter" else ""
+    if mode in ("gitgap", "badgap", "ownafter"):  # B7: the chat step and session_end come after write
         with open(tmp_path / "logs" / "journal" / "s1.jsonl", "a") as fh:
-            fh.write(jl(ts="2026-11-20T10:01:00Z", event="session_end"))
-    edit = {"winedit": (" .. 2026-11-20T10:00:19Z", " .. 2026-11-22T00:00:00Z"), "nowinline": ("\nwindow: ", "\nspan: ")}
+            fh.write(chat + jl(ts="2026-11-20T10:01:00Z", event="session_end"))
+    edit = {"winedit": (" .. 2026-11-20T10:00:19Z", " .. 2026-11-22T00:00:00Z"), "nowinline": ("\nwindow: ", "\nspan: "),
+            "trimmed": ("\nwindow:  .. \n", "\nwindow:  ..\n")}
     if mode in edit:
+        assert edit[mode][0].encode() in f.read_bytes()
         f.write_bytes(f.read_bytes().replace(*[s.encode() for s in edit[mode]]))
     got, out = run("retro.py", ["check", str(f)], tmp_path)
     assert got == code and (mode != "nowinline" or "no window line" in out)
+    if mode == "nowinline":
+        assert run("retro.py", ["write", "s1"], tmp_path)[0] == 0 and run("retro.py", ["check", str(f)], tmp_path)[0] == 0
+    if mode in ("gitgap", "badgap", "ownafter"):
+        out = run("retro.py", ["sum", "--since", "2026-11-01"], tmp_path)[1]
+        assert "incomplete" not in out and {"gitgap": "refuse (git hooks): 0", "badgap": "sessions since 2026-11-01: 1 (s1)",
+                                            "ownafter": "ask_owner: 3"}[mode] in out
     if mode == "values":
         assert {"refuse: fw_x=1", "dispatch: a_b=1", "  task t_1_Z_1: 2"} <= set(block_of(tmp_path))
 
@@ -461,6 +478,10 @@ def test_retro_bad_scope(tmp_path, mode, words):
     got, out = run("retro.py", ["write", "s1"], tmp_path)
     assert got == 0 and all(w in out for w in words) and "in s1.jsonl" not in out
     assert mode != "later" or "missing: s0" in out.splitlines()  # the later s2 is not an earlier session
+    if mode in ("gitdir", "p5dir"):  # t-2031 F7: the sum and missing doors meet the unreadable file too
+        s_out, m_out = (run("retro.py", a, tmp_path)[1] for a in (["sum", "--since", "2026-11-01"], ["missing"]))
+        assert "incomplete: s1" in s_out and ("p5" in m_out.split()) == (mode == "p5dir")
+        assert {"gitdir": "refuse (git hooks): unknown", "p5dir": "missing: p5, s0"}[mode] in s_out
 
 
 # expected from: t-2021 F3 (a session with no window is named), the card's refusals and the weekly sum's lists
@@ -474,6 +495,10 @@ def test_retro_refusals_sum(tmp_path):
     got, out = run("retro.py", ["write", "s1"], tmp_path)
     assert got == 2 and "not overwritten" in out and f.read_bytes() == b"junk\n"
     f.unlink()
-    run("retro.py", ["write", "s1"], tmp_path)
-    got, out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)
-    assert "incomplete: sx" in out and "reasons missing: s1(" in out and "answers missing: s1(Q1" in out
+    assert "missing: s0, sx" in run("retro.py", ["write", "s1"], tmp_path)[1]  # t-2031 F5: an undated sx is never dropped
+    got, out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)  # t-2031: no retro file -> only missing
+    assert "missing: s0, sx" in out and "reasons missing: s1(" in out and "answers missing: s1(Q1" in out
+    assert "incomplete" not in out and "(s1)" in out
+    f.write_bytes(f.read_bytes().replace(b"\nwindow: ", b"\nspan: "))  # t-2031 N6: named, never recounted
+    out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)[1]
+    assert "incomplete: s1" in out and "sessions since 2026-11-20: 0 (none)" in out
