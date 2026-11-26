@@ -51,7 +51,12 @@ def put(root, rel, data):
     ("decomposable", " ", None, "s1", 2, "empty"),
     ("dispatch_skipped", "designer: a narrow node", None, "s1", 0, ""),  # t-2059 B4
     ("dispatch_skipped", " ", None, "s1", 2, "empty"),
-    ("escalated", "beyond my level: opus", "t-1", "s1", 0, ""),  # old rule 1047
+    ("dispatch_skipped", "a narrow node", None, "s1", 2, "<agent>: <reason>"),  # t-2061: the note form
+    ("dispatch_skipped", "designer:  ", None, "s1", 2, "<agent>: <reason>"),
+    ("dispatch_skipped", "Designer: x", None, "s1", 2, "<agent>: <reason>"),
+    ("escalated", "architect: beyond my level", "t-1", "s1", 0, ""),  # old rule 1047
+    ("escalated", "beyond my level", "t-1", "s1", 2, "<agent>: <reason>"),
+    ("escalated", "lead tier: beyond my level", "t-1", "s1", 2, "<agent>: <reason>"),
     ("escalated", " ", "t-1", "s1", 2, "empty"),
     ("escalated", "n", None, "s1", 2, "task"),
     ("cut", "n", None, "s1", 2, "task"),

@@ -29,8 +29,12 @@ EVENTS = ("dispatch", "accept", "reject", "return", "session_end", "cap_warning"
           "ask_owner", "decomposable",  # decomposable (plan S9): a worker's `decomposable: <split>` hand-back, the split in the note
           "dispatch_skipped",  # t-2059 B4: COORDINATOR.md makes this event the Lead's only legal door to do a role's work itself
           "escalated")  # old rule 1047, returned by the owner 26.11.2026: work moved one tier up
-# dispatch_skipped and escalated neither open nor close a task: only dispatch opens one (open_tasks)
+# dispatch_skipped and escalated neither open nor close a task: only dispatch opens one (open_tasks); an escalated task
+# stays open and the higher tier's dispatch continues it (the Lead's answer to t-2061)
 NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "escalated")
+# the line has no agent field: these events carry the agent as the note's prefix `<agent>: <reason>` (t-2061)
+AGENT_NOTE = ("dispatch_skipped", "escalated")
+AGENT_NOTE_RE = re.compile(r"[a-z][a-z0-9-]*: ")
 CLOSING = ("accept", "reject", "return")
 NOTE_MAX = 300
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
@@ -152,6 +156,10 @@ def write(a):
         return 2
     if len(note) > NOTE_MAX:
         print("the note is %d characters, over %d; shorten it, it is never cut" % (len(note), NOTE_MAX))
+        return 2
+    m = AGENT_NOTE_RE.match(note) if a.event in AGENT_NOTE else None
+    if a.event in AGENT_NOTE and not (m and note[m.end():].strip()):
+        print("the note of %s must have the form `<agent>: <reason>` (agent [a-z][a-z0-9-]*, a non-blank reason)" % a.event)
         return 2
     session = pick_session(a.root, a.session)
     if not SESSION_RE.fullmatch(session):
