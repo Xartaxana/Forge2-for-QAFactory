@@ -527,9 +527,10 @@ def test_session_start_rules_file_and_main_sync(tmp_path, mode, want):
             git(root, "update-ref", "refs/heads/main", a)
         if mode == "nomain":
             git(root, "branch", "-m", "other")
-    code, out = hook("session_start.py", ["--root", root], ROOT, b'{"source": "startup"}', **({"PATH": ""} if mode == "nogit" else {}))
-    assert code == 0 and want in out and "re-read: forge/BOOT.md" in out and "forge/COORDINATOR.md (Lead, Architect)" in out
-    assert "main: ahead" not in start(root, "resume")[1] and "main: ahead/behind" not in start(root, "compact")[1]
+    for source in ("startup", "resume", "clear", "compact"):  # the Lead's ruling: every source prints the line
+        code, out = hook("session_start.py", ["--root", root], ROOT, json.dumps({"source": source}).encode(),
+                         **({"PATH": ""} if mode == "nogit" else {}))
+        assert code == 0 and want in out and "re-read: forge/BOOT.md" in out and "forge/COORDINATOR.md (Lead, Architect)" in out
 
 
 def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):

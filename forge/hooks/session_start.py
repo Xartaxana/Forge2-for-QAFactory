@@ -4,7 +4,7 @@
 session_start.py [--root D]   D defaults to this repository. Input: the event JSON on stdin, field `source`
 (startup|resume|clear|compact); empty, broken or unknown -> as startup.
 Blocks: (1) forge/BOOT.md on startup|clear|compact; (2) the re-read line, always; (3) the carriers checklist on compact;
-(4) the previous session's end on startup; (5) on startup one line `main: ahead <a>, behind <b> of origin/main (no fetch)`, or
+(4) the previous session's end on startup; (5) on every source one line `main: ahead <a>, behind <b> of origin/main (no fetch)`, or
 `main: ahead/behind unknown (<why>)` (S10). Any error -> one line `reminder failed: <error>; read forge/BOOT.md by hand`.
 Cap 6144 emitted bytes: the open list is cut first, then the checklist, each with a `[cut: <what>]` marker; a valid
 UTF-8 BOOT never; a non-UTF-8 BOOT last, to the cap, then a marker line: `shown with replacement characters` or `cut after file byte <k> of <total>`.
@@ -178,7 +178,7 @@ def compose(root, source, eval_arm):
     boot, present, badtext = boot_block(root, eval_arm, source in BOOT_SOURCES)
     rules = ", forge/COORDINATOR.md (Lead, Architect) | "  # plan S6: workers get no SessionStart; the Lead's rules file is named here
     field = "re-read: forge/BOOT.md" + rules if present else "" if eval_arm else "re-read: forge/BOOT.md (not written yet, B1)" + rules
-    return fit({"boot": boot, "bad": badtext, "field": field, "git": main_sync(root) if source == "startup" else "",
+    return fit({"boot": boot, "bad": badtext, "field": field, "git": main_sync(root),
                 "snap": newest_snapshot(root), "open": open_text(status, tasks, bad),
                 "check": checklist(root) if source == "compact" else "",
                 "prev": previous(loaded[0], loaded[2]) if source == "startup" else ""})
