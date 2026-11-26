@@ -209,12 +209,13 @@ def uni_repo(tmp_path_factory):
     wide = state("a = 1\n", names=dict(doc["names"], runner=["pytest", "jest"]),
                  basis=dict(uni.basis(), roots=uni.basis()["roots"] + ["x"]))
     other = state("a = 1\n", basis=dict(uni.basis(), constants=dict(uni.basis()["constants"], match="x")))
+    older = state("a = 1\n", basis=dict(uni.basis(), python="0.0"))  # a value no live interpreter matches (t-1995 P1)
     return world(tmp_path_factory, [("m", clean), ("m", held), ("m", None), ("m", clean),
                                     ("ratchet-raise: universality-names.json clear -- W-1", None), ("m", wide), ("m", clean),
-                                    ("m", other), ("m", clean)])
+                                    ("m", other), ("m", clean), ("m", older), ("m", clean)])
 
 
-# expected from: t-1991 M2, t-1992 N4, t-1994 F1 (probe P3) and the brief section 4 (allow row added, allow emptied, name
+# expected from: t-1991 M2, t-1992 N4, t-1994 F1 (probe P3), t-1995 P1 (answer section 8) and the brief section 4 (allow row added, allow emptied, name
 # removed, a basis change are raises, N13 `clear` and `basis`; until B3 a raise line cannot resolve; no change is green)
 @pytest.mark.parametrize("head, base, code, has, hasnt", [
     (1, 0, 1, "allow row added needs", None),
@@ -224,6 +225,7 @@ def uni_repo(tmp_path_factory):
     (6, 5, 1, "name removed needs", None),
     (6, 5, 1, "names.json::basis basis changed needs", None),
     (8, 7, 1, "names.json::basis basis changed needs", None),
+    (10, 9, 0, "", "basis"),  # t-1995 P1: a python-only basis change is not a raise
 ])
 def test_universality_raises(uni_repo, head, base, code, has, hasnt):
     g, shas, checkout = uni_repo
