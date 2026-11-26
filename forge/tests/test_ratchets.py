@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 
 import pytest
@@ -350,3 +351,132 @@ def test_ci_base(tmp_path, monkeypatch, given, want_base):
     with contextlib.redirect_stdout(io.StringIO()):
         assert ci.main(["--list", os.path.join(str(tmp_path), "jobs.json")] + (["--base", head] if given else [])) == 0
     assert head and open(got).read() == (head if want_base else "")
+
+
+# ci.py rows through main(argv): one temp git repo (4 commits) stands for ci.ROOT; the list under test is a file passed by --list
+def row(i, state="built", cmd=None):
+    return {"id": i, "card": "x", "state": state, "command": (cmd if cmd is not None else '"%s" -c "import sys; sys.exit(0)"' % sys.executable) if state == "built" else ""}
+
+
+def exit_with(n, tail=""):
+    return '"%s" -c "import sys; sys.exit(%d)"%s' % (sys.executable, n, tail)
+
+
+OLD = [row("a"), row("b"), row("nb", "not_built")]
+
+
+@pytest.fixture(scope="module")
+def repo(tmp_path_factory):
+    root, shas = str(tmp_path_factory.mktemp("cirepo")), {}
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+    def git(*a):
+        return subprocess.run(["git", "-C", root, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"] + list(a),
+                              check=True, capture_output=True, env=env).stdout.decode().strip()
+    git("init", "-q")
+    for name, msg, text in (("c0", "born", None), ("c1", "list", json.dumps(OLD).encode()), ("c2", "retire-job: b -- merged away", None),
+                            ("c3", "bad", b"\xff\xfe")):
+        if text:
+            put(root, {"forge/ci-jobs.json": text})
+        git("add", "-A")
+        git("commit", "-q", "--allow-empty", "-m", msg)
+        shas[name] = git("rev-parse", "HEAD")
+    shas["root"] = root
+    return shas
+
+
+@pytest.fixture
+def ci_repo(repo, monkeypatch):
+    monkeypatch.setattr(ci, "ROOT", repo["root"])
+    return repo
+
+
+def go(tmp_path, now, args, shas):
+    """ci.main over the list `now` (rows or raw bytes); an argument @c1 is that commit's sha. Returns (code, stdout)."""
+    path = os.path.join(str(tmp_path), "jobs.json")
+    put(str(tmp_path), {"jobs.json": now if isinstance(now, bytes) else json.dumps(now)})
+    argv = ["--list", path] + [shas[a[1:]] if a.startswith("@") else a for a in args]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = ci.main(argv)
+    return code, buf.getvalue()
+
+
+# expected from: C1-6 part2:139-141 (check: not_built only shrinks, a built row is not deleted, a retire-job line retires it) and
+# plan record 25.11 23:27 item 3 (retire-job: <id> -- <reason>); exit 2 for a base that cannot be judged
+@pytest.mark.parametrize("now, args, code, has", [
+    (OLD, [], 0, "no base"),
+    (OLD, ["--base", "@c0"], 0, "born"),
+    (OLD, ["--base", "@c1", "--head", "@c1"], 0, "ok   not_built did not grow"),
+    (OLD + [row("n2", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "not_built grew against"),
+    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "built row absent against"),
+    ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 0, "retired: b -- merged away"),
+    (OLD, ["--base", "@c3", "--head", "@c3"], 2, "not UTF-8"),
+    (OLD, ["--base", "nope"], 2, "not a commit"),
+])
+def test_ci_check(tmp_path, ci_repo, now, args, code, has):
+    c, o = go(tmp_path, now, ["check"] + args, ci_repo)
+    assert c == code and has in o, o
+
+
+# expected from: C1-6 part2:139-141 and B8 part4b-2:21 (matrix: one JSON object count/include/not_built; $GITHUB_OUTPUT lines)
+@pytest.mark.parametrize("args, tail", [
+    ([], None),
+    (["--base", "@c1", "--head", "@c2"], "base=%(c1)s\nhead=%(c2)s\n"),
+    (["--head", "@c2"], "base=\nhead=%(c2)s\n"),
+])
+def test_ci_matrix(tmp_path, ci_repo, args, tail):
+    gh = os.path.join(str(tmp_path), "out.txt")
+    c, o = go(tmp_path, OLD, ["matrix"] + args + (["--github-output", gh] if tail else []), ci_repo)
+    assert c == 0 and json.loads(o) == {"count": 2, "include": [{"id": "a"}, {"id": "b"}], "not_built": ["nb"]}, o
+    if tail:
+        inc = json.dumps({"include": [{"id": "a"}, {"id": "b"}]})
+        assert open(gh, encoding="utf-8").read() == "include=%s\ncount=2\nnb_line=not built: 1 (nb)\n" % inc + tail % ci_repo
+
+
+# expected from: TESTING.md rules 6-7 and C1-6 part2:139-141 (exit 3 is not judged here, red on Actions; a token with no value is 3;
+# --only names a built row)
+@pytest.mark.parametrize("rows, args, actions, code, has, hasnt", [
+    ([row("a")], [], None, 0, ["ok   a", "not built: 0"], ["FAIL"]),
+    ([row("a", cmd=exit_with(1)), row("b"), row("nb", "not_built")], [], None, 1, ["FAIL a (exit 1)", "ok   b", "not built: 1 (nb)", "failed: a"], []),
+    ([row("a", cmd=exit_with(3))], [], None, 0, ["not judged here: a"], ["FAIL", "failed"]),
+    ([row("a", cmd=exit_with(3))], [], "true", 1, ["FAIL a (exit 3)", "failed: a"], ["not judged"]),
+    ([row("a", cmd=exit_with(0, " {base}"))], [], None, 0, ["not judged here: a"], ["FAIL"]),
+    ([row("a", cmd=exit_with(0, " {base}"))], [], "true", 1, ["FAIL a (exit 3)"], ["not judged"]),
+    ([row("a", cmd=exit_with(0, " {base}"))], ["--base", "@c1"], "true", 0, ["ok   a"], ["FAIL"]),
+    ([row("a", cmd=exit_with(1)), row("b")], ["--only", "b"], None, 0, ["ok   b"], ["FAIL", "not built"]),
+    ([row("a"), row("nb", "not_built")], ["--only", "nb"], None, 2, ["cannot judge: --only nb"], ["ok"]),
+    ([row("a")], ["--only", "zz"], "true", 2, ["cannot judge: --only zz"], ["ok"]),
+])
+def test_ci_run_all(tmp_path, ci_repo, monkeypatch, rows, args, actions, code, has, hasnt):
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False) if actions is None else monkeypatch.setenv("GITHUB_ACTIONS", actions)
+    c, o = go(tmp_path, rows, args, ci_repo)
+    assert c == code and all(h in o for h in has) and not any(h in o for h in hasnt), o
+
+
+def bad(**kw):
+    return [dict(row("a"), **kw)]
+
+
+# expected from: C1-6 part2:139-141 (the list is one array of rows with exactly four fields; every other shape is exit 2, cannot judge)
+@pytest.mark.parametrize("text, has", [
+    (b"{not json", "not valid JSON"),
+    (b"", "not valid JSON"),
+    (b"\xff\xfe", "not UTF-8"),
+    (b'{"a": 1}', "one JSON array"),
+    (b"[1]", "row 0 must hold exactly"),
+    (b'[[{"id": "a"}]]', "row 0 must hold exactly"),
+    (json.dumps(bad(extra=1)).encode(), "row 0 must hold exactly"),
+    (json.dumps([{"id": "a", "card": "x", "state": "built"}]).encode(), "row 0 must hold exactly"),
+    (json.dumps(bad(id="")).encode(), "row 0 has no id"),
+    (json.dumps(bad(id="a\nb")).encode(), "must match"),
+    (json.dumps(bad(id="A")).encode(), "must match"),
+    (json.dumps(bad() + bad()).encode(), "duplicate id a"),
+    (json.dumps(bad(state="done")).encode(), "unknown state"),
+    (json.dumps(bad(card=" ")).encode(), "no card"),
+    (json.dumps(bad(command=5)).encode(), "must be a string"),
+    (json.dumps(bad(command=" ")).encode(), "holds no command"),
+])
+def test_ci_rows_refused(tmp_path, ci_repo, text, has):
+    c, o = go(tmp_path, text, [], ci_repo)
+    assert c == 2 and o.startswith("cannot judge: ") and has in o, o
