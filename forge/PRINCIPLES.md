@@ -12,7 +12,7 @@ carry: FR-203
 - P3: The conductor is a helper for problems, not a launcher of commands; commands are launched by code on a stage transition or when a question appears.
 - P4: Gathered material is passed on in YAML, so that nothing is lost.
 - P5: Data, above all the task's source data, is obtained by every route: API, SSH, browser; with no access, ask the person with the options "not needed / here is how to get it / here is the text". An LLM agent is not a read source: the ticket, its links, comments and attachments are read by API, repositories by API or git; an agent is used only for writes, and only where the project writes that way. "Ask" covers only access the person CAN give; what the factory's own probe proves unreachable (no VPN, no tool, a file too large) is a gap by default and a report line by name, with no question; one recorded decision on a class holds for all its instances until the end of the run. The factory neither promises nor attempts what is impossible in advance.
-- P6: The judge (the factory's cheap external judge service, config `judge.provider`) is not there to save on the judge itself but to take expensive actions off the LLM.
+- P6: The judge (the old factory's cheap external judge service, old config `judge.provider`) is not there to save on the judge itself but to take expensive actions off the LLM.
 - P7: The factory runs on Sonnet or Terra; Haiku is used nowhere.
 - P8: Experiments comparing factory versions leave no traces in the project: no MR, no tracker comments or subtasks; bugs go only to a Markdown file or the chat.
 - P9: Every question to a person is in human language, with no internal names (never `person.review_recorded`).
