@@ -39,7 +39,7 @@ Counts: not an amendment 42, added 43, stale 16, dangling 0. Keys: 78 (63 `amend
   - not an amendment: B14 -- "the parallel-writers rule of the carry map (fr:A7-A11)"
 - A12: amended by A24, A35
 - A13: amended by A34
-- A14: none -- named only as the carry-map id `fr:A14` (B16, part8:98). A27's "A14's move waits" (part7:39) is a batch order with C4-4's stand-in, and A27's own list (part7:137) leaves A14 out
+- A14: none -- named only as the carry-map id `fr:A14` (B16, part8:98). A27's "A14's move waits" (part7:39) is a portion order with C4-4's stand-in, and A27's own list (part7:137) leaves A14 out
   - not an amendment: B16 -- "carry map `dropped: fr:A14` -> `-> COORDINATOR.md: fr:A14 (as B16's cost rule)`" is a C1-1 row
 - A15: amended by A31
 - A16: none -- A9 names A16 only as the partner of field `tests_snapshot` ("`tests_snapshot` (A16)", part4-2:21). Both cards add that field to C3-1
@@ -231,7 +231,7 @@ the 47 `- amended by:` lines).
 - extra A4: amended by A24 -- part5:48 "A4 Delivers "the product look is the `explore` launch after stage 2 (A24, F74)" -> "the product look is the stage-2 performer's own work (A24 r2)""; heading part4:59
 - extra C0-5: amended by B4 -- part4b:91 "C0-5 (part2:72) "money keys stripped" -> "price per run (B4)"; K3 ..."; heading part2:75
 - extra C2-6: amended by A27, B4 -- part7:43 "C2-6's rule "never a measuring project's source" + "except an A27 story seed ..."" and part4b:92 "C2-6 (part2b:62 ...; part2b:67 ...) -> "price from the arm's run row""; heading part2b:66
-- extra C4-7: amended by A27, B4 -- part7:44 "C4-7 deps + "A27's last batch closed"" and part4b:96 "C4-7 (part3b:73 ...) -> "price per run, per agent ...""; heading part3b:78
+- extra C4-7: amended by A27, B4 -- part7:44 "C4-7 deps + "A27's last portion closed"" and part4b:96 "C4-7 (part3b:73 ...) -> "price per run, per agent ...""; heading part3b:78
 
 ## Amends entries outside the script's form (the 9)
 
