@@ -59,11 +59,11 @@ carry: FO-61, FO-84, FO-85, FO-87, FO-89, FO-90, FO-93, FO-95, FO-144, FO-151, F
 - The mechanical layer (DoD run tails, the red-before line for a defect item, old-vs-new counts where asked) is attached by the BUILDER verbatim before the critic starts; a layer not attached is returned as a request, never executed by the critic.
 - The ratchets are not the builder's layer; their result is the branch's forge-check CI job, which the critic reads and never re-runs.
 - A cheap control re-run is ONE small fast test file the verdict depends on, or one guard selftest; story, full selftest, docker, ratchets and quarantined files are the batch canon's; re-deriving the mechanics by reading everything is not the critic's job (the verdict layer is its own zone).
-- The probe breaks 1 to 3 load-bearing places of NEW behaviour (a comparison flipped, a branch dropped, a refusal turned into a pass, the safe default returned); hard cap of 3 mutant runs per verdict, invalid ones included.
+- The probe breaks 1 to 3 load-bearing places of NEW behaviour (a comparison flipped, a branch dropped, a refusal turned into a pass, the safe default returned); hard cap of 3 mutant runs per verdict, invalid ones included. The ONE road is a runner called by Bash, never Write or Edit: it takes the tree the dispatch names (only after the builder handed back), a target, old and new text and the narrow test file, restores the file from a byte copy, compares sha256 and prints `outcome: killed | survived | invalid | restore-mismatch`; give each call a Bash timeout of at least 120000 ms (a runner killed from outside cannot restore); no copy, edit or restore by hand (tool: none yet in forge 2; the old one was mutate_once.py).
 - Before the first mutant `git status --porcelain` prints nothing, and the same narrow file ran GREEN in the same tree as the control re-run (a red baseline makes every kill false).
 - A kill whose FAIL line is an import or collection error is invalid, not a kill.
 - On outcome restore-mismatch stop probing; the verdict is not fit; the fix entry names the file and the restore door (`git show HEAD:<path> > <path>`, then status prints nothing).
-carry: FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146
+carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146
 
 ### Final message
 - The final message is at most 4 + N lines, N the numbered or lettered questions/keys the dispatch asks (a pointer spec counts the node it points to; unclear -> N = 0; the stricter cap decides).
