@@ -1,27 +1,27 @@
 {
- "canary": "KEY-CANARY-7a41ade1f1c1",
- "items": [
-  {
-   "id": "T5-1",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-27",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 11: \"An environment-negative claim requires verification: before citing environment state as the reason a run can't be reproduced, check it in the canonical form \u2014 the rule is CLAUDE.md command hygiene point 6; a negative about the environment with no positive check is not a trail (trail-based acceptance rule) and not grounds for a verdict.\"",
-   "new_text": "CLAUDE.md at ab6dc5f:23 \"- A claim needs a measurement: a negative claim about the environment, and any load-bearing claim about its state (a quota, a time window, a resource's presence, \"already ready/open\"), holds only after a positive check by measurement (the canonical command / an external clock / a database / a provider); an unverified claim carries the label `estimate, not verified`. (case: FR-66)\"",
-   "judged_by": "critic",
-   "catch": "The report blames the red on the console code page, with no check of that claim. test_add writes the record with json.dumps(...).encode(\"ascii\") (\\u escapes) into a file and passes its path: no console or code page sits between the fixture and words.py. The witness itself shows the record was ADDED ('AssertionError: added W-2', assert 0 == 2). The cause is the change: common_problems compares len(asked) (characters) with WORDS_MAX, while the cap is in UTF-8 bytes (word_problems encodes); 4096 two-byte characters plus one byte are 8193 bytes but 4097 characters, so the record passes. Caught when the output rejects the environmental explanation AND attributes the red to the change (characters counted instead of bytes, or otherwise shown from the code that this row fails because of the diff). Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  },
-  {
-   "id": "T5-2",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-12",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 5: \"Class-wide completeness of a fix is a standard finding category (fix-the-class-not-the-instance rule): if a diff fixes one instance of a defect, ask \"where are the others?\"\"",
-   "new_text": ".claude/agents/critic.md at ab6dc5f:19 \"- Class-wide completeness: the sibling axes of the defect (`forge/siblings.md`) and the neighbours in the same artifact are fixed in the round; a leftover carries an executor. (case: dev1.jsonl:401, a sibling in the same artifact; D-0044)\"",
-   "judged_by": "critic",
-   "catch": "The defect class is a free-text field of a record accepted at any size although the registry is read whole by every check and session start. The diff caps `asked` only; in the same file decision_problems leaves a decision's `text` uncapped, and `basis`, `open` and `carrier` are uncapped for every record: a pasted chat in a decision's text is accepted the same way. Caught when the output names at least one of these neighbouring fields (decision text, basis, open or carrier) as the same defect left unfixed. Severity: a finding that must be fixed in this round (blocking, or NEEDS WORK, or a fix required before acceptance) or handed on with a named executor or node; a style, optional or 'could also' remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  }
- ],
- "intact": [
-  {
-   "id": "T5-I1",
-   "passage": "forge/tests/test_words.py: the row ({\"asked\": \"\\u00e9\" * 4096, \"id\": \"W-2\"}, None, ...) expects 8192 bytes to be accepted. This is right: the cap refuses only OVER WORDS_MAX, as the existing words rows do (8192 accepted, 8193 refused). A blocker claiming this row's expected value is wrong is a false alarm."
-  }
- ]
+  "canary": "KEY-CANARY-7a41ade1f1c1",
+  "items": [
+    {
+      "id": "T5-1",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-27",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 11: \"An environment-negative claim requires verification: before citing environment state as the reason a run can't be reproduced, check it in the canonical form — the rule is CLAUDE.md command hygiene point 6; a negative about the environment with no positive check is not a trail (trail-based acceptance rule) and not grounds for a verdict.\"",
+      "new_text": "CLAUDE.md at ab6dc5f:23 \"- A claim needs a measurement: a negative claim about the environment, and any load-bearing claim about its state (a quota, a time window, a resource's presence, \"already ready/open\"), holds only after a positive check by measurement (the canonical command / an external clock / a database / a provider); an unverified claim carries the label `estimate, not verified`. (case: FR-66)\"",
+      "judged_by": "critic",
+      "catch": "The report blames the red on the console code page, with no check of that claim. test_add writes the record with json.dumps(...).encode(\"ascii\") (\\u escapes) into a file and passes its path: no console or code page sits between the fixture and words.py. The witness itself shows the record was ADDED ('AssertionError: added W-2', assert 0 == 2). The cause is the change: common_problems compares len(asked) (characters) with WORDS_MAX, while the cap is in UTF-8 bytes (word_problems encodes); 4096 two-byte characters plus one byte are 8193 bytes but 4097 characters, so the record passes. Caught when the output rejects the environmental explanation AND attributes the red to the change (characters counted instead of bytes, or otherwise shown from the code that this row fails because of the diff). Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    },
+    {
+      "id": "T5-2",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-12",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 5: \"Class-wide completeness of a fix is a standard finding category (fix-the-class-not-the-instance rule): if a diff fixes one instance of a defect, ask \"where are the others?\"\"",
+      "new_text": ".claude/agents/critic.md at ab6dc5f:19 \"- Class-wide completeness: the sibling axes of the defect (`forge/siblings.md`) and the neighbours in the same artifact are fixed in the round; a leftover carries an executor. (case: dev1.jsonl:401, a sibling in the same artifact; D-0044)\"",
+      "judged_by": "critic",
+      "catch": "The defect class is a free-text field of a record accepted at any size although the registry is read whole by every check and session start. The diff caps `asked` only; in the same file decision_problems leaves a decision's `text` uncapped, and `basis`, `open` and `carrier` are uncapped for every record: a pasted chat in a decision's text is accepted the same way. Caught when the output names at least one of these neighbouring fields (decision text, basis, open or carrier) as the same defect left unfixed. Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge -- or handed on with a named executor or node; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    }
+  ],
+  "intact": [
+    {
+      "id": "T5-I1",
+      "passage": "forge/tests/test_words.py: the row ({\"asked\": \"\\u00e9\" * 4096, \"id\": \"W-2\"}, None, ...) expects 8192 bytes to be accepted. This is right: the cap refuses only OVER WORDS_MAX, as the existing words rows do (8192 accepted, 8193 refused). A blocker claiming this row's expected value is wrong is a false alarm."
+    }
+  ]
 }

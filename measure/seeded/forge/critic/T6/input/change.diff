@@ -22,7 +22,7 @@ index 97691cb..1e02167 100644
  
  # expected from: card C1-4 and R11-f (check names each absent line; roles; one-line values; header lines are outside
 -# fences and quotes; a key-shaped line ends a path block; a path with spaces is in backticks)
-+# fences and quotes; a key-shaped line ends a path block; a path with spaces is in backticks); the C1-4 defect round
++# fences and quotes; a key-shaped line ends a path block; a path with spaces is in backticks); the C1-4 amendment
 +# (a placeholder edges value is missing, a whole-value match only; an edges value names its empty/absent behaviour)
  @pytest.mark.parametrize("edit,code,word", [
      (lambda f: f, 0, "ok"),

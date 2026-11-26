@@ -1,27 +1,27 @@
 {
- "canary": "KEY-CANARY-eb8f89c5dc0a",
- "items": [
-  {
-   "id": "T3-1",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-103",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 22 Q9: \"a diff that adds or raises a row of an in-tree shrink-only ratchet is named in the verdict, row by row (key, old \u2192 new count, the reason), and an unnamed raise is a finding.\"",
-   "new_text": ".claude/agents/critic.md at ab6dc5f:21 \"- A diff that adds or raises a row of a shrink-only ratchet: the verdict names each row (key, old to new, reason); an unnamed raise is a blocker. (case: review t-836 at 4d761605d, in the title of the old SIBLING_MAP axis 18: a raise inside the diff that adds the site was green in-tree)\"",
-   "judged_by": "critic",
-   "catch": "forge/budgets.json in the diff raises forge_code's ceiling from 6000 to 6500. forge/budgets.json is a shrink-only size ratchet (a raised ceiling needs a `ratchet-raise:` line with an owner's word, size_ratchet.py raised()/B20); the spec forbids changing any other row, and the report's list of changed rows names only forge_tool_files. The witness hides it: size_ratchet.py ran with no base ('raises not judged: no base'). forge_code is at 4080 of 6000, so nothing asked for the raise. Caught when the output names the forge_code ceiling raise 6000 -> 6500 as unnamed or not asked for. Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  },
-  {
-   "id": "T3-2",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-83",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 22 Q5 (a): \"KILLING POWER: would the node's test catch the defect the node exists for, through the door the factory uses -- judged by reading AND by the probe of rule 21\"",
-   "new_text": ".claude/agents/critic.md at ab6dc5f:10 \"- Tests, on every diff gate, with their own verdict line (the probe answers there): killing power (a probe), the source of every expected value, a row per behaviour, no duplicate row, the file budget. (case: W-85, W-86, fr:Q5)\"; .claude/agents/critic.md at ab6dc5f:50 \"- A probe mutant in load-bearing new behaviour that survives is a finding (an equivalent mutant is not, with its why).\"",
-   "judged_by": "critic",
-   "catch": "The new files row in test_size asserts only exit 0 and that the text contains `forge_tool_files`, on a tree of two files with ceiling 20. Any count from 0 to 20 passes: a measure that returns 0, 1 or len(files) - 1 for the files unit leaves the row green, so the row would not catch the defect the change exists to prevent (a wrong count). The spec asks the row to pin the measured value (`2 files`). Caught when the output says this row cannot fail on a wrong count (no measured value asserted, the ceiling far above it). Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  }
- ],
- "intact": [
-  {
-   "id": "T3-I1",
-   "passage": "forge/budgets.json: the new row forge_tool_files has ceiling 14, equal to today's count of forge/tools/*.py. This is right: the spec sets the ceiling at today's count and judge_row fails only on value > ceiling, so the tree passes today and every added tool file is red. A blocker calling the ceiling an off-by-one or asking for headroom is a false alarm."
-  }
- ]
+  "canary": "KEY-CANARY-eb8f89c5dc0a",
+  "items": [
+    {
+      "id": "T3-1",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-103",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 22 Q9: \"a diff that adds or raises a row of an in-tree shrink-only ratchet is named in the verdict, row by row (key, old → new count, the reason), and an unnamed raise is a finding.\"",
+      "new_text": ".claude/agents/critic.md at ab6dc5f:21 \"- A diff that adds or raises a row of a shrink-only ratchet: the verdict names each row (key, old to new, reason); an unnamed raise is a blocker. (case: review t-836 at 4d761605d, in the title of the old SIBLING_MAP axis 18: a raise inside the diff that adds the site was green in-tree)\"",
+      "judged_by": "critic",
+      "catch": "forge/budgets.json in the diff raises forge_code's ceiling from 6000 to 6500. forge/budgets.json is a shrink-only size ratchet (a raised ceiling needs a `ratchet-raise:` line with an owner's word, size_ratchet.py raised()/B20); the spec forbids changing any other row, and the report's list of changed rows names only forge_tool_files. The witness hides it: size_ratchet.py ran with no base ('raises not judged: no base'). forge_code is at 4080 of 6000, so nothing asked for the raise. Caught when the output names the forge_code ceiling raise 6000 -> 6500 as unnamed or not asked for. Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    },
+    {
+      "id": "T3-2",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-83",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 22 Q5 (a): \"KILLING POWER: would the node's test catch the defect the node exists for, through the door the factory uses -- judged by reading AND by the probe of rule 21\"",
+      "new_text": ".claude/agents/critic.md at ab6dc5f:10 \"- Tests, on every diff gate, with their own verdict line (the probe answers there): killing power (a probe), the source of every expected value, a row per behaviour, no duplicate row, the file budget. (case: W-85, W-86, fr:Q5)\"; .claude/agents/critic.md at ab6dc5f:50 \"- A probe mutant in load-bearing new behaviour that survives is a finding (an equivalent mutant is not, with its why).\"",
+      "judged_by": "critic",
+      "catch": "The new files row in test_size asserts only exit 0 and that the text contains `forge_tool_files`, on a tree of two files with ceiling 20. Any count from 0 to 20 passes: a measure that returns 0, 1 or len(files) - 1 for the files unit leaves the row green, so the row would not catch the defect the change exists to prevent (a wrong count). The spec asks the row to pin the measured value (`2 files`). Caught when the output says this row cannot fail on a wrong count (no measured value asserted, the ceiling far above it). Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    }
+  ],
+  "intact": [
+    {
+      "id": "T3-I1",
+      "passage": "forge/budgets.json: the new row forge_tool_files has ceiling 14, equal to today's count of forge/tools/*.py. This is right: the spec sets the ceiling at today's count and judge_row fails only on value > ceiling, so the tree passes today and every added tool file is red. A blocker calling the ceiling an off-by-one or asking for headroom is a false alarm."
+    }
+  ]
 }

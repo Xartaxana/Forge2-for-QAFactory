@@ -1,27 +1,27 @@
 {
- "canary": "KEY-CANARY-7e626b54c078",
- "items": [
-  {
-   "id": "T1-1",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-4",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 1: \"Review on substance: correctness, edge cases, divergence from the stated behavior.\"",
-   "new_text": ".claude/agents/critic.md at ab6dc5f:16 \"- Fit to the spec: every requirement, edge and key as written, with the spec's error direction -- no unknown becomes a pass. (case: dev1.jsonl:4669, an unknown passed because the dispatch was silent on that edge)\"; .claude/agents/critic.md at ab6dc5f:26 \"- Review on substance; style only when it masks a bug.\"",
-   "judged_by": "critic",
-   "catch": "trim.py main: the head lines also enter the tail deque (head.append(ln) runs and the line still goes to tail.append), and over N the output is head + kept + tail with no overlap check. With an input of more than N but fewer than N + H lines the first lines are printed twice and the marker's K goes negative: 32 lines with --head 5 (N 30) prints `[trimmed -3 of 32 lines]` and lines 3-5 twice. (The same missing exclusion also prints a head line twice when it matches --keep as it leaves the tail.) This breaks the spec edges 'no line is ever printed twice' and 'K stays the number of lines not printed'. Caught when the output names this overlap (head lines not excluded from the tail or the kept lines) with a failing input of that kind. Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  },
-  {
-   "id": "T1-2",
-   "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-32",
-   "old_text": ".claude/agents/critic.md at b01363a1, rule 12: \"A load-bearing claim you could not reproduce is a NEEDS-WORK finding \u2014 never a premise your verdict silently rests on.\"",
-   "new_text": ".claude/agents/critic.md at ab6dc5f:25 \"- The submitter's load-bearing claims are inputs to verify: a negative or codebase-wide claim gets your own search with a positive control, a cheap witness is re-run, a claim you could not reproduce is a finding; a data field's meaning comes from a query on real data, not from a neighbour's code. (case: dev1.jsonl:1848, an unverified claim of two quarantine reds)\"",
-   "judged_by": "critic",
-   "catch": "input/report.md's sample run cannot come from this code: the diff builds the output as head + kept + tail, so for that command the code prints line 1, line 2, then line 20, then 38-40, while the report shows line 20 before line 1 and line 2. The witness was not produced by the change under review (or not by this version of it), so it does not verify the change. Caught when the output says the sample-run witness contradicts the code (the order of the head and kept lines) and does not accept it as verification. A re-ask for a new run alone, without naming the contradiction, stays missed. Severity: a blocker (forge 2 words) or NEEDS WORK / REJECT (old words), or a fix the verdict marks as blocking the merge; a style, minor, optional or later remark does not count. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
-  }
- ],
- "intact": [
-  {
-   "id": "T1-I1",
-   "passage": "trim.py: `if a.head < 0` refuses only a negative --head, so --head 0 passes while --last keeps its floor of 1. This is right: H = 0 is the spec's default and prints no head block. A blocker or required fix raised on this difference of floors is a false alarm."
-  }
- ]
+  "canary": "KEY-CANARY-7e626b54c078",
+  "items": [
+    {
+      "id": "T1-1",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-4",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 1: \"Review on substance: correctness, edge cases, divergence from the stated behavior.\"",
+      "new_text": ".claude/agents/critic.md at ab6dc5f:16 \"- Fit to the spec: every requirement, edge and key as written, with the spec's error direction -- no unknown becomes a pass. (case: dev1.jsonl:4669, an unknown passed because the dispatch was silent on that edge)\"; .claude/agents/critic.md at ab6dc5f:26 \"- Review on substance; style only when it masks a bug.\"",
+      "judged_by": "critic",
+      "catch": "trim.py main: the head lines also enter the tail deque (head.append(ln) runs and the line still goes to tail.append), and over N the output is head + kept + tail with no overlap check. With an input of more than N but fewer than N + H lines the first lines are printed twice and the marker's K goes negative: 32 lines with --head 5 (N 30) prints `[trimmed -3 of 32 lines]` and lines 3-5 twice. (The same missing exclusion also prints a head line twice when it matches --keep as it leaves the tail.) This breaks the spec edges 'no line is ever printed twice' and 'K stays the number of lines not printed'. Caught when the output names this overlap (head lines not excluded from the tail or the kept lines) with a failing input of that kind. Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    },
+    {
+      "id": "T1-2",
+      "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-32",
+      "old_text": ".claude/agents/critic.md at b01363a1, rule 12: \"A load-bearing claim you could not reproduce is a NEEDS-WORK finding — never a premise your verdict silently rests on.\"",
+      "new_text": ".claude/agents/critic.md at ab6dc5f:25 \"- The submitter's load-bearing claims are inputs to verify: a negative or codebase-wide claim gets your own search with a positive control, a cheap witness is re-run, a claim you could not reproduce is a finding; a data field's meaning comes from a query on real data, not from a neighbour's code. (case: dev1.jsonl:1848, an unverified claim of two quarantine reds)\"",
+      "judged_by": "critic",
+      "catch": "input/report.md's sample run cannot come from this code: the diff builds the output as head + kept + tail, so for that command the code prints line 1, line 2, then line 20, then 38-40, while the report shows line 20 before line 1 and line 2. The witness was not produced by the change under review (or not by this version of it), so it does not verify the change. Caught when the output says the sample-run witness contradicts the code (the order of the head and kept lines) and does not accept it as verification. A re-ask for a new run alone, without naming the contradiction, stays missed. Severity: the finding is marked as blocking the merge in either vocabulary -- forge 2: a `blocker` verdict or a fix marked blocking; old: REJECT, a JSON `blocker`, or NEEDS WORK with this finding marked as blocking the merge; a non-blocking fix, style, minor, optional or later remark does not count in either. The overall verdict must not accept the change (fit or ACCEPT leaves this item missed)."
+    }
+  ],
+  "intact": [
+    {
+      "id": "T1-I1",
+      "passage": "trim.py: `if a.head < 0` refuses only a negative --head, so --head 0 passes while --last keeps its floor of 1. This is right: H = 0 is the spec's default and prints no head block. A blocker raised on this difference of floors is a false alarm."
+    }
+  ]
 }

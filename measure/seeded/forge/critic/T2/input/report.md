@@ -14,6 +14,6 @@ $ python -m pytest forge/tests/test_token_tools.py -q -k "test_journal or retro"
 ...................                                                      [100%]
 91 passed, 55 deselected in 11.50s
 ```
-The snapshot rows of the file are slow on this machine and were left to CI.
+The rest of the file is slow on this machine and was left to CI.
 
 Deviations from the spec: none.

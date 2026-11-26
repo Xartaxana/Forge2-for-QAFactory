@@ -37,3 +37,5 @@ spec line: files == ["git-hooks.jsonl", "s1.jsonl", "s2.jsonl"]; the code return
 - ao3-wrapper (experiments/ao3-wrapper/factory-vs-free-agent, its answers/ folder; not read card by card): none -- forge code, no ao3 wrapper or archive client.
 
 Seed: authored fresh for this set on forge 2 modules at ab6dc5f; no `(case: ...)` carrier of the old or new critic rules is used as a seed.
+
+Key review t-2095 (T2-A): the intact passage T2-I1 was replaced before the first run. The first passage (cmd_write calls sessions(loaded.entries) without files) can be disputed from input/spec.md, so a sound blocker on it would have scored as a false alarm. T2-I1 is now the named access of git_word, problems and counts_block (every caller passes load()'s own result). A third real defect of the diff (cmd_sum and the missing line of cmd_write still call sessions() without files) is not an item and scores nothing either way.

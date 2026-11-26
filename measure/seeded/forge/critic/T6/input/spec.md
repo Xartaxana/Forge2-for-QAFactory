@@ -1,4 +1,4 @@
-# Dispatch (card C1-4, defect round): a placeholder edges value passes `dispatch.py check`
+# Dispatch (card C1-4 amendment): `dispatch.py check` treats a placeholder edges value as missing
 
 task: t-3106
 given: forge/tools/dispatch.py, forge/tests/test_token_tools.py
@@ -10,5 +10,5 @@ DoD: `python -m pytest forge/tests/test_token_tools.py -q -k dispatch`
 siblings: none named
 test: forge/tests/test_token_tools.py::test_dispatch_check, rows of the existing table | expected from: this card
 
-Defect: a builder dispatch went out with `edges: -` and `dispatch.py check` printed ok: the line was present, so the dispatch looked complete.
+Reason: a builder dispatch went out with `edges: -` and `dispatch.py check` printed ok: the line was present, so the dispatch looked complete.
 Fix: `dispatch.py check` prints `missing: edges` for a placeholder value.

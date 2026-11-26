@@ -1,4 +1,4 @@
-# Review: dispatch.py check, a placeholder edges value (card C1-4 defect round)
+# Review: dispatch.py check, a placeholder edges value (card C1-4 amendment)
 
 given: input/spec.md (the dispatch the builder worked to, its DoD included), input/report.md (the builder's hand-back), input/change.diff (the change as a git diff against this tree), the tree itself (read-only)
 non-goals: no edit of any file, no fix written, no change applied

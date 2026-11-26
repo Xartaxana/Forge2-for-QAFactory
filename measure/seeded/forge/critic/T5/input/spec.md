@@ -1,4 +1,4 @@
-# Dispatch (card B14 amendment, defect): words.py accepts an `asked` of any size
+# Dispatch (card B14 amendment): words.py caps the size of `asked`
 
 task: t-3105
 given: forge/tools/words.py, forge/tests/test_words.py
@@ -10,5 +10,5 @@ DoD: `python -m pytest forge/tests/test_words.py -q`
 siblings: none named
 test: forge/tests/test_words.py::test_add, rows of the BAD table | expected from: this card
 
-Defect: a record whose `asked` held a whole pasted chat (41 000 bytes) was accepted by `words.py add`; the registry is read whole by every `check` and every session start.
+Reason: a record whose `asked` held a whole pasted chat (41 000 bytes) was accepted by `words.py add`; the registry is read whole by every `check` and every session start.
 Fix: `asked` over WORDS_MAX bytes of UTF-8 is refused, the message in the form of the words cap: `asked is <n> bytes, over 8192; ...`.
