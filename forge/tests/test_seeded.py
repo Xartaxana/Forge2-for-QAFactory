@@ -238,13 +238,20 @@ def test_three_exams_with_reuse(world, monkeypatch, capsys):
     out = capsys.readouterr().out
     assert seeded.main(["score", "--set", "critic", "--root", root]) == 0
     lines = capsys.readouterr().out.splitlines()
-    day = sorted(os.listdir(os.path.join(root, seeded.RUNS_REL, "critic")), key=seeded.day_key)[-1]
-    runs = seeded.read_jsonl(os.path.join(root, seeded.RUNS_REL, "critic", day, "runs.jsonl"))
-    old_runs = [r["run"] for r in runs if r["arm"] == "old"]
-    assert day.endswith("-3") and len(set(old_runs)) == len(old_runs) == 3, (day, old_runs, out)
+    base = os.path.join(root, seeded.RUNS_REL, "critic")
+    days = sorted(os.listdir(base), key=seeded.day_key)
+    runs = [seeded.read_jsonl(os.path.join(base, d, "runs.jsonl")) for d in days]
+    old_runs = [r["run"] for r in runs[2] if r["arm"] == "old"]
+    assert days[2].endswith("-3") and len(set(old_runs)) == len(old_runs) == 3, (days, old_runs, out)
+    new2, new3 = [{r["run"] for r in folder if r["arm"] == "new"} for folder in runs[1:]]
+    assert new3 and not new3 & new2, "Q5 re-run: the new arm is always launched, never reused (critic t-2062 r2 M2)"
     assert "T1 T1.D1 forge-roles.1.md#c8 LOSS | old 3/3 caught; new 0/3 caught; bare 0/1 caught" in lines, lines
     assert lines[-2:] == ["rank: does not rank (1 discriminating, 0 unmeasured; LOSS 1, GAIN 0)",
                           "residual: tools Read, Glob, Grep: no run, no write; judged_by run items: none"], lines
+    os.remove(os.path.join(base, days[1], "residual.txt"))
+    seeded.put_file(root, seeded.ARMS_REL, b"")  # today's arms.yaml broken: an old exam still scores (R1)
+    assert seeded.main(["score", "--set", "critic", "--root", root, "--date", days[1]]) == 0
+    assert capsys.readouterr().out.splitlines()[-1].startswith("residual: not recorded;"), "R1 edge: folder before R1"
 
 
 REFUSALS = [  # (what to change, expected fragment, expected from)

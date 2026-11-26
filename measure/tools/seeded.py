@@ -684,6 +684,7 @@ def run(a):
     keys = {t: load_key(a.root, role, t) for t in tasks_of(a.root, role)}
     preflight(doc, rows, role)
     ex = Exam(a.root, role, doc, keys)
+    put_file(ex.out, "residual.txt", doc["launch"]["residual"].encode("utf-8") + b"\n")  # score reads it here (R1)
     for task in sorted(keys):
         run_task(ex, task, rows)
     print("written: %s" % os.path.relpath(ex.out, a.root).replace("\\", "/"))
@@ -816,12 +817,19 @@ def day_of(a, base):
     return day
 
 
+def residual_of(folder):
+    """The residual recorded with the exam at `run` time, never today's arms.yaml (an unrelated arms.yaml defect must not
+    refuse the score of an old exam); a folder written before it was recorded says so."""
+    return text_at(os.path.join(folder, "residual.txt")).strip() or "not recorded"
+
+
 def score(a):
     base = os.path.join(a.root, RUNS_REL, check_set(a.set))
-    rows = read_jsonl(os.path.join(base, day_of(a, base), "scores.jsonl"))
+    folder = os.path.join(base, day_of(a, base))
+    rows = read_jsonl(os.path.join(folder, "scores.jsonl"))
     if not rows:
         raise Refuse("%s/%s: no score rows" % (RUNS_REL, a.set))
-    print("\n".join(report(rows, load_arms(a.root)["launch"]["residual"])))
+    print("\n".join(report(rows, residual_of(folder))))
     return 0
 
 
