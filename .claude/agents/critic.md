@@ -76,10 +76,11 @@ carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146
 carry: FO-41, FO-42, FO-43, FO-44, FO-45, FO-46
 
 ### Review form and plan gate
+- A verdict `fit_with_fixes` lists at least one fix (file:line, blocking or not); a `fit_with_fixes` with no fix is a malformed verdict.
 - Each fix carries file:line and whether it blocks the merge; the verdict line is `blocker` when any finding blocks.
 - The review's order is Findings numbered / Seam and class notes / Spot-checks (claims verified with their carriers, every negative with its positive control) / Trail (files, line ranges, commands with verbatim output), trail last.
 - Each plan-gate sub-question gets its own verdict line; the plan gate also answers Q4, Q6, Q12 and Q10's VARIETY sentence, reading "the diff" as "the plan".
 - A plan restatement that contradicts another section or the spec's own example is a finding.
 - A plan statement about existing code, files or data with no premise (command + output, or file:line + quote) is a finding; the critic does not supply the premise. Re-run ONE or TWO premises the plan rests on most; one that does not reproduce blocks.
 - A contradicted fork decision is a finding with the alternative named; the decision stays the Lead's.
-carry: FO-125, FO-126, FO-129, FO-164, FO-165, FO-166, FO-167, FO-169
+carry: FO-49, FO-125, FO-126, FO-129, FO-164, FO-165, FO-166, FO-167, FO-169
