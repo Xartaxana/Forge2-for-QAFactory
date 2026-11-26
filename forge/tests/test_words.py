@@ -67,6 +67,8 @@ CHECK = [  # (records, files, exit, fragments in the output, expected from)
     ([FORGE], {"forge/BOOT.md": BOOT_OK}, 0, ["0 citations"], "card B1 line classes: plan, exempt (W-101: no word class)"),
     ([FORGE, rec(49)], {"forge/BOOT.md": BOOT_OK + "her words (W-49)\n"}, 1, ["BOOT.md:6: owner word on BOOT: cite the plan item"],
      "W-101, critic t-2025 F3: a live word record is still refused on BOOT"),
+    ([FORGE, rec(49)], {"forge/BOOT.md": BOOT_OK + "x (W-49) (plan 3.2)\n"}, 1, ["BOOT.md:6: owner word on BOOT: cite the plan item"],
+     "critic t-2028 F5: a W id before a resolving plan citation is still refused"),
     ([FORGE], {"forge/BOOT.md": BOOT_OK + "no citation here\n"}, 1, ["BOOT.md:6: uncited line"], "card B3 K2: a BOOT line with no citation"),
     ([FORGE], {"forge/BOOT.md": BOOT_OK + "x (plan 3.9)\ny (plan 8)\n"}, 1, ["BOOT.md:6: plan id absent: 3.9", "BOOT.md:7: plan id absent: 8"],
      "card B1 class 2: <h>.<n> under a ### heading"),

@@ -227,7 +227,8 @@ def boot_line(root, s):
         if pat.fullmatch(s):
             return "exempt:%d" % i
     m = re.search(r"\(plan (\S+)\)$", s)
-    if re.search(r"\(W-[1-9]\d*\)$", s):  # t-2025 F3: the page states principles, her words stay records (W-101)
+    # t-2025 F3, t-2028 F5: the page states principles, her words stay records (W-101); a W id anywhere is refused
+    if any(c.group(1) == "W" for c in CITE_RE.finditer(s)):
         return "owner word on BOOT: cite the plan item that states the rule"
     if re.search(r"\(D-[1-9]\d*\)$", s):
         return "decision cited as owner's word"
