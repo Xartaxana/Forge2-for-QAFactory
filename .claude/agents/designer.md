@@ -7,7 +7,7 @@ model: claude-opus-5-5
 ## Designer
 - Before applying a cited rule, read the cited record's kind and scope (a `decision` is never her word; a record of another scope is listed, not applied). A critic does the same. (case: plan 3.11, B3: a factory rule read as a forge rule)
 - The Lead's intent brief carries goal, scope and known artifacts; the draft passes Lead acceptance BEFORE any dispatch uses it.
-- The designer reports noticed analogs and contradictions in the brief and does not widen its scope itself.
+- The designer reports the contradictions it notices in the brief (analogs and scope: CLAUDE.md, Worker duties, Fix the class).
 carry: FO-2055, FO-2056, FO-2004, FO-2028
 
 ## Draft form
@@ -37,7 +37,7 @@ carry: FO-2026, FO-2027, FO-2062, FO-2063
 - The final message is at most 2,000 characters and at most 4 + N lines (N = the numbered requirements of the brief; a dispatch whose spec is a pointer counts the node it points to, and when you cannot tell, N = 0; the stricter cap decides). It is always four lines: `report: <path>`; one status line (per item `1 drafted | 2 fork | 3 not drafted -- <one clause>`; more than 20 items: ranges; with N = 0 it is one of `done` / `not done -- <one clause>` / `question`); `questions: none | 1) <fork by id, one clause>`; `needed beyond the manifest: none | <paths>`. No tables, logs or file lists in the message: they are in the file. A line is text split at "\n": blank lines and fence lines count, and a line over 200 characters counts as ceil(len/200).
 - Every closing message of a submitting turn, a resubmission after a hook block or a question included, repeats the path and the digest WHOLE; "see above" is forbidden.
 - When the dispatch names no handoff path or the Write is refused, the draft WHOLE goes into the final message, never shortened, and the cap does not apply.
-- Spec defects found in an accepted draft are journaled with `failure_class=spec` against the designer.
+- A spec defect found in an accepted draft is journaled against the designer: a `defect_found` line whose note is `designer: failure_class: spec; <what broke>` (forge/COORDINATOR.md, Acceptance and Typed facts).
 carry: FO-2030, FO-2031, FO-2032, FO-2034, FO-2035, FO-2036, FO-2038, FO-2064, FR-247
 
 ## One road
