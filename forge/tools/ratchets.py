@@ -1,18 +1,30 @@
 # card: C1-2
-"""The one module of every ratchet (F246): finding lines, exit precedence, base and raise lines, one resolver door.
+"""The one module of every ratchet (F246): finding lines, exit precedence, base and raise lines, one resolver door, and the
+one driver of the four list tools (universality, crap, lint, clone): scope, readers, list rules, --update, exit codes.
 
 Exit: 0 green, 1 red, 2 cannot judge (Refuse), 3 part not judged here (red on Actions, TESTING rule 7). Precedence 2 > 1 > 3 > 0.
 Finding line: `new: <identity> <detail>`, the identity one token (whitespace written %20); a stale row prints `stale: <id>`.
+A list tool is a module with SPEC (a Spec), basis(), scan(root, args, data) -> Scan, and optional add_options / check_args.
 """
 import argparse
+import ast
 import glob
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tokenize
+import warnings
 
 TOOL_VERSION = "1"
+ROOTS = ("factory", "forge/tools", "forge/hooks", "measure/tools")  # the C1-3 roots (crap, lint, clone)
+RECORD = ("word", "decision")  # the kinds a raise or a --record may resolve to
+FUNCS = (ast.FunctionDef, ast.AsyncFunctionDef)
+DEFS = FUNCS + (ast.ClassDef,)
+BAD = (SyntaxError, ValueError, RecursionError, MemoryError, OSError)  # ValueError holds UnicodeError and a NUL byte
+INSTALL = "python -m pip install -r forge/ci-requirements.txt"
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # B20 (d): the old `budget-raise:` keyword is not read. The line may sit anywhere in a message; a quote (`>`) or an indent
 # (a fence inside a quote, t-1991 F5) before it is skipped, so such a line counts.
@@ -27,8 +39,18 @@ def python_minor():
     return "%d.%d" % sys.version_info[:2]
 
 
+def encode(text):
+    """N23: an identity is one token, whitespace written %20 (F1: encoded where the identity is built, never late)."""
+    return re.sub(r"\s", "%20", text)
+
+
+def label(key):
+    """The printed identity of a row key: a tuple key (file, token) is joined by `::`."""
+    return encode("::".join(key) if isinstance(key, tuple) else key)
+
+
 def finding(identity, detail):
-    return "new: %s %s" % (re.sub(r"\s", "%20", identity), detail)
+    return "new: %s %s" % (encode(identity), detail)
 
 
 def verdict(codes):
@@ -137,14 +159,74 @@ def files_of(root, patterns):
     return sorted(found)
 
 
-def text_file(root, rel):
-    """The ONE text reader: strict UTF-8; a file that is not UTF-8 is exit 2 naming it."""
+def raw_of(root, rel):
     with open(os.path.join(root, rel), "rb") as fh:
-        raw = fh.read()
+        return fh.read()
+
+
+def text_file(root, rel):
+    """The strict-UTF-8 text reader (names, size, universality): a file that is not UTF-8 is exit 2 naming it. Python source
+    is read by read_source, the other kind."""
     try:
-        return raw.decode("utf-8")
+        return raw_of(root, rel).decode("utf-8")
     except UnicodeDecodeError:
         raise Refuse("%s: not UTF-8" % rel)
+
+
+def read_source(root, rel):
+    """The ONE Python source reader (crap, lint, clone): bytes decoded by the PEP 263 coding line or BOM; a file that cannot be
+    decoded raises, and the caller reports it as broken, never clean."""
+    raw = raw_of(root, rel)
+    return raw.decode(tokenize.detect_encoding(io.BytesIO(raw).readline)[0])
+
+
+def describe(exc):
+    if isinstance(exc, OSError):  # str() of an OSError holds an absolute path
+        return "%s: %s" % (type(exc).__name__, (exc.strerror or "cannot be read")[:200])
+    lines = str(exc).splitlines()
+    return "%s: %s" % (type(exc).__name__, lines[0][:200]) if lines else type(exc).__name__
+
+
+def parse_all(root, files, build):
+    """([build(rel, tree) per file], [(rel, why)], files read): a file that cannot be read or parsed is broken, never clean; a
+    file whose bytes could not be read at all (an OSError) is not counted as read (N2)."""
+    done, broken, unread = [], [], 0
+    for rel in files:
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                done.append(build(rel, ast.parse(read_source(root, rel), filename=rel)))
+        except BAD as exc:
+            broken.append((rel, describe(exc)))
+            unread += isinstance(exc, OSError)
+    return done, broken, len(files) - unread
+
+
+def is_python(root, rel):
+    """A `*.py`, or an extensionless file whose first line is a python shebang (a git hook). Anything else is out."""
+    name = rel.rsplit("/", 1)[-1]
+    if "." in name:
+        return name.endswith(".py")
+    try:
+        with open(os.path.join(root, rel), "rb") as fh:
+            first = fh.readline(512)
+    except OSError:
+        return True  # unreadable: it is reported as a file that cannot be parsed, never skipped
+    return first.startswith(b"#!") and b"python" in first
+
+
+def is_test(rel):
+    parts = rel.split("/")
+    return "tests" in parts or (parts[-1].startswith("test_") and parts[-1].endswith(".py"))
+
+
+def globs(roots):
+    return ["%s/**" % r for r in roots]
+
+
+def scope(root, roots, tests=False):
+    """The Python files of the roots (an absent root is empty), `/`-separated, sorted. F256: test files are in for lint only."""
+    return [r for r in files_of(root, globs(roots)) if is_python(root, r) and (tests or not is_test(r))]
 
 
 def load_list(path, what, ident, field="allow", must_exist=False):
@@ -204,13 +286,12 @@ def judge_list(sites, rows, key, files_read, scope_files, out=print):
     if scope_files and not files_read:
         raise Refuse("scanner read none of the %d files in scope" % scope_files)
     keys = {key(r) for r in rows}
-    text = lambda k: re.sub(r"\s", "%20", "::".join(k) if isinstance(k, tuple) else k)
     stale = sorted(keys - {identity for identity, _ in sites})
     bare = [key(r) for r in rows if not str(r.get("reason", "")).strip()]
     for k in stale:
-        out("stale: %s" % text(k))
+        out("stale: %s" % label(k))
     for k in bare:
-        out(finding(text(k), "row has no reason"))
+        out(finding(label(k), "row has no reason"))
     return [s for s in sites if s[0] not in keys], stale, bare
 
 
@@ -254,3 +335,133 @@ def update(root, path, data, field, key, stale, record, kinds, scope, out=print)
     if dirty:
         out("uncommitted changes in scope: %d paths -- the list describes the committed tree" % len(dirty))
     return 0
+
+
+# ---- the driver of the four list tools (F246 (a): one copy; t-1996 B1)
+
+def ident(row):
+    rid = row["id"]
+    if not isinstance(rid, str) or not rid.strip():
+        raise ValueError("an id is a non-empty string")
+    return rid
+
+
+class Spec:
+    """A list tool's constants: rel (its list file), key(row), field (the rows' name), scope (globs for --update's warning),
+    labels (the `row added` and `emptied` raise texts), extra(old, data) -> {key: text} (a tool's own raise keys), validate(data)
+    (a Refuse for a malformed non-list part), must_exist (a list file that is never born absent)."""
+
+    def __init__(self, rel, key=ident, field="rows", scope=(), labels=("baseline row added", "list emptied"), extra=None,
+                 validate=None, must_exist=False):
+        self.rel, self.key, self.field, self.scope, self.labels = rel, key, field, scope, labels
+        self.extra, self.validate, self.must_exist = extra, validate, must_exist
+
+
+class Scan:
+    """What a tool measured. sites [(identity, detail)]; broken [(path, why)] (red, no row allows it, --update refused); red
+    [(identity, detail)] (red, no row allows it); files in scope and files read -- two counts, N2 (a file read but
+    not parsed is read; one that raised OSError is not); lines for --list (None:
+    the sites); code 0 or 3 (a part not judged); skip: row keys not judged; notes {row id: text added to its stale line};
+    green: lines printed with no verdict."""
+
+    def __init__(self, sites, broken, files, read, lines=None, code=0, skip=(), notes=None, green=(), red=()):
+        self.sites, self.broken, self.files, self.read, self.code = sites, broken, files, read, code
+        self.lines = lines if lines is not None else ["%s %s" % s for s in sites]
+        self.skip, self.notes, self.green, self.red = set(skip), notes or {}, list(green), list(red)
+
+
+def door(rel):
+    """The basis door text, built from the list file's name (the same for every list tool)."""
+    return ("door: edit basis in %s; a basis change also needs `ratchet-raise: %s basis -- <W-n | D-n>`"
+            "; --update does not touch basis" % (rel, os.path.basename(rel)))
+
+
+def raised(old, data, spec):
+    """N13's raise keys against the base: a row added, the list emptied (`clear`), a basis change (`basis`), a tool's own
+    (spec.extra): each `word | decision`. A base that is no well-formed list file is a Refuse."""
+    f, key = spec.field, spec.key
+    try:
+        seen = {key(r) for r in old[f]}
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise Refuse("%s at the base: must be one JSON object with well-formed %s rows" % (spec.rel, f))
+    keys = {label(key(r)): spec.labels[0] for r in data[f] if key(r) not in seen}
+    if cleared(old[f], data[f]):
+        keys["clear"] = spec.labels[1]
+    if basis_changed(old.get("basis"), data["basis"]):
+        keys["basis"] = "basis changed"
+    keys.update(spec.extra(old, data) if spec.extra else {})
+    return {k: (what, RECORD) for k, what in keys.items()}
+
+
+def stale_out(notes):
+    def out(line):
+        print(line + notes.get(line[len("stale: "):], "") if line.startswith("stale: ") else line)
+    return out
+
+
+def conclude(mod, a, held, scan):
+    spec, (path, data, base) = mod.SPEC, held
+    if a.list and scan.lines:
+        print("\n".join(sorted(scan.lines)))
+    for where, why in scan.broken:
+        print(finding(where, "cannot parse: " + why))
+    for identity, detail in scan.red:
+        print(finding(identity, detail))
+    live = [r for r in data[spec.field] if spec.key(r) not in scan.skip]
+    new, stale, bare = judge_list(scan.sites, live, spec.key, scan.read, scan.files, stale_out(scan.notes))
+    for identity, detail in new:
+        print(finding(label(identity), detail))
+    for line in scan.green:
+        print(line)
+    red = 1 if (new or bare or scan.broken or scan.red) else 0
+    if a.update:
+        if scan.broken:
+            print("refused: --update while a file cannot be parsed (fix it first)")
+            return 1
+        code = update(a.root, path, data, spec.field, spec.key, set(stale), a.record, RECORD, spec.scope, print)
+        return verdict([code, red, scan.code])
+    old = base_doc(a.root, base, spec.rel, print)
+    code = judge_raises(a.root, base, spec.rel, raised(old, data, spec), print) if old is not None else 0
+    return verdict([1 if (red or stale) else 0, code, scan.code])
+
+
+def judge(mod, a):
+    spec = mod.SPEC
+    path = os.path.join(a.root, spec.rel)
+    if a.update and a.record:  # before the scan: a dead scanner must not hide that no record resolves yet (L11)
+        err = resolve(a.record, RECORD)
+        if err:
+            print(err)
+            return 1
+    data, _ = load_list(path, spec.rel, spec.key, spec.field, spec.must_exist)
+    if spec.validate:
+        spec.validate(data)
+    base = base_of(a.root, a.base)
+    drift = check_basis(data["basis"], mod.basis(), door(spec.rel))
+    if drift:
+        print("not judged here: python %s, basis %s" % (python_minor(), drift))
+        return 3
+    return conclude(mod, a, (path, data, base), mod.scan(a.root, a, data))
+
+
+def drive(mod, argv):
+    ap = parser(mod.__doc__.split("\n")[0])
+    for flag in ("--update", "--basis", "--list"):
+        ap.add_argument(flag, action="store_true")
+    ap.add_argument("--record")
+    getattr(mod, "add_options", lambda p: None)(ap)
+    a = ap.parse_args(argv)
+    getattr(mod, "check_args", lambda x: None)(a)
+    if a.basis:
+        print(json.dumps(mod.basis()))
+        return 0
+    return judge(mod, a)
+
+
+def entry(mod, argv):
+    """A list tool's main: Refuse is exit 2 (guarded); any other exception is exit 2 too, never a traceback exit 1."""
+    try:
+        return guarded(drive, mod, argv)
+    except Exception as exc:
+        print("cannot judge: %s: %s" % (type(exc).__name__, exc))
+        return 2

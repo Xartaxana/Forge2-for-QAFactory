@@ -9,17 +9,16 @@ appearance, a literal keeps its type only; operators, call shapes, attribute and
 a copy between roots counts. Finding: `new: <fp> <kind> <s> statements, <n> copies: <path>:<a>-<b>, ...`, <fp> the first 16 hex
 of sha256 over `<kind>\\x1f<normalised code>`. A row is {id, members, reason}: stale with all members parsed prints `diverged`
 (B20 (c)); a live group with fewer copies than the members is `shrunk:`, green. Scope, source reading, the driver and the list
-rules are crap_ratchet.py's and ratchets.py's.
+rules are ratchets.py's.
 """
 import ast
 import hashlib
 import re
 import sys
 
-import crap_ratchet as core
 import ratchets
 
-NAME = "clone"
+SPEC = ratchets.Spec("forge/baselines/clone.json", scope=ratchets.globs(ratchets.ROOTS))
 MIN, WINDOW = 5, 6
 SKIP = frozenset({"ctx", "type_comment", "kind", "type_params", "annotation", "returns"})
 BINDS = frozenset({("FunctionDef", "name"), ("AsyncFunctionDef", "name"), ("ClassDef", "name"), ("ExceptHandler", "name"),
@@ -49,7 +48,7 @@ def is_import(stmt):
 
 def blocks(stmt):
     """The statement lists directly inside a statement."""
-    if isinstance(stmt, core.DEFS):
+    if isinstance(stmt, ratchets.DEFS):
         return [strip_doc(stmt.body)]
     out = []
     for _, value in ast.iter_fields(stmt):
@@ -67,7 +66,7 @@ def count(stmts):
 
 def bound_name(n, fn):
     """The name a node binds that is no Name or arg: a nested def or class, except-as, a match capture."""
-    if isinstance(n, core.DEFS) and n is not fn:
+    if isinstance(n, ratchets.DEFS) and n is not fn:
         return [n.name]
     if isinstance(n, (ast.ExceptHandler, ast.MatchAs, ast.MatchStar)):
         return [n.name] if n.name else []
@@ -102,24 +101,45 @@ def bound(value, locs):
     return name_of(value, locs) if isinstance(value, str) else "None"
 
 
-def ser(node, locs):
-    """The canonical text of a node (see the module text); a local name is a mark that renum() numbers later."""
-    if isinstance(node, list):
-        return "[" + ",".join(ser(v, locs) for v in node) + "]"
-    if not isinstance(node, ast.AST):
-        return repr(node)
+class T(str):
+    """Literal text in ser's work list; a plain str there is a node's field value, written with repr."""
+
+
+def fields_of(node, locs):
+    """The work items of one node: its pieces in order, a nested node or list left unexpanded (F5: ser never recurses)."""
     cls = type(node).__name__
-    leaf = {"Name": lambda: name_of(node.id, locs), "Constant": lambda: const(node.value),
-            "arg": lambda: "arg " + name_of(node.arg, locs)}
-    if cls in leaf:
-        return leaf[cls]()
-    parts = [cls]
+    items = [T("(" + cls)]
     for f, v in ast.iter_fields(node):
         if f in SKIP:
             continue
-        v = strip_doc(v) if f == "body" and isinstance(node, core.DEFS) else v
-        parts.append(f + "=" + (bound(v, locs) if (cls, f) in BINDS else ser(v, locs)))
-    return "(" + " ".join(parts) + ")"
+        v = strip_doc(v) if f == "body" and isinstance(node, ratchets.DEFS) else v
+        items += [T(" %s=" % f), T(bound(v, locs)) if (cls, f) in BINDS else v]
+    return items + [T(")")]
+
+
+def ser(node, locs):
+    """The canonical text of a node (see the module text); a local name is a mark that renum() numbers later. An explicit stack:
+    a chain of 1500 terms parses and must be measured, not reported as unparsable (t-1996 F5)."""
+    out, todo = [], [node]
+    while todo:
+        n = todo.pop()
+        if isinstance(n, T):
+            out.append(n)
+        elif isinstance(n, list):
+            out.append("[")
+            todo.append(T("]"))
+            todo.extend(reversed([x for v in n for x in (v, T(","))][:-1]))
+        elif not isinstance(n, ast.AST):
+            out.append(repr(n))
+        elif isinstance(n, ast.Name):
+            out.append(name_of(n.id, locs))
+        elif isinstance(n, ast.Constant):
+            out.append(const(n.value))
+        elif isinstance(n, ast.arg):
+            out.append("arg " + name_of(n.arg, locs))
+        else:
+            todo.extend(reversed(fields_of(n, locs)))
+    return "".join(out)
 
 
 def renum(text):
@@ -139,7 +159,7 @@ def windows(stmts, locs):
     """(starts, ends, counts, window texts) of one statement list, or None when no window can hold."""
     if len(stmts) < WINDOW:
         return None
-    brk = [isinstance(s, core.DEFS) or is_import(s) for s in stmts]
+    brk = [isinstance(s, ratchets.DEFS) or is_import(s) for s in stmts]
     strs = [None if b else ser(s, locs) for s, b in zip(stmts, brk)]
     texts = [None if any(brk[p:p + WINDOW]) else renum("\x1f".join(strs[p:p + WINDOW])) for p in range(len(stmts) - WINDOW + 1)]
     if all(t is None for t in texts):
@@ -149,7 +169,7 @@ def windows(stmts, locs):
 
 def inner(rel, s, locs, funcs):
     """The statement lists inside s as (stmts, locals); a function of enough statements is recorded."""
-    if isinstance(s, core.FUNCS):
+    if isinstance(s, ratchets.FUNCS):
         mine, body = local_names(s), strip_doc(s.body)
         if count(body) >= MIN:
             funcs.append((rel, s.lineno, s.end_lineno, count(body), function_text(s, mine)))
@@ -257,7 +277,7 @@ def row_notes(rows, groups, parsed):
     live = {g["fp"]: g for g in groups}
     notes, green = {}, []
     for r in rows:
-        rid, members = core.ident(r), r.get("members")
+        rid, members = ratchets.ident(r), r.get("members")
         members = members if isinstance(members, list) else []
         if rid in live and len(live[rid]["locs"]) < len(members):
             green.append("shrunk: %s" % rid)
@@ -268,19 +288,19 @@ def row_notes(rows, groups, parsed):
 
 def basis():
     return {"tool": "clone/1", "python": ratchets.python_minor(),
-            "constants": {"normalisation": 1, "min_statements": MIN, "window": WINDOW}, "roots": list(core.ROOTS)}
+            "constants": {"normalisation": 1, "min_statements": MIN, "window": WINDOW}, "roots": list(ratchets.ROOTS)}
 
 
-def scan(root, a, rows):
-    files = core.scope(root)
-    found, broken = core.parse_all(root, files, collect)
+def scan(root, a, data):
+    files = ratchets.scope(root, ratchets.ROOTS)
+    found, broken, read = ratchets.parse_all(root, files, collect)
     groups = clone_groups([f for _, fs, _ in found for f in fs], [x for _, _, ls in found for x in ls])
-    notes, green = row_notes(rows, groups, {rel for rel, _, _ in found})
-    return core.Scan([(g["fp"], detail(g)) for g in groups], broken, len(files), notes=notes, green=green)
+    notes, green = row_notes(data[SPEC.field], groups, {rel for rel, _, _ in found})
+    return ratchets.Scan([(g["fp"], detail(g)) for g in groups], broken, len(files), read, notes=notes, green=green)
 
 
 def main(argv):
-    return core.entry(sys.modules[__name__], argv)
+    return ratchets.entry(sys.modules[__name__], argv)
 
 
 if __name__ == "__main__":

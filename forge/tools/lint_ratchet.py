@@ -5,17 +5,16 @@ lint_ratchet.py [--root D] [--base R] [--update [--record ID]] [--basis] [--list
 Identity of a finding: `<path>::<MessageClass>:<args joined by ,>`, no line (a moved finding keeps it); the line argument of
 RedefinedWhileUnused, ImportShadowedByLoopVar and UndefinedLocal is written `<line>`; repeats are one finding, ` x<n>`.
 pyflakes is imported first (not importable: exit 2, even on an empty scope). A syntax or unexpected error is red, never allowed
-by a row. Scope, source reading, the driver and every list rule are crap_ratchet.py's and ratchets.py's.
+by a row. Scope, source reading, the driver and every list rule are ratchets.py's.
 """
 import importlib
 import sys
 import warnings
 
-import crap_ratchet as core
 import ratchets
 
-NAME = "lint"
 EXTRA = ("forge/tests",)  # F256 (b): one lint rule for test files in every tree
+SPEC = ratchets.Spec("forge/baselines/lint.json", scope=ratchets.globs(ratchets.ROOTS + EXTRA))
 LINE_CLASSES = ("RedefinedWhileUnused", "ImportShadowedByLoopVar", "UndefinedLocal")  # message_args[1] is a line
 
 
@@ -39,20 +38,20 @@ def check_args(a):
     try:
         importlib.import_module("pyflakes.api")
     except ImportError:
-        raise ratchets.Refuse("pyflakes not importable (%s)" % core.INSTALL)
+        raise ratchets.Refuse("pyflakes not importable (%s)" % ratchets.INSTALL)
 
 
 def basis():
     version = importlib.import_module("pyflakes").__version__
     return {"tool": "pyflakes %s" % version, "python": ratchets.python_minor(), "constants": {"line_classes": list(LINE_CLASSES)},
-            "roots": list(core.ROOTS + EXTRA)}
+            "roots": list(ratchets.ROOTS + EXTRA)}
 
 
 def ident_of(rel, m):
     args = [str(x) for x in m.message_args]
     if type(m).__name__ in LINE_CLASSES and len(args) > 1:
         args[1] = "<line>"
-    return "%s::%s:%s" % (rel, type(m).__name__, ",".join(args))
+    return ratchets.encode("%s::%s:%s" % (rel, type(m).__name__, ",".join(args)))  # F1: one token
 
 
 def sites_of(rel, flakes):
@@ -67,26 +66,27 @@ def lint_file(api, root, rel):
     col = Collector()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        api.check(core.read_source(root, rel), rel, col)
+        api.check(ratchets.read_source(root, rel), rel, col)
     return sites_of(rel, col.flakes), col.errors
 
 
-def scan(root, a, rows):
+def scan(root, a, data):
     api = importlib.import_module("pyflakes.api")
-    files = core.scope(root, EXTRA, tests=True)
-    sites, broken = [], []
+    files = ratchets.scope(root, ratchets.ROOTS + EXTRA, tests=True)
+    sites, broken, read = [], [], len(files)
     for rel in files:
         try:
             found, errors = lint_file(api, root, rel)
-        except core.BAD as exc:
-            found, errors = [], [core.describe(exc)]
+        except ratchets.BAD as exc:
+            found, errors = [], [ratchets.describe(exc)]
+            read -= isinstance(exc, OSError)
         sites += found
         broken += [(rel, errors[0])] if errors else []
-    return core.Scan(sites, broken, len(files))
+    return ratchets.Scan(sites, broken, len(files), read)
 
 
 def main(argv):
-    return core.entry(sys.modules[__name__], argv)
+    return ratchets.entry(sys.modules[__name__], argv)
 
 
 if __name__ == "__main__":

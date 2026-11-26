@@ -12,8 +12,6 @@ An allow row is {file, token, reason}, no line. A row that suppresses nothing is
 The list, basis, stale and reason rules, the --update road, the file-set and text readers are ratchets.py's (F246); this
 file keeps no copy.
 """
-import json
-import os
 import re
 import sys
 
@@ -25,9 +23,7 @@ NAME_ROOTS = ("factory/tools", "factory/hooks")
 TEXT_ROOT = "factory"
 SCOPE = [TEXT_ROOT + "/**"]  # one glob for the scan and the --update warning (t-1994 F2)
 CYRILLIC = re.compile("[\u0400-\u04FF]")
-RECORD = ("word", "decision")
-DOOR = ("door: edit basis in %s; a basis change also needs `ratchet-raise: universality-names.json basis -- <W-n | D-n>`"
-        "; --update does not touch basis" % REL)  # t-1994 F1: raised() asks the line for any basis change but python
+RECORD = ratchets.RECORD
 # A name's edge: a non-letter, a lower-to-upper step, or an acronym's end (t-1992 N5: camelCase carried names unflagged).
 # Case-sensitive on purpose: only the name itself is matched case-insensitively.
 EDGE = r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
@@ -64,88 +60,33 @@ def pattern(names):
     return re.compile(r"(?:(?<![A-Za-z])|%s)(?i:(%s))(?:(?![A-Za-z])|%s)" % (EDGE, alts, EDGE))  # F8, N5
 
 
-def scan(root, names):
-    """(name sites [((file, token), 'file:line')], Cyrillic sites [(file, line)], files read, files in scope)."""
-    rx, hits, cyr, files = pattern(names), [], [], ratchets.files_of(root, SCOPE)
+def scan(root, a, data):
+    """The name sites [((file, token), 'file:line')] and the Cyrillic findings, as one Scan; a file read is counted when read."""
+    rx, hits, cyr, files = pattern(check_names(data.get("names"))), [], [], ratchets.files_of(root, SCOPE)
+    read = 0
     for rel in files:
         in_names = rel.startswith(tuple(r + "/" for r in NAME_ROOTS))
         for n, line in enumerate(ratchets.text_file(root, rel).split("\n"), 1):
             if CYRILLIC.search(line):
-                cyr.append((rel, n))
+                cyr.append(("%s::cyrillic" % rel, "%s:%d" % (rel, n)))
             if in_names:
                 hits += [((rel, m.group(1).lower()), "%s:%d" % (rel, n)) for m in rx.finditer(line)]
-    return hits, cyr, len(files), len(files)
+        read += 1
+    return ratchets.Scan(hits, [], len(files), read, lines=[], red=cyr)
 
 
-def judge(found, allow, out):
-    """(count of red findings, stale keys); the shared rules are ratchets.judge_list's."""
-    hits, cyr, read, scope = found
-    new, stale, bare = ratchets.judge_list(hits, allow, key_of, read, scope, out)
-    for identity, detail in new:
-        out(ratchets.finding("%s::%s" % identity, detail))
-    for rel, n in cyr:
-        out(ratchets.finding("%s::cyrillic" % rel, "%s:%d" % (rel, n)))
-    return len(new) + len(cyr) + len(bare), set(stale)
-
-
-def raised(old, data):
-    """Raise keys against the base: allow rows added, allow emptied (`clear`, N4), names removed, a basis change (`basis`,
-    any key but python, t-1994 F1) (each: `word | decision`)."""
-    try:
-        seen = {key_of(r) for r in old.get("allow", [])}
-    except (KeyError, TypeError, AttributeError, ValueError):
-        raise ratchets.Refuse("%s at the base: must be one JSON object with well-formed allow rows" % REL)
-    keys = {}
-    for row in data["allow"]:
-        if key_of(row) not in seen:
-            keys["%s::%s" % key_of(row)] = "allow row added"
-    if ratchets.cleared(old.get("allow"), data["allow"]):
-        keys["clear"] = "allow emptied"
+def names_removed(old, data):
+    """The tool's own raise key (N13): a name at the base gone at HEAD narrows the scan."""
     words = lambda d: {w.strip() for ws in (d.get("names") or {}).values() for w in ws}
-    for word in sorted(words(old) - words(data)):
-        keys[word] = "scan narrowed: name removed"
-    if ratchets.basis_changed(old.get("basis"), data["basis"]):
-        keys["basis"] = "basis changed"
-    return {k: (what, RECORD) for k, what in keys.items()}
+    return {word: "scan narrowed: name removed" for word in sorted(words(old) - words(data))}
 
 
-def update(root, path, data, stale, new, record):
-    """The shared road (ratchets.update, t-1992 N3) on the allow list; a site no row allows keeps the exit red."""
-    code = ratchets.update(root, path, data, "allow", key_of, stale, record, RECORD, SCOPE, print)
-    return ratchets.verdict([code, 1 if new else 0])
-
-
-def run(argv):
-    ap = ratchets.parser(__doc__.split("\n")[0])
-    ap.add_argument("--update", action="store_true")
-    ap.add_argument("--record")
-    ap.add_argument("--basis", action="store_true")
-    a = ap.parse_args(argv)
-    if a.basis:
-        print(json.dumps(basis()))
-        return 0
-    path = os.path.join(a.root, REL)
-    data, allow = ratchets.load_list(path, REL, key_of, must_exist=True)
-    names = check_names(data.get("names"))
-    base = ratchets.base_of(a.root, a.base)  # F4: a bad base is exit 2 even under Python drift
-    drift = ratchets.check_basis(data["basis"], basis(), DOOR)
-    if drift:
-        print("not judged here: python %s, basis %s" % (ratchets.python_minor(), drift))
-        return 3
-    return finish(a, path, data, base, judge(scan(a.root, names), allow, print))
-
-
-def finish(a, path, data, base, judged):
-    new, stale = judged
-    if a.update:
-        return update(a.root, path, data, stale, new, a.record)
-    old = ratchets.base_doc(a.root, base, REL, print)
-    raises = ratchets.judge_raises(a.root, base, REL, raised(old, data), print) if old is not None else 0
-    return ratchets.verdict([1 if new or stale else 0, raises])
+SPEC = ratchets.Spec(REL, key_of, "allow", SCOPE, ("allow row added", "allow emptied"), names_removed,
+                     lambda data: check_names(data.get("names")), must_exist=True)
 
 
 def main(argv):
-    return ratchets.guarded(run, argv)
+    return ratchets.entry(sys.modules[__name__], argv)
 
 
 if __name__ == "__main__":

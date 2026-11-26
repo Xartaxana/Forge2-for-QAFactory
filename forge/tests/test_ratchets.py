@@ -71,14 +71,14 @@ def frag(name, k, v, tail):  # k equal statements then a tail that differs
     return "def %s(z):\n%s    %s\n\n" % (name, "".join("    %s = z.get(%d)\n" % (v, i) for i in range(k)), tail)
 
 
-def cov(root, files, covered, tests="0", excl=False, data=True):
+def cov(root, files, covered, tests="0", excl=False, data=True, keyf=str):
     out = {}
     for path, src in files.items():
         ex, miss = set(), set()
         for d in [d for d in ast.parse(src).body if isinstance(d, ast.FunctionDef)]:
             ex.add(d.lineno)
             (ex if d.name in covered else miss).update(s.lineno for s in ast.walk(d) if isinstance(s, ast.stmt) and s is not d)
-        out[path] = {"executed_lines": sorted(ex), "missing_lines": sorted(miss), "excluded_lines": sorted(ex) if excl else []}
+        out[keyf(path)] = {"executed_lines": sorted(ex), "missing_lines": sorted(miss), "excluded_lines": sorted(ex) if excl else []}
     put(root, {"cov.json": json.dumps({"files": out if data else {}})})
     return ["--coverage-json", os.path.join(root, "cov.json"), "--tests-exit", tests]
 
@@ -107,35 +107,56 @@ H5, ALL = {P: fn("h5", 5)}, {"f20", "f21", "g25", "g26", "v5"}
     (H5, {"limit": {"crap_limit": {"unit": "limit", "ceiling": "20"}}}, 2, [], "crap_limit"),
     (H5, {"limit": True}, 2, [], "crap_limit"),
     (H5, {"limit": -1}, 2, [], "crap_limit"),
-    ({}, {"limit": "absent"}, 0, [], ""),
+    ({P: fn("v5", 5)}, {"covered": set(), "key": "win"}, 1, [P + "::v5"], ""),  # M3: a Windows key
+    ({P: fn("v5", 5)}, {"covered": set(), "key": "abs"}, 1, [P + "::v5"], ""),  # M3: an absolute key under the root
 ])
 def test_crap(tmp_path, monkeypatch, files, kw, code, ids, has):
     root = world(tmp_path, files, kw.get("limit", 20))
     args = []
     if "covered" in kw:
-        args = cov(root, files, kw["covered"], kw.get("tests", "0"), kw.get("excl", False), kw.get("data", True))
+        kf = {"win": lambda p: p.replace("/", "\\"), "abs": lambda p: root.replace("\\", "/") + "/" + p}.get(kw.get("key"), str)
+        args = cov(root, files, kw["covered"], kw.get("tests", "0"), kw.get("excl", False), kw.get("data", True), kf)
     else:
         monkeypatch.setitem(sys.modules, "coverage", None)
     c, o = run(crap, root, *args)
     assert c == code and sorted(new(o)) == sorted(ids) and has in o, o
 
 
-# expected from: PART 2 section 4 coverage and JSON edges (a named input that cannot be read is never covered); F254 usage
-@pytest.mark.parametrize("text, args, code, has", [
-    (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON"),
-    ("{not json", ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON"),
-    ('{"files": []}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "files"),
-    ('{"files": {"p": {"executed_lines": ["a"], "missing_lines": []}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "integers"),
-    ('{"files": {"p": {"executed_lines": [1]}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "missing_lines"),
-    ('{"files": {}}', ["--coverage-json", "{j}"], 3, "tests exit not given"),
-    ('{"files": {}}', ["--tests-exit", "0"], 2, "usage"),
+# expected from: PART 2 section 4 coverage and JSON edges (a named input that cannot be read is never covered, and 2 beats 1
+# and 3 even when nothing needs coverage); F254 usage
+@pytest.mark.parametrize("text, args, code, has, files", [
+    (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON", H5),
+    ("{not json", ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON", H5),
+    ('{"files": []}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "files", H5),
+    ('{"files": {"p": {"executed_lines": ["a"], "missing_lines": []}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "integers", H5),
+    ('{"files": {"p": {"executed_lines": [1]}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "missing_lines", H5),
+    ('{"files": {}}', ["--coverage-json", "{j}"], 3, "tests exit not given", H5),
+    ('{"files": {}}', ["--tests-exit", "0"], 2, "usage", H5),
+    ("{not json", ["--coverage-json", "{j}", "--tests-exit", "1"], 2, "coverage JSON", H5),  # F4: 2 beats 3
+    (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON", {P: fn("h4", 4)}),  # F4: read first, though no function needs coverage
 ])
-def test_coverage_input(tmp_path, text, args, code, has):
-    root = world(tmp_path, H5)
+def test_coverage_input(tmp_path, text, args, code, has, files):
+    root = world(tmp_path, files)
     j = os.path.join(root, "cov.json")
     put(root, {"cov.json": text} if text else {})
     c, o = run(crap, root, *[j if a == "{j}" else a for a in args])
     assert c == code and has in o, o
+
+
+# expected from: PART 2 N23 (an identity is one token, whitespace %20) and N25 (rows of a part not judged are skipped, mutant M2)
+@pytest.mark.parametrize("rel, rid", [(P, P + "::h5"), ("factory/tools/a b.py", "factory/tools/a%20b.py::h5")])
+def test_crap_rows(tmp_path, monkeypatch, rel, rid):
+    root = world(tmp_path, {rel: fn("h5", 5)})
+    put(root, {"forge/baselines/crap.json": json.dumps({"basis": crap.basis(), "rows": [{"id": rid, "reason": "r"}]})})
+    monkeypatch.setitem(sys.modules, "coverage", None)
+    c, o = run(crap, root)
+    assert c == 3 and "stale" not in o and rid + " complexity 5" in run(crap, root, "--list")[1], o
+
+
+# expected from: PART 2 N23 (a lint identity with whitespace in its arguments is one token)
+def test_lint_identity(tmp_path):
+    root = world(tmp_path, {P: "from os import *\nfrom re import *\nx = path\n"}, "absent")
+    assert P + "::ImportStarUsage:path,os,%20re " in run(lint, root, "--list")[1]
 
 
 # expected from: F243 (the rule text) and PART 2 N22 (rows, qualnames, #k)
@@ -195,9 +216,9 @@ def test_list_rules(tmp_path, src, rows, basis, args, code, has, left):
 def test_raised(old, now, keys):
     if keys is None:
         with pytest.raises(ratchets.Refuse):
-            crap.raised(old, now)
+            ratchets.raised(old, now, crap.SPEC)
     else:
-        assert set(crap.raised(old, now)) == keys
+        assert set(ratchets.raised(old, now, crap.SPEC)) == keys
 
 
 A = {"forge/tools/c1.py": body("p", 5, "w"), "forge/hooks/c2.py": body("q", 5, "kk")}
@@ -213,6 +234,7 @@ B = {"forge/tools/e1.py": body("m", 6, "a"), "forge/hooks/e2.py": body("n", 6, "
     ({"forge/tools/f1.py": frag("a", 6, "w", "print(w)"), "forge/hooks/f2.py": frag("b", 6, "kk", "del kk")},
      ["fragment 6 statements, 2 copies"], []),
     ({"forge/tools/f1.py": frag("a", 5, "w", "print(w)"), "forge/hooks/f2.py": frag("b", 5, "kk", "del kk")}, [], ["new:"]),
+    ({"forge/tools/t.py": "".join("x%d = %s\n" % (i, " + ".join(["1"] * 1500)) for i in range(6))}, [], ["new:"]),  # F5: deep, parses
 ])
 def test_clone_measure(tmp_path, files, has, hasnt):
     c, o = run(clone, world(tmp_path, files, "absent"))
@@ -243,6 +265,23 @@ def test_unreadable(tmp_path, name, src):
     c, o = run(TOOLS[name], root)
     c2, o2 = run(TOOLS[name], root, "--update")
     assert (c, c2) == (1, 1) and "new: factory/tools/bad.py cannot parse" in o and not os.path.exists(root + "/forge/baselines"), o2
+
+
+# expected from: PART 2 N29 and F246 (one driver: an unresolved --record is exit 1 before any scan; a scope no file of which could
+# be read at all is exit 2, N2; one read but not parsed is still read, c13's red in all three)
+@pytest.mark.parametrize("name", list(TOOLS))
+@pytest.mark.parametrize("files, args, deny, code, has", [
+    ({}, ["--update", "--record", "D-1"], False, 1, "cannot resolve D-1"),
+    ({"factory/tools/bad.py": "x = 1\n"}, [], True, 2, "read none of the 1 files"),
+    ({"factory/tools/bad.py": "def (:\n"}, [], False, 1, "cannot parse"),
+])
+def test_driver(tmp_path, monkeypatch, name, files, args, deny, code, has):
+    def denied(root, rel):
+        raise PermissionError(13, "denied")
+    if deny:
+        monkeypatch.setattr(ratchets, "raw_of", denied)
+    c, o = run(TOOLS[name], world(tmp_path, files, "absent"), *args)
+    assert c == code and has in o, o
 
 
 # expected from: PART 2 section 4 (an empty file is green; K1 the empty repository; pyflakes first, exit 2 with the door)
