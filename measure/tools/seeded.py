@@ -3,6 +3,8 @@
 
 seeded.py run --set <role> [--arm <id>]... [--root D]   build each arm's tree, launch it through arm.py, judge, score rows
 seeded.py score --set <role> [--date YYYYMMDD[-n]] [--root D]   per item LOSS | GAIN | NOISE | does-not-rank | held, the rank
+seeded.py due [--root D]   per role of sets.yaml: edits of its units since the last exam; due at 3, never examined, sha unknown, model
+seeded.py live [--root D]   builder rejects by cause per builder accept over the first 27 accepts, against the old forge's baseline
 Data: measure/seeded/arms.yaml (arm rows and the harness form), measure/seeded/forge/<role>/<task>/{task.md, input/,
 key.yaml}. Both YAML files are written in JSON syntax and read with json (no PyYAML, as forge/owner-words.yaml).
 Results: measure/runs/forge-roles/<role>/<yyyymmdd>[-n]/{runs.jsonl, scores.jsonl, lot.json, judges/}; raw logs in copies_root.
@@ -22,10 +24,13 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from fractions import Fraction
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import arm  # noqa: E402  (compare and the run row's form live with the launcher)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "forge", "tools"))
+import journal  # noqa: E402  (live reads the journal only through journal.load, S11-7)
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
 ARM = os.path.join(HERE, "arm.py")
@@ -833,18 +838,174 @@ def score(a):
     return 0
 
 
+# ---- due and live (card S11-7: the batched re-run trigger and the live second arm; draft t-2037 Q6, owner's word 26.11 ~18:40)
+
+SETS_FILE = SETS_REL + "/sets.yaml"
+BATCH_N = 3  # F5: edits of a role's units since its last exam that make it due (the owner: accumulate several, not per edit)
+WINDOW = 27  # Q6: builder accepts of the live window, by count never by clock
+INTERIM_FROM = 10
+FULL_LIMIT, INTERIM_LIMIT = (Fraction(1), Fraction("0.39")), (Fraction("1.34"), Fraction("0.52"))  # (M1, M2): 1.5x and 2x of the baseline
+BASELINE = "M1 0.67 / M2 0.26 (old forge logs/journal/dev1.jsonl, 25.11 02:30 to 26.11 17:16: 25 rejects on 27 accepts, 18 capability, 7 spec)"
+ROLE_NOTE = re.compile(r"role:(\S+)")  # the dispatch note's leading role:<role>, as forge/tools/retro.py ROLE reads it
+
+
+def load_sets(root):
+    doc = read_doc(os.path.join(root, SETS_FILE), SETS_FILE)
+    roles = doc.get("roles") if isinstance(doc, dict) else None
+    if not isinstance(roles, dict) or not roles:
+        raise Refuse("%s: no roles" % SETS_FILE)
+    for role, row in sorted(roles.items()):
+        units = row.get("units") if isinstance(row, dict) else None
+        if not SET_RE.fullmatch(role) or not isinstance(units, list) or not units or not all(is_path(u) for u in units):
+            raise Refuse("%s: role %s has no units (a non-empty list of paths)" % (SETS_FILE, role))
+    return roles
+
+
+def unit_text(root, rev, unit):
+    """The text of a unit at rev: the whole file, or a path#Heading section (the `## Heading` line up to the next `## `
+    line); None when the file or the heading is absent (absent on one side counts as differing)."""
+    path, _, head = unit.partition("#")
+    done = git(root, "show", "%s:%s" % (rev, path))
+    if done.returncode:
+        return None
+    text = done.stdout.decode("utf-8", "replace")
+    if not head:
+        return text
+    lines, out = text.split("\n"), None
+    for ln in lines:
+        if ln.rstrip() == "## " + head:
+            out = [ln]
+        elif out is not None and ln.startswith("## "):
+            break
+        elif out is not None:
+            out.append(ln)
+    return None if out is None else "\n".join(out)
+
+
+def changed_files(root, commit):
+    parents = git(root, "rev-list", "--parents", "-n1", commit).stdout.decode().split()[1:]
+    base = ["diff", "--no-renames", "--name-only", "-z", parents[0], commit] if parents else \
+        ["diff-tree", "--root", "-r", "--no-commit-id", "--name-only", "-z", commit]
+    return set(git(root, "-c", "core.quotepath=false", *base).stdout.decode("utf-8", "replace").split("\0")) - {""}
+
+
+def edits_since(root, units_by_role, sha):
+    """{role: commits of sha..HEAD whose units differ from the commit's first parent}; a commit counts once per role."""
+    count = {r: 0 for r in units_by_role}
+    for commit in git(root, "rev-list", "%s..HEAD" % sha).stdout.decode().split():
+        files = changed_files(root, commit)
+        for role, units in units_by_role.items():
+            hit = any(u.partition("#")[0] in files and unit_text(root, commit, u) != unit_text(root, commit + "^1", u)
+                      for u in units)
+            count[role] += hit
+    return count
+
+
+def sha_known(root, sha):
+    return isinstance(sha, str) and re.fullmatch(r"[0-9a-fA-F]{4,64}", sha) is not None \
+        and git(root, "cat-file", "-e", sha + "^{commit}").returncode == 0 \
+        and git(root, "merge-base", "--is-ancestor", sha, "HEAD").returncode == 0
+
+
+def role_model(root, role):
+    done = git(root, "show", "HEAD:.claude/agents/%s.md" % role)
+    m = FRONT.match(done.stdout) if done.returncode == 0 else None
+    found = MODEL_LINE.search(m.group(1)) if m else None
+    return None if done.returncode else (found.group(0)[6:].strip().decode("utf-8", "replace") if found else "")
+
+
+def exam_sha(row):
+    exams = row.get("exams")
+    last = exams[-1] if isinstance(exams, list) and exams else None
+    return last, (last.get("sha") if isinstance(last, dict) else None)
+
+
+def due(a):
+    roles = load_sets(a.root)
+    live = {r: row["units"] for r, row in roles.items() if exam_sha(row)[0] is not None and sha_known(a.root, exam_sha(row)[1])}
+    counts = {r: edits_since(a.root, {r: u}, exam_sha(roles[r])[1])[r] for r, u in live.items()}
+    for role, row in sorted(roles.items()):
+        last, sha = exam_sha(row)
+        model = role_model(a.root, role)
+        if last is None:
+            line = "due: %s never examined" % role
+        elif role not in live:
+            line = "due: %s exam sha unknown" % role
+        elif model is not None and model != row.get("bound"):
+            line = "due: %s model changed" % role
+        elif counts[role] >= BATCH_N:
+            line = "due: %s %d edits since %s" % (role, counts[role], sha)
+        else:
+            line = "not due: %s %d" % (role, counts[role])
+        print(line)
+    return 0
+
+
+def window_events(entries):
+    """(builder accepts, {cause word or ?: builder rejects}, unreadable) of the first WINDOW builder accepts; the role of
+    an accept or reject is that of its task's last dispatch note (events after the last window accept are not counted)."""
+    role_of, accepts, rejects, unreadable = {}, 0, {}, 0
+    for _ts, _f, _n, _raw, obj in entries:
+        if obj is None or accepts >= WINDOW:
+            continue
+        ev, m = obj.get("event"), ROLE_NOTE.match(str(obj.get("note", "")))
+        if ev == "dispatch":
+            role_of[obj.get("task", "")] = m.group(1) if m else None
+        elif ev in ("accept", "reject") and role_of.get(obj.get("task", "")) is None:
+            unreadable += 1
+        elif ev == "accept" and role_of[obj["task"]] == "builder":
+            accepts += 1
+        elif ev == "reject" and role_of[obj["task"]] == "builder":
+            cause = obj.get("cause")
+            word = cause if isinstance(cause, str) and cause.strip() else "?"
+            rejects[word] = rejects.get(word, 0) + 1
+    return accepts, rejects, unreadable
+
+
+def live(a):
+    entries, bad, found = journal.load(a.root)
+    accepts, rejects, unreadable = window_events(entries) if not bad else (0, {}, 0)
+    if bad:
+        print("unmeasured: journal incomplete")
+    elif not found or not accepts:
+        print("unmeasured: no builder accepts yet")
+    elif rejects and set(rejects) == {"?"}:
+        print("unmeasured: B18 not built")
+    else:
+        report_live(accepts, rejects, unreadable)
+    return 0
+
+
+def report_live(accepts, rejects, unreadable):
+    cap, spec = rejects.get("capability", 0), rejects.get("spec", 0)
+    other = sum(rejects.values()) - cap - spec - rejects.get("?", 0)
+    full = accepts >= WINDOW
+    print("builder accepts %d of %d (%s)" % (accepts, WINDOW, "full" if full else "interim" if accepts >= INTERIM_FROM else "short"))
+    print("builder rejects %d: capability %d, spec %d, other cause %d, ? %d" % (
+        sum(rejects.values()), cap, spec, other, rejects.get("?", 0)))
+    print("M1 %.2f (capability per accept), M2 %.2f (spec per accept); baseline %s" % (cap / accepts, spec / accepts, BASELINE))
+    if unreadable:
+        print("role unreadable: %d" % unreadable)
+    if accepts >= INTERIM_FROM:
+        m1, m2 = FULL_LIMIT if full else INTERIM_LIMIT
+        worse = Fraction(cap, accepts) > m1 or Fraction(spec, accepts) > m2
+        print("verdict: %s (%s; worse above M1 %s or M2 %s)" % ("worse" if worse else "within", "full" if full else "interim",
+                                                              float(m1), float(m2)))
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("run", "score"):
+    for name in ("run", "score", "due", "live"):
         p = sub.add_parser(name)
-        p.add_argument("--set", required=True)
         p.add_argument("--root", default=ROOT)
+        if name in ("run", "score"):
+            p.add_argument("--set", required=True)
     sub.choices["run"].add_argument("--arm", action="append")
     sub.choices["score"].add_argument("--date")
     a = ap.parse_args(argv)
     try:
-        return (run if a.cmd == "run" else score)(a)
+        return {"run": run, "score": score, "due": due, "live": live}[a.cmd](a)
     except Refuse as exc:
         print("refused: %s" % exc)
         return 2

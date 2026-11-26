@@ -282,3 +282,126 @@ def test_refusals(world, capsys, change, fragment, src):
     code = seeded.main(["run", "--set", "critic", "--root", root])
     out = capsys.readouterr().out
     assert code == 2 and fragment in out and not os.path.isdir(os.path.join(root, seeded.RUNS_REL)), (out, src)
+
+
+# ---- card S11-7: due (the batched trigger) and live (the second arm)
+SECT = "## Shared\ns0\n## Crit\nc0\n## Build\nb0\n## Other\no0\n"
+NONE3 = "not due: builder 0\nnot due: critic 0\nnot due: solo 0"
+DUE = [  # (edit commits: each a list of (file, old, new); new None deletes), exam, role files, expected, expected from
+    ([], "ok", {}, NONE3, "S11-7 K1 edge (3): no commit since the exam -> 0"),
+    ([[("rules.md", "c0", "c1")], [("rules.md", "c1", "c2")]], "ok", {},
+     "not due: builder 0\nnot due: critic 2\nnot due: solo 0", "S11-7 K1: 2 edits -> not due; another role's section is not counted"),
+    ([[("rules.md", "c0", "c1")], [("rules.md", "c1", "c2")], [("rules.md", "c2", "c3")]], "ok", {},
+     "not due: builder 0\ndue: critic 3 edits since {sha}\nnot due: solo 0", "S11-7 K1: 3 edits -> due; F5 N = 3"),
+    ([[("rules.md", "s0", "s1")], [("rules.md", "s1", "s2")], [("rules.md", "s2", "s3")]], "ok", {},
+     "due: builder 3 edits since {sha}\ndue: critic 3 edits since {sha}\nnot due: solo 0",
+     "S11-7 K1: an edit of a shared unit counts for every role listing it"),
+    ([[("rules.md", "o0", "o1")], [("rules.md", "o1", "o2")], [("rules.md", "o2", "o3")]], "ok", {}, NONE3,
+     "S11-7 edge (2): an edit outside every unit's section range is not counted"),
+    ([[("rules.md", "s0", "s1"), ("rules.md", "c0", "c1")]], "ok", {}, "not due: builder 1\nnot due: critic 1\nnot due: solo 0",
+     "S11-7 edge (2): a commit counts once, however many units it touches"),
+    ([[("b.md", None, None)]], "ok", {}, "not due: builder 0\nnot due: critic 0\nnot due: solo 1",
+     "S11-7 edge (2): a unit absent on one side counts as differing"),
+    ([], "none", {}, "due: builder never examined\ndue: critic never examined\ndue: solo never examined",
+     "S11-7 edge (3): exams empty"),
+    ([], "bad", {}, "due: builder exam sha unknown\ndue: critic exam sha unknown\ndue: solo exam sha unknown",
+     "S11-7 edge (3): a sha that is no ancestor of HEAD is unknown, never not due"),
+    ([], "obj", {}, "due: builder exam sha unknown\ndue: critic exam sha unknown\ndue: solo exam sha unknown",
+     "S11-7 edge (3): the last exam is not an object"),
+    ([], "ok", {"critic": "sonnet"}, "not due: builder 0\ndue: critic model changed\nnot due: solo 0",
+     "S11-7 edge (3): the role file's model differs from bound; builder and solo have no role file -> check skipped"),
+]
+
+
+@pytest.mark.parametrize("edits,exam,agents,expected,src", DUE)
+def test_due(tmp_path, capsys, edits, exam, agents, expected, src):
+    root = str(tmp_path)
+    files = {"rules.md": SECT.encode(), "b.md": b"b\n"}
+    files.update({".claude/agents/%s.md" % r: ("---\nmodel: %s\n---\n" % m).encode() for r, m in agents.items()})
+    sha = repo(root, files)["sha"]
+    for commit in edits:
+        for name, old, new in commit:
+            path = os.path.join(root, name)
+            if new is None:
+                os.remove(path)
+            else:
+                seeded.put_file(root, name, open(path).read().replace(old, new).encode())
+        git(root, "add", "-A")
+        git(root, "commit", "-q", "--no-verify", "-m", "e")
+    last = {"ok": [{"sha": sha}], "none": [], "bad": [{"sha": "0" * 40}], "obj": [5]}[exam]
+    units = {"builder": ["rules.md#Shared", "rules.md#Build"], "critic": ["rules.md#Shared", "rules.md#Crit"], "solo": ["b.md"]}
+    sets = {"schema": "sets/1", "roles": {r: {"units": u, "bound": "opus", "exams": last} for r, u in units.items()}}
+    seeded.put_file(root, seeded.SETS_FILE, json.dumps(sets).encode())
+    assert seeded.main(["due", "--root", root]) == 0
+    assert capsys.readouterr().out.strip() == expected.format(sha=sha), src
+
+
+SETS_BAD = [(None, "sets.yaml: absent", "S11-7 edge (3): sets.yaml absent -> exit 2, never not due"),
+            (b"{oops", "sets.yaml: broken", "S11-7 edge (3): not JSON"),
+            (b'{"schema": "sets/1"}', "sets.yaml: no roles", "S11-7 edge (3): no roles"),
+            (b'{"roles": {"critic": {"units": []}}}', "role critic has no units", "S11-7 edge (3): a role without units")]
+
+
+@pytest.mark.parametrize("data,fragment,src", SETS_BAD)
+def test_due_refuses_sets(tmp_path, capsys, data, fragment, src):
+    if data is not None:
+        seeded.put_file(str(tmp_path), seeded.SETS_FILE, data)
+    assert seeded.main(["due", "--root", str(tmp_path)]) == 2 and fragment in capsys.readouterr().out, src
+
+
+def journal_of(tmp_path, spec):
+    """A = builder accept, C / S / R / N = builder reject of cause capability / spec / recon / none, c = critic accept,
+    X / Y = accept / reject whose dispatch note names no role; None = no journal folder."""
+    lines = []
+    for i, ch in enumerate(spec or ""):
+        role = {"c": "critic", "X": None, "Y": None}.get(ch, "builder")
+        lines.append({"ts": "t%04d" % (2 * i), "task": "t-%d" % i, "event": "dispatch", "by": "lead",
+                      "note": "role:%s x" % role if role else "no role here"})
+        cause = {"C": "capability", "S": "spec", "R": "recon"}.get(ch)
+        lines.append(dict({"ts": "t%04d" % (2 * i + 1), "task": "t-%d" % i, "by": "lead", "note": "n",
+                           "event": "accept" if ch in "AcX" else "reject"}, **({"cause": cause} if cause else {})))
+    if spec is not None:
+        seeded.put_file(str(tmp_path), "logs/journal/s.jsonl", "".join(json.dumps(x) + "\n" for x in lines).encode())
+
+
+LIVE = [  # (journal, extra raw line, must print, must not print, expected from)
+    ("C" * 28 + "A" * 27, "", ["verdict: worse (full", "M1 1.04"], [], "S11-7 K2: M1 28/27 > 1.0 at the full window"),
+    ("C" * 27 + "A" * 27, "", ["verdict: within (full", "M1 1.00"], ["verdict: worse"], "S11-7 K2: 27 rejects is the limit itself"),
+    ("S" * 11 + "A" * 27, "", ["verdict: worse"], [], "Q6: M2 11/27 = 0.407 > 0.39"),
+    ("S" * 10 + "A" * 27, "", ["verdict: within"], [], "Q6: M2 10/27 = 0.370 <= 0.39"),
+    ("A" * 26 + "C" * 36, "", ["verdict: worse (interim"], [], "Q6: the interim limit 1.34, 36/26 = 1.385"),
+    ("A" * 26 + "C" * 34, "", ["verdict: within (interim"], [], "Q6: 34/26 = 1.308 <= 1.34, though over 1.0"),
+    ("A" * 26 + "S" * 14, "", ["verdict: worse (interim"], [], "Q6: the interim M2 limit 0.52, 14/26 = 0.538"),
+    ("C" * 5 + "A" * 27 + "CA", "", ["builder accepts 27 of", "builder rejects 5"], [],
+     "S11-7 edge (4): the window is 27 accepts, later events are not counted"),
+    ("A" * 10 + "C", "", ["builder accepts 10", "M1 0.10", "verdict: within"], [], "S11-7 edge (4): 10 accepts is interim"),
+    ("A" * 9 + "C", "", ["M1 0.11", "baseline M1 0.67 / M2 0.26 (old forge logs/journal/dev1.jsonl"], ["verdict"],
+     "S11-7 edge (5): under 10 accepts, numbers and no verdict; Q6 baseline with its carrier"),
+    ("A" * 12 + "CN", "", ["capability 1", "? 1"], ["unmeasured"], "S11-7 edge (5): a reject without cause is counted under ?, printed"),
+    ("A" * 12 + "RC", "", ["other cause 1"], [], "S11-7 edge (5): a cause outside capability and spec is printed, not dropped"),
+    ("A" * 12 + "NN", "", ["unmeasured: B18 not built"], ["verdict"], "S11-7 edge (5): no reject carries cause"),
+    ("A" * 10 + "XXY", "", ["builder accepts 10", "role unreadable: 3"], [], "S11-7 edge (5): unreadable role printed as a count, left out"),
+    ("A" * 12 + "C", "{broken", ["unmeasured: journal incomplete"], ["verdict", "M1"], "S11-7 edge (5): load's bad non-empty wins"),
+    ("cc", "", ["unmeasured: no builder accepts yet"], ["verdict"], "S11-7 edge (5): zero builder accepts"),
+    (None, "", ["unmeasured: no builder accepts yet"], ["verdict"], "S11-7 edge (5): no journal file"),
+    ("N", "{broken", ["unmeasured: journal incomplete"], ["B18"], "S11-7 edge (5): precedence, incomplete before the rest"),
+]
+
+
+@pytest.mark.parametrize("spec,extra,must,must_not,src", LIVE)
+def test_live(tmp_path, capsys, spec, extra, must, must_not, src):
+    journal_of(tmp_path, spec)
+    if extra:
+        seeded.put_file(str(tmp_path), "logs/journal/s.jsonl", open(os.path.join(str(tmp_path), "logs/journal/s.jsonl"), "rb").read()
+                        + extra.encode() + b"\n")
+    assert seeded.main(["live", "--root", str(tmp_path)]) == 0
+    out = capsys.readouterr().out
+    assert all(m in out for m in must) and not any(m in out for m in must_not), (out, src)
+
+
+def test_calibration_rows():
+    """S11-7 K3: rows R1 and R2 are in the table, four columns each."""
+    with open(os.path.join(ROOT, "forge", "calibration.md"), encoding="utf-8") as fh:
+        rows = {ln.split("|")[1].strip(): ln for ln in fh if ln.startswith("| R")}
+    assert "seeded.py due" in rows["R1"] and "seeded.py live" in rows["R2"]
+    assert all(len(rows[k].strip().strip("|").split("|")) == 4 for k in ("R1", "R2"))
