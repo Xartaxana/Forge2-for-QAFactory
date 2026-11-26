@@ -461,3 +461,60 @@ def test_pre_compact_writes(tmp_path):
     shutil.copy(os.path.join(ROOT, "forge", "tools", "snapshot.py"), root + "/forge/tools/snapshot.py")
     got = [pcm.body(p, "", root, 45) for p in ({"session_id": "s1"}, None)]
     assert got == [0, 0] and len(os.listdir(root + "/logs/journal/snapshots")) == 2
+
+
+# expected from: card B2 (part4b:66-71) -- SessionStart prints blocks per `source`, open ids, the cap, never fails (plan 3.10)
+import session_start as sst  # noqa: E402
+
+
+def jl(root, *evs):
+    put(root + "/logs/journal/s.jsonl", "".join(json.dumps(dict(ts="2026-11-26T10:%02d" % i, by="t", note="n", task=t, event=e))
+                                                + "\n" for i, (t, e) in enumerate(evs)))
+
+
+def start(root, source, arm=False):
+    return hook("session_start.py", ["--root", root], ROOT, json.dumps({"source": source}).encode() if source else b"",
+                **({"FORGE_EVAL_ARM": "x"} if arm else {}))
+
+
+@pytest.mark.parametrize("source,boot,carr,prev,arm", [
+    ("startup", 1, 0, 1, False), ("resume", 0, 0, 0, False), ("clear", 1, 0, 0, False), ("compact", 1, 1, 0, False),
+    (None, 1, 0, 1, False), ("bogus", 1, 0, 1, False), ("compact", 1, 1, 0, True)])
+def test_session_start_blocks(tmp_path, source, boot, carr, prev, arm):
+    root = mkroot(tmp_path, ci=False)
+    put(root + "/logs/journal/snapshots/a.md", "x")
+    jl(root, ("t1", "dispatch"), ("", "session_end"))
+    code, out = start(root, source, arm)
+    assert code == 0 and ("not written yet (B1)" in out) == (boot and not arm) and ("re-read: forge/BOOT.md" in out) == (not arm)
+    assert "snapshot: logs/journal/snapshots/a.md | open: t1" in out
+    assert ("forge/carriers.json not written yet (B7)" in out) == bool(carr) and ("previous session: closed" in out) == bool(prev)
+    put(root + "/forge/BOOT.md", "BOOTTEXT")
+    out = start(root, source, arm)[1]
+    assert ("BOOTTEXT" in out) == bool(boot) and ("re-read: forge/BOOT.md" in out)
+
+
+@pytest.mark.parametrize("evs,want", [
+    ([("a", "dispatch"), ("b", "dispatch"), ("a", "accept")], "open: b"), ([("a", "dispatch"), ("a", "reject")], "open: none"),
+    ([("a", "dispatch"), ("a", "return"), ("a", "dispatch")], "open: a"), ([("t%d" % i, "dispatch") for i in range(12)], "t9 and 2 more"),
+    ([], "open: none"), (None, "open: unknown -- no journal")])
+def test_session_start_open(tmp_path, want, evs):
+    root = mkroot(tmp_path, ci=False)
+    if evs is not None:
+        jl(root, *evs)
+    assert want in start(root, "resume")[1]
+    if evs:
+        put(root + "/logs/journal/s.jsonl", open(root + "/logs/journal/s.jsonl").read() + "{bad\n")
+        assert "(incomplete: 1 unreadable journal lines)" in start(root, "resume")[1]
+
+
+def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
+    root = mkroot(tmp_path, ci=False)
+    put(root + "/forge/BOOT.md", "B" * 4096)
+    put(root + "/forge/carriers.json", json.dumps([{"what goes there": "w" * 100, "carrier": "c"}] * 30))
+    jl(root, *[("t" * 120 + str(i), "dispatch") for i in range(10)])
+    out = start(root, "compact")[1]
+    assert len(out.encode()) <= 6144 and "[cut: open list]" in out and "[cut: checklist]" in out and "B" * 4096 in out
+    put(root + "/forge/carriers.json", "nope")
+    assert "carriers checklist unreadable:" in start(root, "compact")[1]
+    monkeypatch.setattr(sst, "compose", lambda *a: 1 / 0)
+    assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
