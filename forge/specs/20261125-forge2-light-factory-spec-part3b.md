@@ -3,7 +3,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 ## 2. Cards
 
 ### C4-1 Launcher, states, conductor seam
-- amended by: A1, A2, A3, A4, A5, A12, A13, A14, A19, A24 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A2, A3, A4, A5, A12, A13, A14, A19, A24, A27, A28, A29, A30, A34 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `run_stage.py start --story --route story --mode <m>` (`record.py init`, journal opened), `next --story` (computes each stage/group state from record + journal, takes one move, prints it), `resume --story` (after `stopped`). Launch: `context.py` -> `world.py snapshot` -> `host_adapter.launch_line(profile, role, prompt, model)` (C4-5) with env `FACTORY_STORY/STAGE/GROUP/AGENT` -> journal event (C4-6) -> the performer's return = it asks exit.
 - Move per state (frame 2a table):
   - `waiting`: every `reads` section produced by an exited stage -> launch.
@@ -27,7 +27,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_run_stage.py` one table, state x expected move with fixture launch line, strongest first: 12 states | frame 2a; refusal max | 2a, data 2; holds | plan 1a rule 8; relaunch block | plan 1b needed 3; conductor in/out | 2a seam.
 
 ### C4-2 Critic, probes, fix rounds
-- amended by: A1, A7, A13, A16, A22 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A7, A13, A16, A22, A25, A34 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `critic.py --story --stage [--group] --gate G3|G4|G6 --round <n>`: context via `context.py` with the stage's craft pages (same as the performer, F12), the page's "How checked", the live rows of the stage's `leaves`, late rows by name (frame 2c), open `other` reasons to judge, the document preview of G3/G6 (`docs_build.py --preview`, N4); fresh launch via `host_adapter` with the launch env marking a critic launch (N6); the critic writes `critic_findings` (gate, about, round), `probes` and `reason_verdicts` for routed `other` reasons (N7) via `record.py`. G4.5 unmet -> relaunched for the unprobed tests only, counted in F8 (N5). One call per gate, per group at G4 (F8 (a)); re-check round sees only the open findings and the rows they name.
 - Probe (G4.C, P30), per autotest obligation: byte copy of the file to break into `<story>/runs/probes/<probe-id>/`; substitute the value a broken product gives (product code or stub); run through `run_tests.py`; restore from the copy; sha256 compare; `probes` row: test, what broken, `failed|survived|impossible`, run id, restore hash.
 - To the report (C3-5): findings `to_report`; probes `survived` (finding) and `impossible` ("not proven"); tests not accepted; late rows not critiqued.
@@ -38,7 +38,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_critic.py` one table: probe protocol with a fixture test and a fixture critic output (failed, survived, impossible, restore mismatch), round count, context equality | frame 2c ORDER, 3 G4.C/G4.5, F8, plan V25.
 
 ### C4-3 Stops, question forms, `ask.py`
-- amended by: A3, A4, A5, A6 (cards whose `amends:` line names this card; read them with it)
+- amended by: A3, A4, A5, A6, A25, A27, A28 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `questions.yaml`, common fields `id`, `form`, `text`, `tried`, `options` (each with cost to factory, person, story), `doc_ids`, `holds`, `addressee` (plan V8); per form: `critical` (why it blocks, tried); `approve` (doc id; V4 options approved / fixes / partial / intent changed / stop); `bug_or_not` (body by `docs_build.py`, C3-5); `conductor` (state in plain words, what was tried). `ask.py ask --story --form <f> [--doc <id>] --batch <file>` writes the question row and the message; `ask.py answer --question <id> --words "<verbatim>" --speaker <who> [--option <id>]` stores the answer byte-equal with `executor` (the stage that acts); a free-words answer with no option -> V4 class by the conductor (C4-1), never guessed by code. `ask.py` is the only writer of `passes` (N6): a person's tool-written answer that passes a named debt -> `passes` row (rule, rows, words, speaker, stop = question id); a person's verdict on a routed `other` reason -> `reason_verdicts` row (N7).
 - Modes: `live`: message printed for the session to show verbatim; wait measured (`stop_wait`). `comparison|night`: message written to `<story>/runs/questions/<id>.md` for the launching model; options never include a pass or outward permission (frame 2a); the stop named in the report.
 - owns: C:/QAFactory/forge2-repo/factory/data/questions.yaml, C:/QAFactory/forge2-repo/factory/tools/ask.py, C:/QAFactory/forge2-repo/factory/tests/test_ask.py
@@ -48,7 +48,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_ask.py` one table: forms x modes, D3 refusal, repeat question, verbatim | frame 2a, 2d, D3; plan 1.7; battery on `--words` (empty, 64 KB/65 KB, non-UTF-8, quotes and newlines) | rule 11.
 
 ### C4-4 Test runner, evidence recorder
-- amended by: A1, A2, A9, A14 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A2, A9, A14, A25, A27, A29, A35 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `run_tests.py run --story --stage --group --command "<cmd>"|--key test [--tests <paths>] [--obligations <ids>] [--timeout <s>]`: raw output kept whole (`<story>/runs/<run-id>/output.txt`, exit code, command, cwd, start, end); summary by the first matching `runner-forms.yaml` row (`id`, `detect`, `summary` (passed/failed/skipped/error groups), `per_test`), else `summary: unknown` (axis 3); `runs` row + `results` per linked obligation (`green|red|not_reached|setup_stopped`, plan V19), `obtained_by: run_tests.py`; prints at most 20 lines: counts, failing tests then "and N more", raw path. `run_tests.py record --output <file> --command --obtained-by "<how>"`: a run by another road (frame 1, AR-7). A check whose `executable_where` is another place -> not run, `not executable here: <where>` (C3-5 "Left to you").
 - `evidence.py capture --story --check <id> --obligation <id> --phase before|after --kind screenshot|text|file` runs the capture command of key `commands.screenshot` (or reads the named file) itself, stores `<story>/evidence/<id>` with sha256 and time, writes the `evidence` row (`obtained_by: evidence.py`, P26). `evidence.py attach --file --why` (agent-supplied) -> row `obtained_by: agent`, not counted by G4.2 as evidence (fix 13); the obligation closes by the named reason `executed by agent, no evidence` with the why (N8), not by `other`.
 - owns: C:/QAFactory/forge2-repo/factory/tools/run_tests.py, C:/QAFactory/forge2-repo/factory/tools/evidence.py, C:/QAFactory/forge2-repo/factory/data/runner-forms.yaml, C:/QAFactory/forge2-repo/factory/tests/test_run_tests.py
@@ -58,7 +58,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_run_tests.py` one table: runner forms (fixture outputs of two runners as data), unknown, empty, huge, non-UTF-8, timeout, record road, executable_where, capture/attach | frame 1 AR-7, P26, plan V19, axis 3; battery on runner output | rule 11.
 
 ### C4-5 Hooks, first host profile
-- amended by: A1, A2, A12, A13, A18 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A2, A12, A13, A18, A27, A35, B17 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `hook-points.yaml` rows (frame 2e) with `need` (refuse|rewrite|append|observe), `on_hook_failure` (closed|open), `required`, `floor` (rule id), and publication command rows for `outward_write` (data). `factory/data/hosts/claude-code.yaml`: binary and version facts, events per point (`outward_write`, `secrets`: before-tool on write/edit/exec tools; `observe`: after-tool, all tools; `stage_context`: via the launch line's prompt file; `person_address`: none -> floor D3), input fields, verdict channel (stdout JSON, exit 0, host plan section 8), launch line template, `context_window_bytes`. `host_adapter.py`: `event(raw) -> neutral {point, tool_kind, paths, command, agent, group, story}`; `render(verdict)` for the host; `launch_line(...)`; `register --print` (the registration fragment; placed by the person, or by `arm.py` in a clone); `probe --point <p>` (marker command, receipt file; `PROVED|UNPROVEN` to `<work_root>/host-probe.json`). `factory/hooks/`: `outward_write.py`, `secrets.py` (reads `secret-patterns.yaml` of C1-5, AR-15), `observe.py` (journal event via `journal.py`, C4-6); verdict `{decision: allow|refuse|note, reason, door}`.
 - owns: C:/QAFactory/forge2-repo/factory/data/hook-points.yaml, C:/QAFactory/forge2-repo/factory/data/hosts/, C:/QAFactory/forge2-repo/factory/tools/host_adapter.py, C:/QAFactory/forge2-repo/factory/hooks/, C:/QAFactory/forge2-repo/factory/tests/test_hooks.py
 - deps: C1-5 (secret table), C3-6 (`repositories`), C4-6; F31; N9; host plan sections 3, 8-10.
@@ -67,7 +67,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_hooks.py` one table: recorded host events (fixtures), point x {case, clean twin, crash, broken event}, unknown root, probe receipt parse | frame 2e, host plan 8; battery on event JSON (empty, 1 MB, deep nesting, non-UTF-8 path) | rule 11.
 
 ### C4-6 Run journal, dashboard (2f)
-- amended by: A1, A17 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A17, A27, A29, A30, A35, B4, B16 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `journal.py write --story --event <kind> --json <fields>` (append to `<story>/runs/journal.jsonl`, lock as C3-1; kinds: `launch` (frame 2f event fields), `observe`, `refusal`, `docs_given`, `label`, `stop_wait`); token and turn fields from the host's result output parsed by `host_adapter`; absent -> `unmeasured: <why>`. `dashboard.yaml`: view rows (`id`, `group_by`, `figures`). `dashboard.py --story <id>|--all [--rates <file>]`: per agent and story (marathoners over `marathon_minutes`), rework after critic (fix rounds, critic findings), time per story and stage, tokens by model with cache split, factory tool share (`record.py` apart), refusals by label (`unknown` when unlabelled), docs given (count, bytes), `working_file_opened`; from the record: shortfalls per stage, unpaired rows, passes, provisional reasons (an `other` row with no `reason_verdicts` row, N7). Money only on stdout from `--rates` at display (F7); `--out <file>` writes no money column and names it "display only"; no rate value in any repo file.
 - owns: C:/QAFactory/forge2-repo/factory/tools/journal.py, C:/QAFactory/forge2-repo/factory/tools/dashboard.py, C:/QAFactory/forge2-repo/factory/data/dashboard.yaml, C:/QAFactory/forge2-repo/factory/tests/test_dashboard.py
 - deps: C3-1, C3-6; F7, F30.
@@ -76,6 +76,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: `factory/tests/test_dashboard.py` one table: views on a fixture journal + record, unmeasured, labels, money absent from files | frame 2f, F7, plan V28; battery on journal lines (broken JSON, huge, non-UTF-8) | rule 11.
 
 ### C4-7 Main measurement, closes phase 4
+- amended by: A27, B4 (cards whose `amends:` line names this card; read them with it)
 - Delivers: MEASURING RUN on MyBooks and ao3-wrapper: arm `factory` (`run_stage.py` through `arm.py`'s launch row, `mode: comparison`) two runs per project and arm `free` one run per project (F6 (a)), fingerprints equal to C0-5's baseline but the arm; operator = the launching model, answers stops only from `answers/`, same words to every run; each run judged blind by a fresh critic against `truth.yaml` (`judgment/2`, C0-4); labels by the Lead before scoring (F30 (a)): refusals `needed_not_done|gate_defect`, `refound`, `working_file_opened`. Compared: every reconciliation row (C0-4 cells); each requirement in the report has a check or a named reason; repeatability (two factory runs: one delivery verdict, one bug set); wall and tokens per story and stage vs free (2x target, 5x ceiling; over 2x a finding); human count only at named stops, passes and `factory_findings` counted. Acceptance line (plan "success"): on every row not worse than the free arm, better on requirements, traceability, repeatability; all truth bugs found, no false bug; under the 5x ceiling. Run folder `measure/runs/phase4/<project>/<run>/`: run rows, judgment files, record, journal, person docs, operator answers, labels, `phase4.md` summary; no money key (`arm.py` strips); record and journal kept for phase 10.
 - owns: C:/QAFactory/forge2-repo/measure/runs/phase4/
 - deps: all of phase 3-4, C0-4, C0-5; F5, F6, F7, F30.
@@ -84,6 +85,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - test: none -- measuring run; witness score rows, `compare` output, labels file.
 
 ### C4-8 `.md` export of cases and bugs
+- amended by: A25 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `export_md.py --story <id>` writes, per C3-7 row `md`, `delivery/md/cases.md` (template `export-cases.md`: per check: requirement, level, mode, obligations with their Then; per obligation the linked tests; a reverse index: per test the obligations it serves) and `delivery/md/bugs.md` (template `export-bugs.md`: per bug draft the C3-5 bug fields); a `delivery` row via `record.py` (target `md`, files, sha256). Many-to-many shown both ways, never one row per pair.
 - owns: C:/QAFactory/forge2-repo/factory/tools/export_md.py, C:/QAFactory/forge2-repo/factory/tests/test_export_md.py
 - deps: C3-1, C3-5 (templates), C3-7.

@@ -31,6 +31,7 @@ Spec part 6: two cards -- A26, B15 (t-1951, F19; r0, 26.11.2026; r1 fix round t-
 ## 2. Cards
 
 ### A26 The craft of the two looks: what is told at entry; a nothing-found names what was tried; every opened place is answered (plan records 26.11 00:06, 00:19, 01:23, 01:58; F110-F116, F160; r1)
+- amended by: A24, A28, A33 (cards whose `amends:` line names this card; read them with it)
 - amends (A24 r1 and r2 stand whole: where the two looks happen, their records and caps; only what is named here changes):
   - C2-4: `exploration.md` = the FIRST-LOOK page; NEW page `f/craft/deep-look.md` (F110 (a)); both get `## Seeded tasks` (F116). C2-5 `red-analysis.md`, C2-3 `check-selection.md`: the rules the carry lines below send there. Every rule ends `(amend:A26)`; A21 edge "`amend:` ids valid only for A1-A25" -> "A1-A26". HOMES: refs:A20 (hypothesis, oracle and refuting observation written before capture; one cell per call with a control) MOVES from `exploration` to `deep-look` -- C2-1's map line refs:A20 -> `deep-look`; `exploration` keeps of it only "a nothing-found names what was tried". refs:A21 -> `manual-pass`, slices:A15, A16 -> `red-analysis` stand: this card fills them, adds no second home.
   - C2-1 `craft-pages.yaml`: row `deep-look`; new column `data` (data files handed whole with the page: `deep-look` -> `perturbations`; others none); `pages_check.py`: a `data` entry names an existing `f/data/<id>.yaml`, else red.

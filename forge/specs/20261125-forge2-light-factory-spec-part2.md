@@ -36,7 +36,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: none -- documents; witness: key script with a negative control (DOC-DISPATCH).
 
 ### C0-2 MyBooks measuring project
-- amended by: B13 (cards whose `amends:` line names this card; read them with it)
+- amended by: A27, B13 (cards whose `amends:` line names this card; read them with it)
 - Delivers: carried by byte copy (sha256 in `measure/mybooks/SOURCES.md`): `experiments/mybooks/truth/add-to-cart.yaml` -> `truth.yaml` (scored version `v2026-11-05-owner`, `judged: true`; Lead version kept as history); `factory-vs-free-agent/story/LOCAL-1.md` -> `story/`; the exported ticket `task/XPANBFLFA-44.xml` the story names (in the stand arm folder, `RUN-INSTRUCTIONS.md:97-98`; location `estimate`, trail) -> `story/`; `free-agent-prompt.md` (template) -> `free-prompt.md`; `stand/stand.ps1`, `stand/free-mcp.json` -> `stand/`; `judgment.yaml` -> `history/lr2-1-judgment.yaml` (no code reads it); `answers/README.md` and every answer about the PRODUCT or ENVIRONMENT (by name: `no-decision-yet`, `no-tracker`, `cart-quantity-multidigit`, `out-of-stock-disabled-button`, `no-change-current-code`; the builder confirms by reading) -> `answers/`.
 - Left behind: old-flow answers (`gate-a-*`, `s2-*`..`s5-*`, `ticket-title-go-on`: the new factory never asks them); `RUN-INSTRUCTIONS.md` (free-arm rules -> `project.yaml`, C0-4); `notebook.md`; `factory-vs-free-agent.md` (scoring -> C0-4); `cart-1-run-problems.md`, `thinking-roles/`, `disputed-check-plain-agent/`; `runs/`.
 - `project.yaml`: `source` (pristine clones, read only, `stand.ps1:13-14,30-31`), `commit` per source, `copies_root` (outside both repos), `story`, `truth`, `prompt_template` + values, `stand` (commands per arm, expected status), `env`, `model` (= roles' model, P7), `allowed_tools`, `forbidden_hosts`, `machine_notes` (RUN-INSTRUCTIONS §2 traps).
@@ -60,7 +60,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: none -- data; witness as C0-2.
 
 ### C0-4 The one arm launcher; comparison scorer (counts passes)
-- amended by: B1, B12 (cards whose `amends:` line names this card; read them with it)
+- amended by: A27, A30, B1, B4, B12 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `measure/tools/arm.py`: `prepare` (clone, fill prompt, stand precheck; `--dry-run` prints the plan), `launch` (harness command row of `project.yaml`; `--task <folder>` launches a seeded task for C2-6, a stage context for C2-8), `answer` (resume with an answer file), `collect` (arm `out/` + run row into the run folder, F21 (a)). Every launch is `mode: comparison` (part 1 2a header, set at `record.py init` for factory arms): the launching model is the operator, answers stop questions only through `answer`, never passes a gate or grants outward permission. `measure/tools/score.py`: cells, table rows, `passes` count, `compare`.
 - No trace (P8): `prepare` refuses a source with non-empty `git status --porcelain`; `git clone --no-hardlinks` into `<copies_root>/<run>/<arm>/`, `origin` removed, source HEAD + status recorded; `collect` re-reads them: unequal -> `trace: source changed`, never scored; copies kept, not deleted.
 - Run row: `run`, `project`, `arm`, `mode`, `fingerprint`, `start`, `end`, `wall_s`, `turns`, `tokens` (in, out, cache read, cache write), `human_count`, `passes`, `status` (`measured | unmeasured: <why>`). Keys matching `cost|usd|price` are dropped before any repo write; raw harness logs stay in `copies_root`.
@@ -73,6 +73,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: `forge/tests/test_score.py`, strongest first: cell table | expected from: mybooks `factory-vs-free-agent.md:18-38`, ao3 `:21-28`; passes counted, a pass in a comparison record unscores the run | part 1 2a, 2c; P13; money keys dropped | F7; source changed -> unscored, dirty refused | P8; compare refuses | this card; judgment battery | this card's edges.
 
 ### C0-5 Free-agent baseline (F6), MEASURING RUN closing phase 0
+- amended by: B4 (cards whose `amends:` line names this card; read them with it)
 - Delivers: two free runs per project (F6 (a)), sequential, stand reset/seed before each, launched by `arm.py` in `mode: comparison`; operator = the launching model, answers stop questions only, from `answers/` in the same words, own answers marked «мои» and given alike to every later run (fp:A11); each run judged by a fresh-context critic against `truth.yaml` (`judgment/2`), run order hidden; run folder `measure/runs/baseline/` (F21 (a)): result file `result.md` (fingerprint per project, per run table rows, wall, turns, tokens, human count; spread (min-max per countable row); repeatability (same delivery verdict, same bug set); unsure cells and unverified finds by name), judgment files, run rows, operator answers; money keys stripped; raw logs in `copies_root`.
 - owns: C:/QAFactory/forge2-repo/measure/runs/baseline/
 - deps: C0-4; F6, F21.
@@ -81,7 +82,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: none -- measuring run; witness score rows and `compare` output.
 
 ### C1-1 Forge rules, size-budgeted (F9); role files (F16)
-- amended by: B1, B2, B3, B5, B6, B7, B9, B10, B11, B13 (cards whose `amends:` line names this card; read them with it)
+- amended by: B1, B2, B3, B5, B6, B7, B9, B10, B11, B13, B14, B15, B16, B17, B18, B21 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `CLAUDE.md` (worker duties, dispatch form, hygiene, role sections) and thin `.claude/agents/{scout,builder,critic,designer}.md` (tools, model, a pointer to the role section; no rule text) <= 12 KB together (F16 (a)); `forge/COORDINATOR.md` (Lead/Architect: routing, acceptance, escalation, measuring runs, owner's words) <= 20 KB. One place per rule; each carried rule ends `(case: <carrier>)` (run, journal line, retro, owner's word); no case found -> dropped, a commit line (plan 3.4).
 - Carry map (`fr:` = `...-recon-forge-rules.md`, `fp:` = `...-recon-forge-process.md`; equal rules share one text):
   - -> CLAUDE.md: fr:A1-A6, A12, A16, A20-A23, A27, A29-A31, C3, D9, D10, Q1-Q7, Q9-Q13; fp:A7 (=fr:A1), A8, A9 (also TESTING.md), A10 (=fr:A4), A25, A28.
@@ -95,7 +96,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: none -- rule text; witness: key script (ids once, sizes) with a negative control.
 
 ### C1-2 Size ratchet, universality counter, English-only check
-- amended by: B1 (cards whose `amends:` line names this card; read them with it)
+- amended by: B1, B16, B20 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `forge/budgets.json` (F9: `CLAUDE.md` + `.claude/agents/*.md` 12288 B (F16 (a)), `forge/COORDINATOR.md` 20480 B, factory tool code 6000 non-blank lines of `factory/tools/**/*.py` + `factory/hooks/**/*.py`, gate rules 45 rows, `stage_start_load: null`); `size_ratchet.py` (value vs ceiling; a ceiling raised against the previous committed `budgets.json` needs `budget-raise: <key> -- owner <date> «<words>»` in the commit); `universality.py` (one scanner, two scans: names of `universality-names.json` in `factory/tools/`, `factory/hooks/`, case-insensitive, word-bounded, in code, comments, strings; Cyrillic `\u0400-\u04FF` in every text file of `factory/`); `universality-names.json` (`names` by kind: language, runner, framework, tracker, case manager, harness -- plan 4.7; `allow` rows with reason, shrink-only).
 - owns: C:/QAFactory/forge2-repo/forge/budgets.json, C:/QAFactory/forge2-repo/forge/universality-names.json, C:/QAFactory/forge2-repo/forge/tools/size_ratchet.py, C:/QAFactory/forge2-repo/forge/tools/universality.py, C:/QAFactory/forge2-repo/forge/tests/test_budgets.py
 - deps: C1-6; F9.
@@ -104,6 +105,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: `forge/tests/test_budgets.py` one table: name in code/comment/string/data, allow row, Cyrillic, non-UTF-8, size at/over, raise with/without line, absent inputs | expected from: plan 4.2, 4.7; F9; this card.
 
 ### C1-3 CRAP, lint, clone ratchets at zero
+- amended by: B20 (cards whose `amends:` line names this card; read them with it)
 - Delivers: (F17 (a)) three tools of one shape -- measure, compare with `forge/baselines/<tool>.json` (accepted offenders, each with reason and the Lead's word, shrink-only), exit 0 green / 1 red / 2 cannot judge / 3 part not judged; scope `factory/`, `forge/tools/` (clones: tests excluded). Lint = pyflakes (as `C:/QAFactory/forge-repo/tools/lint_ratchet.py:1`); CRAP = `ast` complexity x `coverage` (pure-Python tracer), limit 30 (`.../crap_ratchet.py:17`); clones = normalised `ast` windows, identity without path or line (`.../dup_ratchet.py:24-26`).
 - owns: C:/QAFactory/forge2-repo/forge/tools/crap_ratchet.py, C:/QAFactory/forge2-repo/forge/tools/lint_ratchet.py, C:/QAFactory/forge2-repo/forge/tools/clone_ratchet.py, C:/QAFactory/forge2-repo/forge/baselines/, C:/QAFactory/forge2-repo/forge/tests/test_ratchets.py
 - deps: C1-6; F10, F17.
@@ -112,7 +114,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: `forge/tests/test_ratchets.py` one table, tool x {empty repo, offender, no baseline, malformed, unparsable, gone, tool missing} | expected from: plan 3.6, 4.2; this card.
 
 ### C1-4 Token tools: journal, dispatch header, trim, snapshot
-- amended by: B5, B7, B9 (cards whose `amends:` line names this card; read them with it)
+- amended by: B2, B5, B7, B9, B14, B15, B17, B18 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `journal.py` (append-only `logs/journal/<session>.jsonl`; `ts` UTC, `task`, `event` of a closed list, `by`, `note` <= 300 chars; a lock serialises writers; a fix is a new line); `dispatch.py` (prints and checks the rule 11 R11-f header lines -- `given`, `owns` absolute in the repo, `non-goals`, `handoff`, `edges`, `DoD` with a backticked command, `siblings`, `test`; names each missing line; a called tool, no gate); `trim.py` (last N lines, default 30, plus lines matching given patterns; first line `[trimmed K of M lines]`); `snapshot.py` (code writes `logs/journal/snapshots/<ts>.md`: open tasks, last 20 journal lines, `git status --short`, branch; trigger: C1-5's pre-compaction hook, F18 (a); also callable by hand).
 - owns: C:/QAFactory/forge2-repo/forge/tools/journal.py, C:/QAFactory/forge2-repo/forge/tools/dispatch.py, C:/QAFactory/forge2-repo/forge/tools/trim.py, C:/QAFactory/forge2-repo/forge/tools/snapshot.py, C:/QAFactory/forge2-repo/logs/journal/, C:/QAFactory/forge2-repo/forge/tests/test_token_tools.py
 - deps: C1-6; F18.
@@ -121,7 +123,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: `forge/tests/test_token_tools.py` one table: journal write/refuse/concurrent, dispatch per missing key, trim at/beyond N, snapshot empty/full | expected from: plan 3.3; fr:D14; rule 11 R11-f.
 
 ### C1-5 Forge hooks: push, release, foreign write, secrets, pre-compaction; the ONE secret table
-- amended by: B2, B5, B9, B11 (cards whose `amends:` line names this card; read them with it)
+- amended by: B2, B5, B8, B9, B11, B14, B17, B19 (cards whose `amends:` line names this card; read them with it)
 - Delivers: AS CONTENT (the Lead registers PreToolUse hooks in `.claude/settings.json` and sets `git config core.hooksPath forge/hooks/git` at acceptance): `forge/hooks/git/pre-push` -- runs `forge/tools/ci.py` (F19 (a)), red -> refuse; release: a pushed `v*` tag or branch `release` needs `owner-word: «<words>» <date>` in the tagged commit (P13, fp:A16); `forge/hooks/foreign_write.py` (PreToolUse on Write/Edit/Bash: refuses a target under a root of `forge/hooks/protected-roots.json` -- `C:/QAFactory/ao3-wrapper`, `C:/QAFactory/mybooks-stand/MyBooks`, `C:/QAFactory/mybooks-stand/test-automation-framework`, `C:/QAFactory/forge-repo`); `forge/hooks/git/pre-commit` (staged `.env*`, key-shaped tokens of a row of the one table); `forge/hooks/pre_compact.py` (F18 (a): calls `snapshot.py`, writes only, never refuses); a live probe per hook (fp:A22).
 - THE ONE SECRET TABLE (AR-15, verdict fix 19): `factory/data/secret-patterns.yaml`, rows `id`, `kind` (`path_glob|token_regex`), `pattern`, `what`; shipped with the factory, English; readers: this pre-commit hook, the factory `secrets` hook point (C4-5, part 3; part 1 2e), `rows.py` at launch (C3-2, part 3; part 1 2b). No second pattern list anywhere.
 - owns: C:/QAFactory/forge2-repo/forge/hooks/, C:/QAFactory/forge2-repo/factory/data/secret-patterns.yaml, C:/QAFactory/forge2-repo/forge/tests/test_hooks.py
@@ -131,7 +133,7 @@ Frame spec part 2: card bodies of phases 0-2, forge 2 and the light QA factory (
 - test: `forge/tests/test_hooks.py` one table, strongest first: hook x {case, twin, crash} + secret table {absent, unreadable, bad pattern} + push calls `ci.py` + Bash path forms + pre-compaction writes, never refuses | expected from: plan 3.5; P8; P13; AR-15; part 1 section 6; this card.
 
 ### C1-6 CI and test rule (F14); one job list
-- amended by: B3, B8, B11, B13 (cards whose `amends:` line names this card; read them with it)
+- amended by: B3, B4, B8, B11, B13, B15, B16 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `forge/TESTING.md` (tests on tool code only; layers: stories on real run artifacts once they exist, data joints; one parameterised table per behaviour; `expected from:` spec, rule or owner's word, never code output; test lines <= code lines; new file <= 10 s; CI canon within an hour, fp:A15); `forge/ci-jobs.json`, the ONE job list (rows `id`, `command`, `card`: tests, lint, clone, CRAP, size, universality+English, pages check and W1 once built), read by `.github/workflows/ci.yml` (matrix from the file) and by `forge/tools/ci.py` (F19 (a); runs its rows locally); neither holds a list of its own (verdict fix 19).
 - owns: C:/QAFactory/forge2-repo/forge/TESTING.md, C:/QAFactory/forge2-repo/.github/workflows/ci.yml, C:/QAFactory/forge2-repo/forge/ci-jobs.json, C:/QAFactory/forge2-repo/forge/tools/ci.py
 - deps: C0-1; F10, F14, F19.

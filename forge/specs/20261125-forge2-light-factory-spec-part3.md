@@ -15,7 +15,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 ## 2. Cards
 
 ### C3-1 Story record (2a)
-- amended by: A2, A3, A4, A5, A7, A9, A15, A16, A17, A22 (cards whose `amends:` line names this card; read them with it)
+- amended by: A2, A3, A4, A5, A7, A9, A15, A16, A17, A22, A24, A25, A26, A27, A28, A34, A35 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `record-schema.yaml`: `schema: record/1`; `header` (field -> type/enum, frame 2a); `sections` (name -> `prefix`, `fields` (name -> `type`, `enum` or `enum_from: <data file>`, `readers: [tool]`, `from_stage`)); `levels: [unit, api, integration, e2e_ui, manual, exploratory]` (the one level list, plan 1v test plan, slices:D1); optional fields of untyped sections that docs need: understanding `goal`, `depth`, `checking` (REQ ids), `not_checking` (REQ id + why), `affected`; check `breaks`, `impact`, `technique`; finding/assumption `about` (row id, stage, `knowledge:<key>`, or `plan:<section>` of C3-5). Sections of r2: `expectations` (N2: `requirement` id, kind or `none`, `readiness`, `group` per F42; requirement ids stable from stage 1 to delivery, `revise` only for a change of meaning); `reason_verdicts` (N7: `about` reason row, `accepted|returned`, `by`). Every row carries `group`, written by `record.py` from the launch env `FACTORY_GROUP` (N1), never by the agent. Writer-bound sections (N6): `passes` only through `ask.py`'s call naming a question whose answer row is tool-written; `probes` and critic `reason_verdicts` only under a `critic.py` launch (`by` from the launch env set by the launcher); a performer `add` of them -> refused, door "ask the person (ask.py)" / "the critic writes probes". `empty-outcomes.yaml`: `kind`, `section`, `words` (one row per required section, AR-23). `record.py` CLI, each command prints `ok <ids>` or a refusal:
   - `init --story <id> --route <id> --mode live|comparison|night`: writes header, `seq: 0`, `approved_plan_seq: null`; record exists -> refused, door "use the existing record or a new story id".
   - `add --stage <s> --by <agent:role> --batch <file|->`: rows as YAML list; ids and `seq` assigned under the lock; all or nothing (frame 2a).
@@ -32,7 +32,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - test: `factory/tests/test_record.py` one table, strongest first: batch all-or-nothing | frame 2a; revise/stale over `supersedes` | 2a "Derived"; mode refusals | 2a; concurrency | F11; check defects | this card; battery (empty, 500/501 rows, deep nesting, non-UTF-8, BOM, broken YAML) | CLAUDE.md rule 11.
 
 ### C3-2 Stages, routes, loader, W1, context (2b)
-- amended by: A3, A4, A6, A7, A8, A10, A12, A16, A21, A24 (cards whose `amends:` line names this card; read them with it)
+- amended by: A3, A4, A6, A7, A8, A10, A12, A16, A21, A24, A26, A27, A28, A31, A32, A33, B16 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `routes.yaml`: `story: [sources, product, plan, tests, reds, report]`. `stages.yaml` (frame 2b fields; X1-X6 implied on every row, not listed; `critic` names the stage's own `craft` set, F12):
 
 | id | reads | leaves required / optional | craft (C2-x ids) | exit / after_critic | critic | stop | grouped, parallel_max |
@@ -54,7 +54,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - test: `factory/tests/test_rows.py` one table: W1 (each miss class, green rows) | frame 2b, 1b needed 1; loader absent/unreadable per file | 2b; context byte-equality and relaunch block | plan 1b needed 3; window over/at | 2b, F9; C3-7 rows | C3-7; battery on a person-edited data row (broken YAML, non-UTF-8, duplicate id) | rule 11.
 
 ### C3-3 Gate rules, reasons, red causes, exit check
-- amended by: A3, A4, A6, A7, A8, A9, A16, A24 (cards whose `amends:` line names this card; read them with it)
+- amended by: A3, A4, A6, A7, A8, A9, A16, A23, A24, A25, A26, A27, A28, A30, A33, A34 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `gate-rules.yaml` (frame 2c fields, one row per id of frame 3); `when` and door per id (door always also a `passes` row, frame 2c; `when` values beyond `exit|after_critic` are fork F41; ORDER per r2 N4: exit -> `docs_build.py` preview -> critic -> fix rounds, each rebuilding the preview -> `after_critic` on the built document -> stop; a stage with no critic: exit -> build -> `after_critic` -> stop). DUE per N1 at the stage whose `exit` column (C3-2) first names the rule; DEBTOR per N1: a shape rule on a row's own fields -> the row's stage; "each X has a Y" -> the stage leaving Y (G3.1 -> `plan` via `expectations`; G3.2 -> `plan`; G4.2, G6.2 -> `tests`); otherwise the exiting stage, never the author of X; debtor exited -> shortfall:
 
 | ids | when | door (besides `passes`) |
@@ -91,7 +91,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - test: `factory/tests/test_world.py` one table on temp repos: parallel groups, ignored, deleted, no VCS, no observe, no snapshot, directory grouping | frame 3 X3, fix 7; battery on observe JSON (empty, broken, huge path list, non-UTF-8 path) | rule 11.
 
 ### C3-5 Person documents; templates
-- amended by: A2, A3, A4, A5, A6, A7, A22, A24 (cards whose `amends:` line names this card; read them with it)
+- amended by: A2, A3, A4, A5, A6, A7, A22, A24, A25, A26, A27, A28, A29, A30, A33, A34, A35 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `person-docs.yaml` (frame 2d fields) and `factory/templates/<id>.md`, fixed sections from plan 1v; `docs_build.py --story --doc <id> | --form bug_or_not` writes `<story>/docs/<id>.md`; counts and statuses only by code; author text from record fields, never cut by code; a list over its row budget shows the first rows then `and N more (ask to see them)` (the person never gets a working file, plan 1v issue rule 1); empty section -> its `empty-outcomes.yaml` words; absent record section -> `not recorded: <section>` (frame 2d).
 
 | doc | from (record) | fixed sections | budget |
@@ -111,7 +111,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - test: `factory/tests/test_docs_build.py` one table: per doc on one fixture record (counts, budgets AT/BEYOND, empty, absent, many-to-many appendix, language fallback, template names) | plan 1v, frame 2d; battery on author fields (huge, nested markdown, non-UTF-8, empty) | rule 11.
 
 ### C3-6 Project knowledge (2g)
-- amended by: A1, A2, A6, A7, A8, A9, A10 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A2, A6, A7, A8, A9, A10, A26, A27, A29, A30 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `knowledge-keys.yaml` rows `key`, `default`, `absent_means`, `asked_when`, `readers`:
 
 | key | default | absent_means | asked_when | readers |
@@ -144,7 +144,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - test: rows in `factory/tests/test_rows.py` | frame 4 index; frame 2e, axis 6.
 
 ### C3-8 Expectation-source kinds
-- amended by: A4, A5, A7, A15 (cards whose `amends:` line names this card; read them with it)
+- amended by: A4, A5, A7, A15, A27 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `expectation-sources.yaml` (plan V6): `explicit_requirement`, `keep_as_before` (old system, "keep as it was"; "was so but looks like a bug" is a question, not a kind), `confirmed_precedent`, `person_word` (needs a question id), `common_logic` (flagged, needs person confirmation: a question id); each `id`, `words`, `needs`. `none` = "no reliable expectation source" (frame 2a), never a row of its own; the product's code is never a kind (P20, FR-58). Readers: `record.py` (`enum_from` of `expectations.kind`, N2), `exit_check.py` G3.1, `docs_build.py` checklist and report, C2-2's page by citation.
 - owns: C:/QAFactory/forge2-repo/factory/data/expectation-sources.yaml
 - deps: C3-2.

@@ -203,6 +203,8 @@ Owner: data = code; judgment = a role, accepted a tier above; intent = the perso
 | D3 | stop message cites only document/form ids (`ask.py` field); a working-file request returns to the performer (1v issue rule 3) | questions | data | xref | refuse |
 | W1 | each read and typed-field reader has a producer, each leave a reader (CI) | stage rows, schema | data | xref | CI red |
 
+Gate rows amended by pointer: X1, X2, X6 by A24; X4 by A24, A26, A28; X3, X5 by none (cards whose `amends:` line names the row; read them with it; map t-1980).
+
 The critic sits only in G3, G4, G6 (stage row column). A red cause, reason, critical mark or `holds` is the performer's judgment: code checks presence and row-set membership (AR-29); critic, person or conductor accepts it.
 
 ## 4. Cards
