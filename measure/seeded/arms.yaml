@@ -1,0 +1,33 @@
+{
+  "schema": "arms/1",
+  "note": "Card S11-1; written in JSON syntax (valid YAML), read with json by measure/tools/seeded.py. export = the frozen forge 2 snapshot every arm's tree is cut from (draft I1, I6); a row's source = where its rule files come from. The Lead pins every sha (draft c1) and re-pins new's source at each exam. launch = mechanism A (E0 / S11-0, the Lead's input to t-2056): cwd = the arm tree, stdin empty. Mechanism B, a data alternative only: the same command with `--append-system-prompt-file`, `{role_file}` in place of `--agent`, `{role}` (never the inline --append-system-prompt: WinError 206 at ~33 KB on Windows). text_key and models_key name the json output's fields (estimate, the json form E0 read).",
+  "copies_root": "C:/QAFactory/forge2-copies/seeded",
+  "export": {"repo": "C:/QAFactory/forge2-repo", "sha": "a09c9d147096737e9a9b4740a7d62163e143faf2"},
+  "host_paths": {"instructions": "CLAUDE.md", "role": ".claude/agents/<role>.md", "settings": ".claude/settings.json", "skills": ".claude/skills"},
+  "launch": {
+    "mechanism": "A",
+    "command": ["claude", "-p", "--model", "{model}", "--tools", "", "--output-format", "json", "--no-session-persistence", "--agent", "{role}", "{task}"],
+    "judge_command": ["claude", "-p", "--model", "{model}", "--tools", "", "--output-format", "json", "--no-session-persistence", "{task}"],
+    "version_command": ["claude", "--version"],
+    "text_key": "result",
+    "models_key": "modelUsage"
+  },
+  "arms": [
+    {"id": "new", "kind": "tree_overlay",
+     "source": {"repo": "C:/QAFactory/forge2-repo", "sha": "a09c9d147096737e9a9b4740a7d62163e143faf2"},
+     "put": {"instructions": "CLAUDE.md", "role": ".claude/agents/<role>.md"},
+     "remove": [], "closure": [], "model": "claude-opus-5-5"},
+    {"id": "old", "kind": "tree_overlay",
+     "source": {"repo": "C:/QAFactory/forge-repo", "sha": "b01363a15dd4f2078334b54538bfdf2e347ceb10"},
+     "put": {"instructions": "CLAUDE.md", "role": ".claude/agents/<role>.md"},
+     "remove": ["CLAUDE.md", ".claude", "forge/COORDINATOR.md", "forge/BOOT.md"],
+     "closure": ["COORDINATOR.md", "PROJECT.md", "docs/TESTING.md", "docs/SIBLING_MAP.md", "docs/FACTORY_RULES_INDEX.md", "docs/RUNBOOK.md", "ai-packages/qa-factory/design/factory-rules.md", "ai-packages/qa-factory/design/architecture.md"],
+     "model": "claude-opus-5-5"},
+    {"id": "bare", "kind": "tree_overlay",
+     "source": {"repo": "C:/QAFactory/forge2-repo", "sha": "a09c9d147096737e9a9b4740a7d62163e143faf2"},
+     "put": {"role": ".claude/agents/<role>.md"},
+     "remove": ["CLAUDE.md", ".claude", "forge/COORDINATOR.md", "forge/BOOT.md"],
+     "closure": [], "model": "claude-opus-5-5",
+     "body": "Do the task you are given."}
+  ]
+}
