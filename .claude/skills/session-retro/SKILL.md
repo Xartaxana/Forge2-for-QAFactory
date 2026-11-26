@@ -16,7 +16,7 @@ nodes are opened only after the weekly reduction has merged the repeats and chos
 
 ## 2. Reasons and answers
 
-- A reason per non-zero counter and an answer per question of the file (Q1-Q5); every item carries a NUMBER where one exists (turns, tokens, repeats -- from step 1, or `not measured`), the CARRIER (file and line, hook, tool, dispatch id) and where the fix belongs: code / rule text / spec / tool / nothing. An empty answer is `nothing: <why>`, not left out.
+- A reason per non-zero counter and an answer per question of the file (Q1-Q5); every item carries a NUMBER where one exists (turns, tokens, repeats -- from step 1, or `not measured`), the CARRIER (file and line, hook, tool, dispatch id) and where the fix belongs: code / rule text / spec / tool / nothing. An empty answer is `nothing: <why>`, not left out. (partner: forge/COORDINATOR.md, Journal, sessions and retro, the "Before `session_end`" line)
 
 ## 3. One file
 
@@ -24,7 +24,7 @@ nodes are opened only after the weekly reduction has merged the repeats and chos
 
 ## 4. Say it in chat
 
-- The file alone does not reach the owner: say ONE short list in plain words, each item one line with its number and where the fix belongs -- at most five IMPORTANT points, and every open question to the owner, none dropped.
+- The file alone does not reach the owner: say ONE short list in plain words, each item one line with its number and where the fix belongs -- at most five IMPORTANT points, and every open question to the owner, none dropped. (partner: forge/COORDINATOR.md, Journal, sessions and retro, the "Before `session_end`" line)
 - The important points are picked by these marks, in this order: what stopped the work or cost a rejected attempt; the largest counts of step 1; a gate or hook that refused wrongly (Q3); a decision the session took itself and is not sure about (Q4).
 - No item under these marks is said as `retro: nothing important -- <why>`; everything else stays in the file.
 carry: FS-191, FS-193

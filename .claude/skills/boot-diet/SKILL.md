@@ -25,7 +25,7 @@ carry: FS-7, FS-31
 ## 2. Relevance walk
 
 - Walk every file of the red row entry by entry and ask of each: does every future session need this? Anything that belongs to one task, one card or one day moves to its own carrier (forge/carriers.json: spec, journal, owner-words record, measured run), with a one-line pointer only where a reader could still look for it.
-- The report writes a verdict per entry walked: `moved to <carrier>`, `cut -- <why>` or `stays -- <why>`.
+- The report writes a verdict per entry walked: `moved to <carrier> -- <why>` or `stays -- <why>`. A line nobody needs that has no other carrier is reported to the Lead and the owner, never cut without the owner's word (a deep cut: "The order of moves").
 carry: FS-28
 
 ## 3. Deduplicate

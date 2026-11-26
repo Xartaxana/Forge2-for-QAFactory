@@ -10,15 +10,15 @@ start reads, the close-out verifies. The outcome is a short report against point
 
 ## 1. Git, every repo the session touched
 
-- `git status --short` is empty in every repo this session touched (forge 2, its worktrees, and any other repo under the same deployment edited this session, not only this one): what this session left uncommitted is committed now; a measured project gets no commit, its tree must show no trace (forge/COORDINATOR.md, Measuring runs).
+- In every repo this session touched (forge 2, its worktrees, and any other repo under the same deployment edited this session, not only this one) `git status --short` shows no path of this session left uncommitted: commit it now; another session's dirty paths are named in the report, not committed (forge/COORDINATOR.md, Parallel writers); in the measured project "A comparison run leaves no traces in the project" (forge/COORDINATOR.md, Measuring runs), so it gets no commit.
 - `git log origin/main..main --oneline` is empty, otherwise push.
-- Unfamiliar untracked files are never swept into a commit silently: find out what they are first; another session's uncommitted paths are not committed (forge/COORDINATOR.md, Parallel writers).
+- Unfamiliar untracked files are never swept into a commit silently: find out what they are first.
 carry: FS-138, FS-141
 
 ## 2. Journal closed
 
 - `python -B forge/tools/journal.py open` lists no task of this session left without its accept or reject; a `return` alone is RESULT PENDING: the worker stopped and the acceptance is still owed. (tool: none yet -- journal.py open counts a return as closing)
-- A session that ran below Lead rank (degradation or mid-tier mode, .claude/agents/critic.md) and leaves work behind says so in its `session_end` note, the journal's last event -- what was done below Lead rank and what waits for a Lead -- so that the next session sees it. (tool: none yet -- journal.py has no degradation event)
+- A session that ends below Lead rank (degradation or mid-tier mode, .claude/agents/critic.md) says so in its `session_end` note, the journal's last event: what was done below Lead rank and what waits for a Lead. (tool: none yet -- journal.py has no degradation event)
 carry: FS-143
 
 ## 2a. Accepted work is in the committed HEAD
@@ -29,12 +29,12 @@ carry: FS-145, FS-146
 
 ## 2b. Critic-trail candidates
 
-- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits, the input to the cumulative critic-integration judgment (old R13-g); the listing only reads git and the journal. (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
+- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits, the input to the cumulative critic-integration judgment (old R13-g); the listing only reads git and the journal. The candidates are read by the weekly reading of acceptances with no critic input (forge/COORDINATOR.md, Acceptance); the count has no reader in forge 2 yet. (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
 carry: FS-149
 
 ## 3. What only this chat knows
 
-- The trigger question of forge/COORDINATOR.md (Journal, sessions and retro) is answered: "is everything only I know now written down in a file?"; each item is in its carrier (forge/carriers.json), the state line of forge/BOOT.md is current.
+- The trigger question is answered: "is everything only I know now written down in a file?"; each item is in its carrier (forge/carriers.json), the state line of forge/BOOT.md is current. (partner: forge/COORDINATOR.md, Journal, sessions and retro, the "On a trigger" line)
 
 ## 4. Size and the boot chain
 
@@ -48,7 +48,7 @@ carry: FS-158
 
 ## 6. Retro
 
-- A coordinator session runs the session-retro skill now, before step 7's commit and before any compaction if one is near.
+- A coordinator session runs the session-retro skill now, before step 7's commit and before any compaction if one is near. (partner: forge/COORDINATOR.md, Journal, sessions and retro, the "Before `session_end`" line)
 - The report line is `retro: written <path>` or `retro: skipped -- <reason>` (a worker session, or a session of a few turns). (tool: none yet -- `retro.py missing` keeps a skipped session listed as missing)
 - Under a `written` line the report prints in chat the session-retro step-4 list (the important points and the owner questions); a report with the path alone is a FAIL of this point.
 carry: FS-161
