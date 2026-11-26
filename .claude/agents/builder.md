@@ -24,7 +24,7 @@ model: sonnet
 - A confession of a hygiene deviation names file:line.
 - Only the last message reaches the coordinator: every closing message, a resubmission after a block or a question included, repeats the report path and the digest whole; "see above" is forbidden; an empty or truncated final message counts as work not delivered.
 - While working, run at most the changed module's test file, and not after every edit.
-- A wait loop with no bound is refused by the gate, which prints the form to paste in its refusal; a loop or process you leave running is named in your report (docs/RUNBOOK.md 9.8). (tool: none yet)
+- A wait loop with no bound is refused by the gate, which prints the form to paste in its refusal; a loop or process you leave running is named in your report (old forge docs/RUNBOOK.md 9.8). (tool: none yet)
 - git `diff`, `log`, `show` and `status` are free in any tree; merges, pushes and branch switches are not the builder's.
 - Comments explain why, usually naming the incident; run with `python -B`; temporary files go to the OS temp, never into the package.
 - A new refusal names how a person's recorded decision passes it: the orchestrator records the word, a role never runs the waiver itself (FR-4, FR-57).
