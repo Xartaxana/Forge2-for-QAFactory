@@ -8,7 +8,8 @@ dispatch.py [--root D] check <file | ->                 one line `missing: <name
 Exit: 0 ok, 1 something missing or repeated or an owns path not absolute / outside the root, 2 unknown role, a newline
 in a value or a file that cannot be read. Lines inside fences or after > are no header lines.
 A called tool: it gates nothing. The caps line reads forge/caps.json (card B5), a JSON array of rows with role,
-tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent or malformed -> `caps: missing`; an unknown role -> the strictest worker row and a note (reader: hooks/budget.py).
+tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent, malformed or with no worker row -> `caps: missing`; a role
+without its row -> the strictest worker row and a note (reader: hooks/budget.py; not loadable -> `caps: missing` naming it).
 """
 import argparse
 import importlib.util
@@ -25,17 +26,20 @@ TICKS = re.compile(r"`[^`\n]+`")
 KEY = re.compile(r"^[A-Za-z0-9_-]+:(\s|$)")  # a drive path (C:/x) has a slash after its colon, so it is no key
 
 
+BUDGET = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks", "budget.py")
+
+
 def caps_line(root, role):
-    """The caps line is budget.py's (card B5, t-2027 F10): the hook and the header print one text from one reader. The hook is
-    loaded by path (its dependency on hio.py rides along), so dispatch.py never imports the hook at import time."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks", "budget.py")
+    """The caps line is budget.py's (card B5, t-2027 F10): the hook and the header print one text from one reader and one
+    usability test (t-2032 N3). The hook is loaded by path (its dependency on hio.py rides along), so dispatch.py never imports
+    the hook at import time; a hook that cannot be loaded, for any reason (a SyntaxError included), names itself (t-2032 N6)."""
     try:
-        spec = importlib.util.spec_from_file_location("forge_hooks_budget", path)
+        spec = importlib.util.spec_from_file_location("forge_hooks_budget", BUDGET)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         return mod.caps_line(root, role)
-    except (OSError, ImportError, AttributeError):
-        return "caps: missing -- forge/caps.json (B5)"
+    except Exception:  # noqa: BLE001 -- the header is printed either way, the cause named
+        return "caps: missing -- forge/hooks/budget.py not loadable (B5)"
 
 
 def inside(root, path):

@@ -622,20 +622,29 @@ def test_budget_main_warned_never_cut(tmp_path, ctx, had, levels):
     assert got[0] == 0 and len(events(root)) == levels and (levels == 0 or "spend %d" % ctx in got[1])
 
 
-@pytest.mark.parametrize("caps", [None, "nope", '[{"role": "main", "tokens_warn": "x"}]', '[{"role": "builder"}]'])
-def test_budget_caps_missing_every_call_no_cut(tmp_path, caps):  # F6: absent, unparsable, malformed by type or by field
+CAPS = json.load(open(os.path.join(ROOT, "forge", "caps.json")))
+WORKERS, MAIN = json.dumps([r for r in CAPS if r["role"] != "main"]), json.dumps([r for r in CAPS if r["role"] == "main"])
+
+
+# F6: absent, unparsable, malformed by type or by field; t-2032 N3 (Lead ruling): a role's caps are usable only when its own
+# row is -- P3 (worker rows, no main) cuts a worker and is missing for main, P3b (main row only) is missing for a worker
+@pytest.mark.parametrize("caps,agent,code", [
+    (None, "a1", 0), ("nope", "a1", 0), ('[{"role": "main", "tokens_warn": "x"}]', "a1", 0), ('[{"role": "builder"}]', "a1", 0),
+    (WORKERS, None, 0), (MAIN, "a1", 0), (WORKERS, "a1", 2)])
+def test_budget_caps_usable_per_role(tmp_path, caps, agent, code):
     root, tp = fx(tmp_path, 900000, caps=False)
     if caps:
         put(root + "/forge/caps.json", caps)
-    got = [call(root, tp, "Bash", command="rm -rf /") for _ in range(2)]
-    assert [g[0] for g in got] == [0, 0] and all("caps missing" in g[1] for g in got) and not events(root)
+    got = [call(root, tp, "Bash", agent=agent, command="rm -rf /") for _ in range(2)]
+    assert [g[0] for g in got] == [code] * 2 and all(("caps missing" in g[1]) == (not code) for g in got)
+    assert len(events(root)) == (code == 2)
 
 
-@pytest.mark.parametrize("agent,role", [("a1", "builder"), (None, "main")])
-def test_budget_crash_passes_and_journals_role(tmp_path, monkeypatch, agent, role):  # F3: the crash is in code, not in data
+@pytest.mark.parametrize("agent,had,role", [("a1", "builder", "builder"), ("a1", "main", "unknown"), (None, "builder", "main")])
+def test_budget_crash_passes_and_journals_role(tmp_path, monkeypatch, agent, had, role):  # F3; t-2032 N2: cap notes' mapping
     import budget as bd
     root, tp = fx(tmp_path, 10)
-    put(root + "/logs/budget/a1.json", json.dumps({"t0": 1, "role": "builder"}))
+    put(root + "/logs/budget/a1.json", json.dumps({"t0": 1, "role": had}))
     monkeypatch.setattr(bd, "evaluate", lambda *a: 1 / 0)
     assert bd.body({"session_id": "s1", "agent_id": agent}, "", root) == 0
     assert [e["event"] for e in events(root)] == ["hook_failed"] and events(root)[0]["note"].startswith("role:%s budget: Zero" % role)
@@ -650,19 +659,53 @@ def test_budget_spend_counts_a_message_once_and_main_has_no_stop(tmp_path):  # F
     assert call(root, tp, agent=None)[0] == 0
 
 
-def test_budget_cut_edges(tmp_path):  # F7: no handoff line; F4: an unreadable sidecar after a cut; F9; F12
+def test_budget_cut_edges(tmp_path):  # F7: no handoff line; t-2032 N1: a torn sidecar after a cut stays a cut; F9; F12
     root, tp = fx(tmp_path, 400000, handoff=False)
     assert call(root, tp, "Write", file_path=str(tmp_path / "rep.md"))[0] == 2 and call(root, tp, "SubagentHandback")[0] == 0
     side = root + "/logs/budget/a1.json"
     put(side, "{torn")
-    got = call(root, tp)
-    assert got[0] == 0 and "budget state unreadable" in got[1] and open(side).read() == "{torn"
+    got = [call(root, tp, t)[0] for t in ("Read", "SubagentHandback", "Read")]
+    lost = [e["event"] for e in events(root) if "budget state unreadable" in e["note"]]
+    assert got == [2, 0, 2] and lost == ["cut"] and "cut" in json.load(open(side))["said"]
     root, tp = fx(tmp_path / "b", 10)
     assert call(root, tp.replace("sess", "gone"))[0] == 0 and call(root, tp)[0] == 0  # dispatch unreadable at call 1, read at call 2
     got = json.load(open(root + "/logs/budget/a1.json"))
     assert (got["role"], got["handoff"]) == ("builder", str(tmp_path / "b" / "rep.md"))
     put(tp[:-6] + "/subagents/agent-a2.jsonl", json.dumps({"type": "user", "message": {"content": "x"}}) + "\n")
     assert ["no usage line" in call(root, tp, agent="a2")[1] for _ in range(3)] == [False, True, False]
+
+
+# t-2032 N1 (Lead ruling, card B5 invariant "no call after the cap passes except the three moves"): a state that cannot be
+# proved is a cut, journaled once; a call naming logs/budget/ is refused even as a plain git move
+@pytest.mark.parametrize("side,ctx,tool,ti,cause", [
+    ("{}", 900000, "Read", {}, "budget state unreadable"), ('{"t0": 1, "said": 5}', 10, "Read", {}, "budget state unreadable"),
+    (None, 10, "Write", {"file_path": "SIDE"}, "tampering"),
+    (None, 10, "Bash", {"command": "git add logs\\budget\\a1.json"}, "tampering"),
+    (None, 10, "PowerShell", {"command": "Set-Content logs/Budget/a1.json '{}'"}, "tampering")])
+def test_budget_state_fail_closed(tmp_path, side, ctx, tool, ti, cause):
+    root, tp = fx(tmp_path, ctx)
+    if side:
+        put(root + "/logs/budget/a1.json", side)
+    got = call(root, tp, tool, **{k: v.replace("SIDE", root + "/logs/budget/a1.json") for k, v in ti.items()})
+    cut = [e["note"] for e in events(root) if e["event"] == "cut"]
+    assert got[0] == call(root, tp)[0] == 2 and cause in got[1] and len(cut) == 1 and cause in cut[0]
+
+
+@pytest.mark.parametrize("fails,written", [(6, False), (2, True)])
+def test_budget_save_retries_then_cleans(tmp_path, monkeypatch, capsys, fails, written):  # t-2032 N4 (edges line)
+    import budget as bd
+    real, tries = os.replace, []
+
+    def flaky(a, b):
+        tries.append(a)
+        if len(tries) <= fails:
+            raise PermissionError(13, "held by a reader")
+        real(a, b)
+    monkeypatch.setattr(bd.os, "replace", flaky)
+    monkeypatch.setattr(bd.time, "sleep", lambda s: None)
+    bd.save(str(tmp_path / "b" / "a1.json"), bd.fresh())
+    assert len(tries) == min(fails + 1, 6) and os.listdir(tmp_path / "b") == (["a1.json"] if written else [])
+    assert ("budget: state not written" in capsys.readouterr().err) != written
 
 
 def test_budget_newest_line_without_usage_keeps_last_value(tmp_path):

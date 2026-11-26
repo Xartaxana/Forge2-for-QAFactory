@@ -163,6 +163,8 @@ BASE = ["new", "--role", "builder", "--task", "t-9", "--given", "a.md", "--non-g
     ([{"role": "scout"}], "ok", 0, ["caps: missing"]),
     ([{"role": "scout", "tokens_warn": 5, "tokens_stop": 9, "wall_warn_s": None, "wall_stop_s": None}], "ok", 0,
      ["caps: tokens 5/9, wall none/none s -- at the cap: hand back done and not done; role unknown -- strictest row"]),
+    ([{"role": "main", "tokens_warn": 5, "tokens_stop": None, "wall_warn_s": None, "wall_stop_s": None}], "ok", 0,
+     ["caps: missing -- forge/caps.json (B5)"]),  # t-2032 N3 P3b: no worker row, as the hook (P3: the builder row above)
     (None, "rel", 1, ["owns path not absolute or not inside the root: forge/tools/x.py"]),
     (None, "outside", 1, ["owns path not absolute or not inside the root"]),
     (None, "spaced", 0, ["`%s/forge/a b/c.py`"]),
@@ -179,6 +181,16 @@ def test_dispatch_new(tmp_path, caps, owns, code, words):
     assert got == code and all((w % root if "%s" in w else w) in out for w in words)
     heads = [ln.split(":")[0] for ln in out.splitlines() if ln.split(":")[0] in NAMES]
     assert heads == list(NAMES)
+
+
+@pytest.mark.parametrize("src", [None, "def (:\n"])
+def test_dispatch_caps_hook_not_loadable(tmp_path, monkeypatch, src):  # t-2032 N6: absent or a SyntaxError, the cause named
+    monkeypatch.syspath_prepend(T)
+    import dispatch
+    if src:
+        (tmp_path / "budget.py").write_text(src)
+    monkeypatch.setattr(dispatch, "BUDGET", str(tmp_path / "budget.py"))
+    assert dispatch.caps_line(str(tmp_path), "builder") == "caps: missing -- forge/hooks/budget.py not loadable (B5)"
 
 
 def full(tmp_path):

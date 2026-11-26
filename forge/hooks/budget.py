@@ -15,11 +15,20 @@ exactly the dispatch's `handoff:` path and ONE plain git command. `main` is warn
 Edges, named: the wall cap acts only at a call boundary. No agent_id -> `main`. An agent_id with no readable `role:` or an
 unknown one -> the strictest worker row, said once; role and handoff are re-read while None. An unreadable or absent transcript
 -> `tokens unmeasured` once, the wall cap still applies; a readable one with no usage line says so once from the second call.
-caps.json absent or malformed (a field neither null nor a non-negative integer) -> `caps missing` on every call, no cut. A
-sidecar that exists but cannot be read is NOT a first call: nothing is judged or written, `budget state unreadable` on every
-call (the clock and a sticky cut live there; the save is atomic so a parallel call never sees a torn file). The hook's own
+caps.json absent or malformed (a field neither null nor a non-negative integer), or holding no row for the caller (main: the
+main row; a worker: its role's row; an unknown role: any worker row, for the strictest) -> `caps missing` on every call, no
+cut; dispatch.py prints `caps: missing` by the same test (t-2032 N3). Fail closed on the state (t-2032 N1; the card's
+invariant: no call after the cap passes except the three moves): a worker's sidecar that exists but cannot be read or is not
+of the state's shape is a cut, `cut` journaled once with cause `budget state unreadable` and the sidecar rewritten as a cut
+state; a worker call whose Write/Edit path or shell command names logs/budget/ is refused, even as one of the three moves, and
+journaled as a cut (tampering). main is never cut: its unreadable sidecar is a line only, nothing written. The save is atomic:
+a temporary file, os.replace retried up to 5 times with a short backoff, the temporary file removed on final failure.
+Residuals, named: parallel calls read one snapshot, so one warn or cut may be journaled twice (readers dedup per agent); a
+sidecar deleted by other means is a first call (the clock restarts); a command that builds the path (a variable, a glob) is
+not seen as tampering; a read that loses all three tries to a concurrent save cuts the worker (fail closed). The hook's own
 error -> the call passes and `hook_failed` is journaled; a call with no session id journals nothing (stderr only).
 """
+import contextlib
 import json
 import os
 import re
@@ -38,6 +47,13 @@ CUT_TEXT = ("budget cut: %s -- hand back; the Lead relaunches fresh with the res
 NAMES = {"tokens": ("tokens_warn", "tokens_stop"), "wall": ("wall_warn_s", "wall_stop_s")}
 FIELDS = NAMES["tokens"] + NAMES["wall"]
 USAGE = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+TRIES_READ, TRIES_SAVE = 3, 6  # a save: one try and up to 5 retries (t-2032 N4: os.replace loses to a reader on Windows)
+TAMPER = re.compile(r"logs[\\/]+budget\b", re.I)
+LOST, TAMPERED = "budget state unreadable", "budget state tampering: the call names logs/budget/"
+NONE = type(None)
+SHAPE = {"t0": (int, float), "offset": int, "ctx": (int, NONE), "spend": int, "last_id": (str, NONE), "role": (str, NONE),
+         "handoff": (str, NONE), "task": (str, NONE), "said": list, "level_tokens": int, "level_wall": int}
+MISSING = "caps missing: forge/caps.json is absent, malformed or holds no row for role:%s (card B5); no cap is judged"
 
 
 def load_rows(root):
@@ -123,29 +139,61 @@ def spend_text(st):
     return "unmeasured" if st["ctx"] is None else "%d" % st["spend"]
 
 
-def state_of(path):
-    """The sidecar state; None when the file EXISTS and cannot be read (t-2027 F4: never read as a first call). The read is
-    tried three times: a writer's os.replace may hold the file for a moment on Windows."""
-    fresh = {"t0": None, "offset": 0, "ctx": None, "spend": 0, "last_id": None, "role": None, "handoff": None, "task": None,
-             "said": []}
-    for n in range(3):
-        if not os.path.exists(path):
-            return fresh
+def fresh():
+    return {"t0": None, "offset": 0, "ctx": None, "spend": 0, "last_id": None, "role": None, "handoff": None, "task": None,
+            "said": []}
+
+
+def shaped(got):
+    """The state when got has the state's shape (t0 a number, each field of its type, said a list of str), else None."""
+    st = {**fresh(), **got} if isinstance(got, dict) else {"t0": None}
+    ok = all(isinstance(st[k], t) for k, t in SHAPE.items() if k in st) and st["offset"] >= 0
+    return st if ok and all(isinstance(x, str) for x in st["said"]) else None
+
+
+def attempt(n, fn):
+    """fn() tried up to n times on OSError, a short backoff before each retry and none after the last (t-2032 N4, Q7)."""
+    for i in range(n):
         try:
-            with open(path, encoding="utf-8") as fh:
-                got = json.load(fh)
-            if isinstance(got, dict) and isinstance(got.get("t0"), (int, float)):
-                return {**fresh, **got}
-        except (OSError, ValueError):
-            pass
-        time.sleep(0.02 * n)
-    return None
+            return fn()
+        except OSError:
+            if i == n - 1:
+                raise
+            time.sleep(0.005 * 2 ** (i + 1))
+
+
+def state_of(path):
+    """The sidecar state, fresh when the file is absent; None when it EXISTS and cannot be read or is not of the state's shape
+    (t-2032 N1: the caller treats a worker as cut). Tried three times: a writer's os.replace holds the file for a moment on
+    Windows; a parse error is not retried (the save is atomic, so it is no torn write)."""
+    def read():
+        if not os.path.exists(path):
+            return fresh()
+        with open(path, encoding="utf-8") as fh:
+            return shaped(json.load(fh))
+    try:
+        return attempt(TRIES_READ, read)
+    except (OSError, ValueError):
+        return None
+
+
+def call_of(payload):
+    """(tool name, tool input as a dict) of the hook input."""
+    ti = payload.get("tool_input")
+    return payload.get("tool_name"), ti if isinstance(ti, dict) else {}
+
+
+def tampers(payload):
+    """True when a call's Write/Edit path or shell command names logs/budget/ (t-2032 N1 (a): the state is the hook's alone)."""
+    tool, ti = call_of(payload)
+    p = ti.get("file_path") if tool in ("Write", "Edit") else None
+    text = os.path.normpath(p) if isinstance(p, str) else ti.get("command") if tool in ("Bash", "PowerShell") else None
+    return isinstance(text, str) and bool(TAMPER.search(text))
 
 
 def allowed(payload, handoff):
     """The three moves that pass at a cut."""
-    tool, ti = payload.get("tool_name"), payload.get("tool_input")
-    ti = ti if isinstance(ti, dict) else {}
+    tool, ti = call_of(payload)
     if tool == "SubagentHandback":
         return True
     if tool in ("Write", "Edit"):
@@ -192,14 +240,19 @@ def tell(root, session, role, st, events):
         unit = " s" if measure == "wall" else ""
         note = "role:%s %s %d of %d%s spend %s" % (role, measure, use, cap, unit, spend_text(st))
         if kind == "cut":
-            cuts.append(note)
-            if "cut" in st["said"]:
-                continue
-            st["said"].append("cut")
+            cuts.append(cut_once(root, session, st, note))
         else:
             warns.append("%s; write what is done, hand back the rest" % note)
-        HIO.journal(root, "cap_warning" if kind == "warn" else "cut", "budget", session, note, st["task"] or "unknown")
+            HIO.journal(root, "cap_warning", "budget", session, note, st["task"] or "unknown")
     return warns, cuts
+
+
+def cut_once(root, session, st, note):
+    """A cut: sticky in the sidecar, journaled once; returns the note."""
+    if "cut" not in st["said"]:
+        st["said"].append("cut")
+        HIO.journal(root, "cut", "budget", session, note, st["task"] or "unknown")
+    return note
 
 
 def once(st, key, text, lines):
@@ -220,21 +273,39 @@ def keys(payload):
     return worker, key, (sub if worker else tp)
 
 
-def pick_row(st, rows, worker, info):
-    """(role, row): main, the worker's row, or the strictest worker row said once for an absent or unknown role."""
+def map_role(role, rows):
+    """A worker's role as notes print it: its dispatch role when caps.json holds that worker row, else unknown. The ONE mapping
+    of cap notes, hook_failed notes and the dispatch caps line (t-2032 N2)."""
+    return role if rows and role in rows and role != "main" else "unknown"
+
+
+def row_of(rows, worker, role):
+    """The row a caller's caps come from, None when it has none (t-2032 N3, the ONE usability test of the hook and dispatch.py):
+    main its main row; a worker its role's row; an unknown role the strictest worker row, None with no worker row."""
+    if rows is None:
+        return None
     if not worker:
-        return "main", rows["main"]
-    role = st["role"] if st["role"] in rows and st["role"] != "main" else "unknown"
+        return rows.get("main")
+    if role != "unknown":
+        return rows[role]
+    return strictest(rows) if any(k != "main" for k in rows) else None
+
+
+def pick_row(st, rows, worker, info):
+    """(role, row or None): main, the worker's row, or the strictest worker row said once for an absent or unknown role."""
+    if not worker:
+        return "main", row_of(rows, False, "main")
+    role = map_role(st["role"], rows)
     if role == "unknown":
         once(st, "role", "role unknown -- strictest row", info)
-    return role, rows.get(role) or strictest(rows)
+    return role, row_of(rows, True, role)
 
 
 def verdict(payload, st, role, cuts):
-    """The cut lines still standing after the allowed moves: a cut worker's three moves pass."""
+    """The cut lines still standing after the allowed moves: a cut worker's three moves pass, never a tampering call."""
     if "cut" not in st["said"]:
         return cuts
-    if allowed(payload, st["handoff"]):
+    if allowed(payload, st["handoff"]) and not tampers(payload):
         return []
     return cuts or ["cut earlier; role:%s spend %s" % (role, spend_text(st))]
 
@@ -249,66 +320,93 @@ MISS = "caps: missing -- forge/caps.json (B5)"
 
 def caps_line(root, role):
     """The ONE caps line of a dispatch header (dispatch.py imports it; t-2027 F10): the role's row, the strictest worker row
-    with the note `role unknown -- strictest row` for an absent or unknown role, MISS when caps.json is absent or malformed."""
+    with the note `role unknown -- strictest row` for an absent or unknown role, MISS when the role has no usable row (row_of)."""
     rows = load_rows(root)
-    if rows is None:
+    role = map_role(role, rows)
+    row = row_of(rows, True, role)
+    if row is None:
         return MISS
-    known = role in rows and role != "main"
-    return caps_text(rows[role] if known else strictest(rows)) + ("" if known else "; role unknown -- strictest row")
+    return caps_text(row) + ("; role unknown -- strictest row" if role == "unknown" else "")
 
 
-def evaluate(payload, root):
-    """(exit code, stderr text, additionalContext lines)."""
-    info = []
-    rows = load_rows(root)
-    if rows is None or "main" not in rows:
-        return 0, "", ["caps missing: forge/caps.json is absent or malformed (card B5); no cap is judged"]
-    worker, key, path = keys(payload)
-    if not isinstance(key, str) or not SAFE.fullmatch(key):
-        return 0, "", ["budget not checked: no safe worker or session id"]
-    sp = os.path.join(root, "logs", "budget", key + ".json")
-    st = state_of(sp)
-    if st is None:  # the clock and a sticky cut live there: nothing is judged, nothing is written, the file stays as found
-        return 0, "", ["budget state unreadable: %s; no cap is judged on this call" % sp]
+def begin(st, worker, path):
+    """Stamp t0 at the first call; read the dispatch while role or handoff is unknown (t-2027 F12). True at the first call."""
     first = st["t0"] is None
     if first:
         st["t0"] = time.time()
     if worker and (first or st["role"] is None or st["handoff"] is None):
         read_dispatch(st, path)
-    role, row = pick_row(st, rows, worker, info)
-    if worker and first:
-        info.append(caps_text(row))
+    return first
+
+
+def measure(st, path, first, info):
+    """Scan the transcript; an unmeasured context is said once (an unknown spend is never read as zero)."""
     if not (path and scan(path, st)):
         once(st, "unmeasured", "tokens unmeasured: the transcript is absent or unreadable; the wall cap still applies", info)
     elif st["ctx"] is None and not first:
         once(st, "nousage", "tokens unmeasured: the transcript holds no usage line; the wall cap still applies", info)
-    warns, cuts = tell(root, payload.get("session_id"), role, st, judge(st, row, time.time(), not worker))
-    cuts = verdict(payload, st, role, cuts)
-    save(sp, st)
+
+
+def cause_of(lost, worker, payload):
+    """The cut a worker's state forces on this call, or None (t-2032 N1: a state that cannot be proved is a cut, not a pass)."""
+    if lost:
+        return LOST
+    return TAMPERED if worker and tampers(payload) else None
+
+
+def evaluate(payload, root):
+    """(exit code, stderr text, additionalContext lines)."""
+    rows = load_rows(root)
+    worker, key, path = keys(payload)
+    if not isinstance(key, str) or not SAFE.fullmatch(key):
+        return 0, "", ["budget not checked: no safe worker or session id"]
+    sp = os.path.join(root, "logs", "budget", key + ".json")
+    st = state_of(sp)
+    if st is None and not worker:  # main is never cut: nothing is judged, nothing is written
+        return 0, "", ["%s: %s; main is never cut, no cap is judged on this call" % (LOST, sp)]
+    lost, info, session = st is None, [], payload.get("session_id")
+    st = st or fresh()
+    first = begin(st, worker, path)
+    role, row = pick_row(st, rows, worker, info)
+    if row is None:
+        return 0, "", [MISSING % role]
+    if worker and first and not lost:
+        info.append(caps_text(row))
+    measure(st, path, first, info)
+    warns, cuts = tell(root, session, role, st, [] if lost else judge(st, row, time.time(), not worker))
+    cause = cause_of(lost, worker, payload)
+    forced = [cut_once(root, session, st, "role:%s %s spend %s" % (role, cause, spend_text(st)))] if cause else []
+    cuts = verdict(payload, st, role, forced + cuts)
+    save(sp, st)  # a lost state is rewritten here as a cut state, so the next call reads it
     if cuts:
         return 2, "\n".join([CUT_TEXT % cuts[0]] + info), []
     return 0, "", info + warns
 
 
 def save(sp, st):
-    """Atomic: a temporary file, then os.replace (t-2027 F4: a parallel call never reads a half-written sidecar)."""
+    """Atomic: a temporary file, then os.replace retried (t-2032 N4); on final failure the temporary file is removed and the
+    failure printed."""
     tmp = "%s.%d.tmp" % (sp, os.getpid())
     try:
         os.makedirs(os.path.dirname(sp), exist_ok=True)
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(st, fh)
-        os.replace(tmp, sp)
+        attempt(TRIES_SAVE, lambda: os.replace(tmp, sp))
     except OSError as exc:
         print("budget: state not written: %s" % exc, file=sys.stderr)
+        with contextlib.suppress(OSError):
+            os.remove(tmp)
 
 
 def failed_role(payload, root):
-    """The role for a hook_failed note (t-2027 F3): main, the worker's recorded role, else unknown. Never raises."""
+    """The role for a hook_failed note (t-2027 F3): main, else the worker's recorded role mapped as cap notes map it (t-2032
+    N2). Never raises."""
     try:
         aid = payload.get("agent_id")
         if not (isinstance(aid, str) and aid):
             return "main"
-        return (state_of(os.path.join(root, "logs", "budget", aid + ".json")) or {}).get("role") or "unknown"
+        st = state_of(os.path.join(root, "logs", "budget", aid + ".json")) or fresh()
+        return map_role(st["role"], load_rows(root))
     except Exception:  # noqa: BLE001 -- a note about a failure must not fail
         return "unknown"
 
