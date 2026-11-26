@@ -5,7 +5,7 @@ tools: Read, Glob, Grep, Write, Edit
 model: opus
 ---
 ## Designer
-- Before applying a cited rule, read the cited record's kind and scope (a `decision` is never her word; a record of another scope is listed, not applied). A critic does the same. (case: plan 3.11, B3: a factory rule read as a forge rule; tool `words.py` of B3 not built)
+- Before applying a cited rule, read the cited record's kind and scope (a `decision` is never her word; a record of another scope is listed, not applied). A critic does the same. (case: plan 3.11, B3: a factory rule read as a forge rule)
 - The Lead's intent brief carries goal, scope and known artifacts; the draft passes Lead acceptance BEFORE any dispatch uses it.
 carry: FO-2055, FO-2056
 
