@@ -1,60 +1,31 @@
 # CLAUDE.md -- forge 2 worker rules
 
-Read by every worker at entry. Role files in `.claude/agents/` only point to a section here; the Lead's rules are in `forge/COORDINATOR.md`. A rule stands once; each `rows:` line names the old-forge rules carried in its section (fr: = recon forge-rules, fp: = recon forge-process). `(tool: B<n>, not built)` marks a command whose card is not built yet. In cases, dev1.jsonl = C:/QAFactory/forge-repo/logs/journal/dev1.jsonl; FH-<n> = rows of forge/specs/recon/carry/forge-hooks.*.md.
+Read by every worker at entry. Each role's rules are in its own `.claude/agents/<role>.md`; a dispatch without a DoD or a manifest is returned as questions before work starts. The Lead's rules are in `forge/COORDINATOR.md`. A rule stands once; each `rows:` line names the old-forge rules carried in its section (fr: = recon forge-rules, fp: = recon forge-process). `(tool: B<n>, not built)` marks a command whose card is not built yet. In cases, dev1.jsonl = C:/QAFactory/forge-repo/logs/journal/dev1.jsonl; FH-<n> = rows of forge/specs/recon/carry/forge-hooks.*.md.
 
 ## Worker duties
-- One verification run after your last edit; its output goes into your hand-back. Independent calls go out in one message. Trim output before it enters your context; read a red CI run with the host's own command piped through trim: `gh run view <id> --log-failed | python -B forge/tools/trim.py`. A token goes only in an unredirected header, never in a URL or a redirect. (case: owner 24.11.2026, D-0035 (fr:A30); FH-2072, FH-2080; dev1.jsonl:3655, a builder report with no witness, fr:A1, fp:A7)
+- One verification run after your last edit; its output goes into your hand-back. Independent calls go out in one message. Trim output before it enters your context (a 30-line tail, `Read` with a limit over 400 lines, `Grep` instead of reading a whole file); read a red CI run with the host's own command piped through trim: `gh run view <id> --log-failed | python -B forge/tools/trim.py`. A token goes only in an unredirected header, never in a URL or a redirect. (case: owner 24.11.2026, D-0035 (fr:A30); FH-2072, FH-2080; dev1.jsonl:3655, a builder report with no witness, fr:A1, fp:A7)
 - A wait has a cap, at most 3600 s, and a named condition; no loop waits on nothing. (case: W-95 (fp:A28); stale wait loops of old workers piled up, plan record 26.11.2026 01:58)
-- `factory/` and every release text are English with no Cyrillic (C1-2 checks `factory/`); forge documents may be Russian; the owner's words stay verbatim. (case: dev1.jsonl:3257, Cyrillic found in a package by critic t-1217)
+- `factory/` and every release text are English with no Cyrillic (C1-2 checks `factory/`); a commit message and PR text are not checked by code: read them for Cyrillic before a push, the same way as the package; forge documents may be Russian; the owner's words stay verbatim. (case: dev1.jsonl:3257, Cyrillic found in a package by critic t-1217)
 - Fix the class: a sibling of a defect is fixed in the same round or named with an executor; you report analogs and do not widen your scope. (case: W-94, fr:A6)
-- One experiment before machinery: when a decision rests on an unknown property of the environment, measure first. (case: owner 27.10.2026, fp:A25)
+- One experiment before machinery: when a decision rests on an unknown property of the environment, measure first; building machinery instead is legitimate only when the measurement does not port (e.g. a port number) or would be destructive. (case: owner 27.10.2026, fp:A25)
 - Size caps: designer draft 40,000 bytes; builder report prose about 500 words; critic review about 1800 words; final message 2,000 characters. (case: W-96, fr:D10)
 - At a cap warning write what is done; at the cut hand back done and not done; a plain commit of your unfinished work is allowed. (tool: B5 `budget.py`) (case: W-46, W-81, B5)
-- Refer to a document by its key -- card id, `W-<n>`/`D-<n>`, `L-<n>`, `plan <h>` -- never by a line number. (tool: B13 `refs.py`, not built) (case: RELATED_WORK section 8 item 4, 113 line references measured in the spec)
-- Session start prints now, last, snapshot, hooks, old processes and worktrees; with none of it in your context the start hook did not run: read forge/BOOT.md and forge/COORDINATOR.md by hand. (tool: B1, B2, not built) (case: FH-1007, FH-4151, the old forge printed the rule files at every start)
+- Refer to a document by its key -- card id, `W-<n>`/`D-<n>`, `L-<n>`, `P<n>` (an owner principle, resolved in `forge/PRINCIPLES.md`), `plan <h>` -- never by a line number. (tool: B13 `refs.py`, not built) (case: RELATED_WORK section 8 item 4, 113 line references measured in the spec)
+- Session start prints now, last, snapshot, hooks, old processes and worktrees; with none of it in your context the start hook did not run: read forge/BOOT.md and forge/COORDINATOR.md by hand. (case: FH-1007, FH-4151, the old forge printed the rule files at every start)
 - An optional hand-back line `snag: <problem> -> <impact> -> <smallest fix>`; the Lead turns it into a work-list record. (tool: B11 `worklist.py`, not built) (case: plan record 25.11.2026 22:20)
 - Write only your dispatch's owns, in your own linked worktree on `w/<task>`; stores are written only through their tools; you never write accept or reject (forge/COORDINATOR.md Parallel writers (3), (4); Acceptance).
+- A task that does not fit the ceiling or splits into independent parts is returned to the Lead with the hand-back line `decomposable: <how it splits>` -- never done whole past the ceiling, never cut silently. (case: S9, dev1.jsonl:5031, a designer draft that did not fit 40,000 bytes)
+- A dispatch with no DoD, or a writing dispatch with no manifest, is returned as questions before any work. (case: FR-239, FR-243)
+- Read the repo freely beyond the manifest; only writes are bound by `owns` (name what you needed beyond it in the hand-back). (case: FR-242)
+- Never invent missing project state; the repository's content overrides chat history, and git is the only source of truth. (case: FR-87, FR-89, FR-251)
+- Engineering over perfection: small verifiable improvements; measure before optimizing. (case: FR-84, FR-86, FR-252)
+- A claim needs a measurement: a negative claim about the environment, and any load-bearing claim about its state (a quota, a time window, a resource's presence, "already ready/open"), holds only after a positive check by the canonical command; an unverified claim carries the label `estimate, not verified`. (case: FR-66)
+- A claim about a registry entry's status (escalations, decisions, tasks, ledgers) is valid only after reading through its status line or grepping the status field; the entry appearing inside a read window is not a check. (case: FR-68)
+- A measured number in a norm or report carries its counting carrier (file or command) or is not written; a comparison stays inside one metric. (case: FR-70)
+- A character-level claim (a slash, a case, a specific symbol) is valid only by reading the carrier directly with the Read tool; a search tool's output is not a basis. (case: FR-71)
+- Locally run only the narrow test target the work needs; the full sets run on CI, never on this machine. (tool: none yet) (case: FR-248)
+- Roll a probe back by a byte copy taken before the corruption and compare by hash or diff; never by `git checkout` / `git restore`. (tool: none yet) (case: FR-250)
+- A hook that "cannot find" its script: stop and tell the owner. (case: FR-59)
+- In chat with the owner write in Russian. (case: FR-76)
 rows: fr:A30, fp:A28, fr:A6, fp:A25, fr:D10, fr:A1, fp:A7, fr:A29
-
-## Dispatch form
-- A dispatch carries header lines outside fences and quotes, printed and checked by `python -B forge/tools/dispatch.py`: `task:`, `role:`, `caps:`, `given:`, `owns:` (absolute paths), `non-goals:`, `handoff:`, `edges:`, `DoD:` (the verification command in backticks), `siblings:`, `test:`, and for a builder `carry:` and `duties:` (tool: B15, B18, not built). (case: dev1.jsonl:1855, a builder dispatch the old manifest gate refused for a missing `designer:` line)
-- Outside input (a CLI, a ticket, a person's words, a config, a host answer) gets an adversarial mini-battery -- magnitude, nesting, encoding, empty or broken input -- and every limit applied to it a case AT and BEYOND it, each a table row. (case: W-85, W-86, fr:A3)
-- A spec names its edges: every limit, every empty or absent input, every pair of its own requirements that can conflict, every artifact the change brings into existence (both worlds), each with the invariant it protects. A silent edge is the dispatcher's defect, never the performer's guess. (case: dev1.jsonl:1120, a DoD line silent on an edge; t-896, 65 spec rejects of 11-16.11.2026)
-- A node is written for a weaker model: file, function or field, expected behavior and a test per item; the direction is chosen, not listed as options; a fork the writer cannot decide is a question with a recommendation, and the node runs on it. (case: W-91, docs/PROJECT_FULL.md of the old forge, section Teamwork, item 11; B-forge-8)
-rows: fr:A3, fr:A2, fr:A27
-
-## Scout
-- A negative claim ("absent", "none") counts only with a positive control of the same shape (same tool, syntax, filters; case-insensitive); empty output of a miscalled tool proves nothing. Every role's claim, a scout's above all. (case: an empty search from a miscalled tool was reported as absence: `\b` does not fire on Cyrillic, grep -i does not fold Cyrillic case, a one-language query misses localised data, a marker searched in varying body formats, FH-3083; fr:A4, fp:A10)
-rows: fr:A4, fp:A10
-
-## Builder
-- Tests are few and strong: the expected value is traced to a spec line, a rule or the owner's word, never to the code under test; a test must be able to fail (a red-before run); test lines never exceed code lines; forge/TESTING.md holds the layers. (case: W-85, W-86, W-87, W-100, fr:A20, fp:A9; P20)
-- Before hand-back, for each new or changed function search the repo for the same PROBLEM (not the helper's name) and write `similar: <command> -> <hits>; each: reused | changed too | differs: <why>`, with a positive control of the same shape; a text-only change writes `similar: n/a -- no code`. Also `friction: <tool a role calls>: before/after <calls, refusals> | not measured: <why> | n/a -- no tool a role calls`. (case: P12 of the old forge's OWNER_PRINCIPLES; plan catalog "test code: duplicate helpers")
-- The first lines of every code file you create name its card: `card: <id>`. (tool: B13 `refs.py`, not built) (case: RELATED_WORK section 8 item 4)
-- Add one hand-back line per carry row: `carry: <row id> -> <where it lives now> | not done -- <why>`. (tool: B15 `carry.py`, not built) (case: B15, outside audit point 1: a row proves a decision exists, not that the content survived)
-- A commit that adds a tool, hook, CI job, gate row, data file or dashboard view carries `mechanism: <path or id> -- protects ..; origin ..; cost ..; pays ..` (forge/COORDINATOR.md, cost rule); CI reds it without the line. (tool: B16 `size_ratchet.py` mechanisms row, not built) (case: B16, digest K2, old rule 10)
-- A file that activates itself (a hook on the live path, a gate) is handed over as content or under a neighbouring name; the Lead places it on the live path at acceptance, after review. (case: dev1.jsonl:4898, a `.next` hook form that broke four readers was handed over as content and rejected before the live path)
-- A doc-only witness (a key-presence run) quotes its keys verbatim from the DoD before the run, attaches the script in full, and runs a negative control: one key removed, the script reports failure. (case: docs/tasks/specs/reviews/20261113-stage-critics-removed-plan-critic.md, finding F-15)
-rows: fr:A20, fp:A9, fr:C3, fp:A8
-
-## Critic
-- A critic or designer writes only its one handoff file and returns its verdict there. (case: FH-3021, a reviewer edited product files)
-- The verdict is a file: one line per reviewed thing `<thing>: fit | fit_with_fixes | blocker -- <why>`, a trail of what was read and rerun, and every probe made on a copy in the scratch dir, or the file restored by hash, with an unmutated control run beside its kill; the DoD greps the verdict lines. (case: FH-4020, FH-4023, FH-4031; fr:B3)
-- Test review: killing power (a probe), the source of every expected value, a row per behaviour, no duplicate row, the file budget. (case: W-85, W-86, fr:Q5)
-- A diff that re-implements a reader, writer, helper or table the repo has is a finding with a severity. (case: W-88, fr:A22)
-- A diff that moves a role's judgment into code, or adds non-craft text a role must read, is a finding with a severity; code judges data (shape, joins, presence), a role's judgment is judged by a tier above. (case: W-89, P27, D-0060, fr:Q11, fr:A23)
-- One road: no language, project or case reaches a shared mechanism outside a data row or the owner's word. (case: W-90, P31, fr:Q12)
-- Check the builder's `similar:` and `friction:` lines against the diff. (case: P12, B6)
-- Fit to the spec: every requirement, edge and key as written, with the spec's error direction -- no unknown becomes a pass. (case: dev1.jsonl:4669, an unknown passed because the dispatch was silent on that edge)
-- The builder's own decisions on points the spec left silent go the safe way and match the consumers the spec names. (case: dev1.jsonl:3791, a fail-open on an unreadable registry)
-- Seams: files other nodes own or follow are touched additively, localized, nothing reordered. (case: docs/tasks/specs/reviews/20261113-cl4-1-topic-code-critic.md, a seam note naming the calls the next node must keep)
-- Class-wide completeness: the sibling axes of the defect (`forge/siblings.md`) and the neighbours in the same artifact are fixed in the round; a leftover carries an executor. (case: dev1.jsonl:401, a sibling in the same artifact; D-0044)
-- A new function over about 60 lines or over 3 nesting levels, copy-paste, a dead branch, a lying name or an unread result is a finding with a severity, never a style pass. (case: dev1.jsonl:2667, a nesting finding)
-- A diff that adds or raises a row of a shrink-only ratchet: the verdict names each row (key, old to new, reason); an unnamed raise is a blocker. (case: review t-836 at 4d761605d, in the title of the old SIBLING_MAP axis 18: a raise inside the diff that adds the site was green in-tree)
-- Architecture: which invariants of the frame spec's section 1 (Frame and invariants) the diff touches; for each, producer and reader are walked both ways with a positive control; a second reader, writer, form or seam is a finding; on an unknown value no block, no silent default, no hand-off to a person (VARIETY). (case: D-0055)
-- Plan gate: edges in both worlds, the meaning of each changed field restated, premises reproduced, readers of every touched file answered, forks consistent with the evidence. (case: t-896, 65 spec rejects of 11-16.11.2026 -- 42 found by the code critic, 4 by the plan critic)
-- The submitter's load-bearing claims are inputs to verify: a negative or codebase-wide claim gets your own search with a positive control, a cheap witness is re-run, a claim you could not reproduce is a finding; a data field's meaning comes from a query on real data, not from a neighbour's code. (case: dev1.jsonl:1848, an unverified claim of two quarantine reds)
-rows: fr:B3, fr:Q5, fr:A22, fr:Q11, fr:Q12, fr:A21, fp:A20, fr:A23, fp:A21, fr:Q1, fr:Q2, fr:Q3, fr:Q4, fr:Q6, fr:Q7, fr:D9, fr:Q9, fr:D7, fp:A18, fr:Q10, fr:Q13, fr:A5
-
-## Designer
-- Before applying a cited rule, read the cited record's kind and scope (a `decision` is never her word; a record of another scope is listed, not applied). A critic does the same. (case: plan 3.11, B3: a factory rule read as a forge rule; tool `words.py` of B3 not built)
+carry: FR-59, FR-66, FR-68, FR-70, FR-71, FR-76, FR-79, FR-84, FR-86, FR-87, FR-89, FR-235, FR-239, FR-242, FR-243, FR-248, FR-249, FR-250, FR-251, FR-252
