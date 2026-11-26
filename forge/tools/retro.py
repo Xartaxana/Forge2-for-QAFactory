@@ -18,12 +18,14 @@ import re
 import sys
 from collections import Counter
 
-from journal import SESSION_RE, files, load
+from journal import SESSION_RE, load
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GIT = "git-hooks.jsonl"
 BEGIN, END = "<!-- retro:counts:begin -->", "<!-- retro:counts:end -->"
-BLOCK_MAX, OUT_MAX = 18, 40
+OUT_MAX = 40
+BLOCK_MAX = OUT_MAX - 2  # write prints the path line, the block, the missing line: all inside 40
+ROLE = re.compile(r"role:(\S*)")
 SLUG = re.compile(r"q:(\S+)")
 # label, counter key (a key with a colon is a "by" breakdown: dispatch:<role>, refuse:<hook id>)
 NAMES = (("dispatch", "dispatch"), ("accept", "accept"), ("reject", "reject"), ("return", "return"),
@@ -38,20 +40,25 @@ QUESTIONS = ("Q1 What did the session have to find out itself although it belong
              "Q5 Which questions to the owner are still open (only what she alone can know or decide)?")
 
 
+def clean(v):
+    """One token: whitespace runs and "=" become "_" (a newline or "=" in a journaled value split a block line; t-2021 B2c)."""
+    return re.sub(r"\s+", "_", str(v).strip()).replace("=", "_") or "?"
+
+
 def hook_id(note):
-    return note.split(":", 1)[0].strip() or "?"
+    return clean(note.split(":", 1)[0])
 
 
 def own_event(c, per_task, o, ev, note):
-    by = str(o.get("by", "")) or "?"
-    if ev in ("dispatch", "cut", "cap_warning"):
-        c["%s:%s" % (ev, by)] += 1
+    if ev in ("dispatch", "cut", "cap_warning"):  # the role is the note's leading role:<role>; `by` is the writer (t-2021 B1)
+        m = ROLE.match(note)
+        c["%s:%s" % (ev, clean(m.group(1)) if m else "?")] += 1
     elif ev == "refuse":
         c["refuse:" + hook_id(note)] += 1
     elif ev in ("accept", "reject", "return", "hook_failed"):
         c[ev] += 1
     if ev in ("reject", "return"):
-        per_task[str(o.get("task", ""))] += 1
+        per_task[clean(o.get("task", ""))] += 1
 
 
 def tally(entries, session):
@@ -98,16 +105,29 @@ def render(c, retried, bad, git_absent, status):
     return out + details
 
 
-def counts_block(root, session, loaded):
-    """Return (block lines, labels of non-zero counters, window)."""
-    entries, bad, found = loaded
+def dated_bad(entries):
+    """Return (ts, file, line no) of each unparsable line; one with no earlier valid line takes the next valid one's ts."""
+    out, nxt = [], {}
+    for ts, f, n, _raw, o in sorted(entries, key=lambda e: (e[1], -e[2])):  # per file, last line first
+        if o:
+            nxt[f] = ts
+        else:
+            out.append((ts or nxt.get(f, ""), f, n))
+    return out
+
+
+def counts_block(loaded, session):
+    """Return (block lines, labels of non-zero counters, window, counter); a function of lines dated up to the window end."""
+    entries, _, found = loaded
     if not found:
-        return ["counts: unknown -- no journal"], [], ("", "")
+        return ["counts: unknown -- no journal"], [], ("", ""), Counter()
     c, retried, win = tally(entries, session)
-    mine = [b for b in bad if b.endswith(session + ".jsonl") or b.endswith(GIT)]
-    git_absent = GIT not in {os.path.basename(p) for p in files(root)}
+    own = session + ".jsonl"
+    mine = sorted("unparsable line %d in %s" % (n, f) for ts, f, n in dated_bad(entries)
+                  if f == own or (f == GIT and win[0] and win[0] <= ts <= win[1]) or (f != GIT and ts and ts <= win[1]))
+    git_absent = not (win[1] and any(e[1] == GIT and e[0] and e[0] <= win[1] for e in entries))
     lines = render(c, retried, mine, git_absent, "incomplete" if mine else "ok")
-    return lines, [label for label, key in NAMES if total(c, key) > 0], win
+    return lines, [label for label, key in NAMES if total(c, key) > 0], win, c
 
 
 def sessions(entries):
@@ -118,8 +138,14 @@ def retro_path(root, session):
     return os.path.join(root, "logs", "retro", session + ".md")
 
 
-def missing_list(root, entries, skip=""):
-    return [s for s in sessions(entries) if s != skip and not os.path.exists(retro_path(root, s))]
+def missing_list(root, entries, before=None):
+    """Sessions with no retro file; with `before`, only those whose first ts is earlier than it (the card: the earlier ones)."""
+    first = {}
+    for e in entries:
+        if e[4] and e[0]:
+            first[e[1][:-6]] = min(e[0], first.get(e[1][:-6], e[0]))
+    return [s for s in sessions(entries) if not os.path.exists(retro_path(root, s)) and
+            (before is None or (first.get(s) and first[s] < before))]
 
 
 def missing_line(names):
@@ -181,8 +207,8 @@ def cmd_write(root, session):
     if loaded[2] and session not in sessions(loaded[0]):
         print("refused: no journal lines of session %s" % session)
         return 2
-    block, names, win = counts_block(root, session, loaded)
-    miss = missing_list(root, loaded[0], skip=session)
+    block, names, win, _ = counts_block(loaded, session)
+    miss = missing_list(root, loaded[0], before=win[0])
     path = retro_path(root, session)
     old = read(path) if os.path.exists(path) else None
     text = fresh_file(session, win, block, names, miss) if old is None else refreshed(old, win, block, names, miss)
@@ -207,7 +233,7 @@ def cmd_check(root, file):
     if not m or BEGIN not in lines or END not in lines or not SESSION_RE.fullmatch(m.group(1)):
         print("refused: no session line or counts markers in %s" % file)
         return 2
-    block, names, _ = counts_block(root, m.group(1), load(root))
+    block, names, _w, _c = counts_block(load(root), m.group(1))
     actual = lines[lines.index(BEGIN) + 1:lines.index(END)]
     no_reason, no_answer = gaps(text, names)
     if no_reason:
@@ -231,18 +257,17 @@ def cmd_sum(root, since):
         return 0
     total_c, used, bad_s, no_r, no_a = Counter(), [], [], [], []
     for s in sessions(loaded[0]):
-        c, _, win = tally(loaded[0], s)
-        if not win[0] or win[0][:10] < since:
+        block, names, win, c = counts_block(loaded, s)
+        if win[0] and win[0][:10] < since:
             continue
         used.append(s)
         total_c.update(c)
-        block, names, _ = counts_block(root, s, loaded)
-        bad_s += [s] if block[0] != "counts: ok" else []
+        bad_s += [s] if block[0] != "counts: ok" or not win[0] else []  # no window (every line unparsable): listed, never dropped
         if os.path.exists(retro_path(root, s)):
             r, a = gaps(read(retro_path(root, s)), names)
             no_r += ["%s(%s)" % (s, ",".join(r))] if r else []
             no_a += ["%s(%s)" % (s, ",".join(a))] if a else []
-    git_absent = GIT not in {os.path.basename(p) for p in files(root)}
+    git_absent = not any(e[1] == GIT for e in loaded[0])
     print("sessions since %s: %d (%s)" % (since, len(used), ", ".join(used) or "none"))
     print("\n".join(render(total_c, {}, [], git_absent, "sum")))
     for label, items in (("incomplete", bad_s), ("reasons missing", no_r), ("answers missing", no_a)):
