@@ -7,8 +7,9 @@ LITERAL paths in a named write position count (redirects, tee, cp/install/rsync 
 its read list, the PowerShell write cmdlets...). Other tools pass. Exit 2 refuses; every case the hook cannot judge (input,
 roots file, its own error, a bad argument) exits 0 with one stderr line "foreign_write not checked: <why>". A refusal
 journals one line; a crash and a refusal with no session id journal nothing (stderr only; B17 owns the policy).
-Cuts: none of its own (a path or command is judged whole). A shell line continuation (an unquoted backslash, in PowerShell a
-backtick, before a line end) joins the lines; inside single quotes nothing joins.
+Cuts: none of its own (a path or command is judged whole). A shell line continuation (an ODD run of unquoted backslashes, in
+PowerShell backticks, before a line end) joins the lines; an even run is literal text and the line end separates; inside
+quotes nothing joins.
 Residuals, named: a symlink, junction, `~`, a variable, a script, an alias or an indirect write errs GREEN; so do a UNC admin
 share (//host/C$) and an 8.3 short name (they are not resolved); so does an agent editing the roots file or a live hook (the
 acceptance diff is the net).
@@ -60,6 +61,15 @@ def eol(cmd, i):
     return 2 if cmd.startswith("\r\n", i) else int(cmd.startswith("\n", i))
 
 
+def escaped(cmd, i, cont):
+    """cmd[i] is cont: True when an odd run of cont directly precedes it, so it is literal text. A run holds no quote, so
+    an unquoted cmd[i] has an unquoted run; the walk is bounded by the run (each line end is asked once)."""
+    j = i
+    while j > 0 and cmd[j - 1] == cont:
+        j -= 1
+    return (i - j) % 2 == 1
+
+
 def skip_heredocs(cmd, i, hd):
     """i is the newline that ends a line with heredocs hd: return the index of the last newline of their bodies."""
     for d, dash in hd:
@@ -75,7 +85,8 @@ def skip_heredocs(cmd, i, hd):
 def tokens(cmd, ps=False):
     """Words ("w", text) and operators ("op", text): ; && || | & ( ) > >> >| >& < and a newline (as ;). Quotes are removed,
     a backslash outside them stays (Windows paths), a heredoc body is skipped, an fd prefix of a redirect is dropped. An
-    unquoted backslash (ps: backtick) directly before LF or CRLF joins the lines; at the end of the command it is dropped."""
+    unquoted backslash (ps: backtick) directly before LF or CRLF joins the lines unless it is itself escaped (t-1984 N1:
+    `\\`+LF is a literal backslash, then a new command); at the end of the command it is dropped."""
     out, buf, have, q, i, hd, want = [], "", False, None, 0, [], False
     cont = "`" if ps else "\\"
 
@@ -99,6 +110,8 @@ def tokens(cmd, ps=False):
                 buf += c
         elif c in "'\"":
             q, have = c, True
+        elif c == cont and eol(cmd, i + 1) and escaped(cmd, i, cont):
+            buf, have = buf + c, True
         elif c == cont and eol(cmd, i + 1):
             i += eol(cmd, i + 1)
         elif c in " \t\r":
@@ -204,27 +217,23 @@ def ps_paths(head, args):
 
 
 def git_writes(args, cwd, env=None):
-    """The tree a git command writes, or [] for a read command. The ONE target-tree resolver: each -C resolves against the
-    tree the previous one gave; --git-dir/--work-tree (= or space form) and the GIT_DIR=/GIT_WORK_TREE= prefix assignments
-    (env) name the tree: the work tree first, else a git-dir ending in .git gives its parent, else the git-dir itself.
-    Clone writes its destination."""
+    """The trees a git command writes, or [] for a read command. The ONE target-tree resolver, in git's order (t-1984 N2,
+    measured): the -C chain first, each -C against the tree the previous one gave; then --git-dir/--work-tree (= or space
+    form; an option beats its GIT_DIR=/GIT_WORK_TREE= prefix assignment) resolve against the tree the chain gave. BOTH places
+    git writes are judged: the work tree (else the chain's tree) and the git-dir (else the chain's tree, where git finds it;
+    measured: `git -C A --work-tree=B commit` moves A's HEAD). Clone writes its destination."""
     tree, i, env = norm(cwd) if cwd else cwd, 0, env or {}
-    gd, wt = [norm(env[k], tree) if usable(env.get(k)) else None for k in ("GIT_DIR", "GIT_WORK_TREE")]
+    raw = {"--git-dir": env.get("GIT_DIR"), "--work-tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
         name, _, val = args[i].partition("=")
         if args[i] in ("-C", "-c", "--git-dir", "--work-tree") and i + 1 < len(args):
             name, val, i = args[i], args[i + 1], i + 1
-        if name in ("-C", "--git-dir", "--work-tree") and usable(val):
-            p = norm(val, tree)
-            if name == "-C":
-                tree = p
-            elif name == "--git-dir":
-                gd = p
-            else:
-                wt = p
+        if name == "-C" and usable(val):
+            tree = norm(val, tree)
+        elif name in raw:
+            raw[name] = val
         i += 1
-    if wt or gd:
-        tree = wt or (posixpath.dirname(gd) if gd.endswith(".git") else gd)
+    gd, wt = [norm(raw[k], tree) if usable(raw[k]) else None for k in ("--git-dir", "--work-tree")]
     if i >= len(args):
         return []
     sub, rest = args[i], args[i + 1:]
@@ -234,7 +243,7 @@ def git_writes(args, cwd, env=None):
             [norm(re.sub(r"(\.git)?/*$", "", p[0]).rsplit("/", 1)[-1].rsplit(":", 1)[-1], tree)] if p else [])
     read = sub in GIT_READ or (sub == "config" and any(a.startswith("--get") for a in rest)) or (
         sub == "worktree" and rest[:1] == ["list"]) or (sub == "remote" and "-v" in rest)
-    return [] if read else [tree]
+    return [] if read else sorted({wt or tree, gd or tree})
 
 
 def writes(head, args, ps):

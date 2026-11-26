@@ -81,9 +81,9 @@ def mkroot(p, remote=None, ci=True):
 
 def mkrepo(p):
     p = mkroot(p, {"origin": "o", "measure_cleared": None})
-    for a in (["init", "-q"], ["symbolic-ref", "HEAD", "refs/heads/main"], ["config", "user.name", "t"],
-              ["config", "user.email", "t@t"], ["config", "core.autocrlf", "false"]):
-        git(p, *a)
+    git(p, "init", "-q", "-b", "main")  # one git call, the config appended (t-1984 N5: the file runs under 10 s)
+    with open(p + "/.git/config", "a", encoding="utf-8") as fh:
+        fh.write("[user]\n\tname = t\n\temail = t@t\n[core]\n\tautocrlf = false\n")
     return p
 
 
@@ -150,7 +150,7 @@ def test_scan_range(leaky):
 # remote ref; the first push = all history; a delete has nothing to scan) and B9 (every refusal journaled, no value)
 def test_pre_push_range(leaky):
     r, c1, c2, c3, _ = leaky
-    line =lambda new, old=Z, ref="refs/heads/main": [(ref, new, ref, old)]  # noqa: E731
+    line = lambda new, old=Z, ref="refs/heads/main": [(ref, new, ref, old)]  # noqa: E731
     got = {n: push(r, ls) for n, ls in (("twin", line(c1)), ("k3", line(c3, c1)), ("new", line(c3, Z, "refs/heads/b")),
                                         ("first", line(c3)), ("delete", [("(delete)", Z, "refs/heads/b", c3)]))}
     assert [got[n][0] == 0 for n in got] == [True, False, False, False, True]
@@ -180,10 +180,8 @@ def test_pre_commit_judges_git_index_file(tmp_path):
 # t-1983 F7: inside a repository, so only git's absence can refuse
 @pytest.mark.parametrize("name,stdin", [("git/pre-push", ("refs/heads/m %s refs/heads/m %s\n" % ("a" * 40, Z)).encode()),
                                         ("git/pre-commit", b"")])
-def test_crash_git_absent(tmp_path, name, stdin):
-    empty = tmp_path / "nobin"
-    empty.mkdir()
-    code, out = hook(name, ["origin", "o"], mkrepo(tmp_path / "r"), stdin, PATH=str(empty))
+def test_crash_git_absent(leaky, tmp_path, name, stdin):  # t-1984 N5: the module repo; git is absent anyway
+    code, out = hook(name, ["origin", "o"], leaky[0], stdin, PATH=str(tmp_path))
     assert code == 1 and "refused" in out and "git failed" in out
 
 
@@ -228,17 +226,17 @@ def test_table_real_seed_rows():
 
 # expected from: the brief's section 3 Pre-push steps and Owner-word edges (fixed order, first refusal stops, ci.py exit
 # 0 passes, anything else refuses); B8 part4b-2:15, 21 (remote.json, other remote, measure_cleared, W-id refused: F237)
-def steps(tmp_path, monkeypatch, remote, url="o", ents=(), msg="m", ref="refs/heads/main", ci=0, blob="clean"):
+def steps(tmp_path, monkeypatch, remote, url="o", ents=(), msg="m", ref="refs/heads/main", ci=0, blob="clean", walk=None):
     root = mkroot(tmp_path, remote if remote != "absent" else None, ci is not None)
     if remote == "absent":
         os.remove(root + "/forge/remote.json")
     if ci:
         put(root + "/ci-exit", str(ci))
-    msgs = [msg] if isinstance(msg, str) else msg  # one message per commit, the tip first
-    ids = [c * 40 for c in "cd"][:len(msgs)]
-    monkeypatch.setattr(ss, "git", lambda r, *a: msgs[ids.index(a[-1])].encode() if a[0] == "log" else (b"c" * 40 + b"\n")
+    msgs = [msg] if isinstance(msg, str) else msg  # one message per commit, the tip (the pushed sha) first
+    ids = [c * 40 for c in "ad"][:len(msgs)]
+    monkeypatch.setattr(ss, "git", lambda r, *a: msgs[ids.index(a[-1])].encode() if a[0] == "log" else (b"a" * 40 + b"\n")
                         if a[0] == "rev-parse" else blob.encode())
-    monkeypatch.setattr(ss, "walk", lambda r, revs: (ids, [("c" * 40, p, "s" + p) for p in ents]))
+    monkeypatch.setattr(ss, "walk", lambda r, revs: (ids if walk is None else walk, [("c" * 40, p, "s" + p) for p in ents]))
     res = pp.steps(root, "origin", url, [[ref, "a" * 40, ref, "b" * 40]], True)
     return res, os.path.exists(root + "/ci-ran")
 
@@ -253,6 +251,8 @@ def ok(c):
     (dict(remote=ok(None), url="other"), "other", False), (dict(remote=ok(None), url="other", msg=OW), None, True),
     (dict(remote=ok(None), url="other", msg=[OW, "m"]), None, True), (dict(remote=ok(None), url="other", msg=["m", OW]), "other", False),
     (dict(remote=ok(None), url="https://u:PW123@h/a.git"), "other", False),
+    (dict(remote=ok(None), url="https://h/m.git?access_token=PW123"), "other", False),  # t-1984 N4: a query token
+    (dict(remote=ok(None), url="other", walk=[]), "other", False),  # t-1984 N3, A2: an empty range still judges the tip
     (dict(remote={"origin": "https://h/a", "measure_cleared": None}, url="https://u:PW123@h/a.git"), None, True),
     (dict(remote=ok(None), ents=["measure/r.txt"]), "measure", False),
     (dict(remote=ok(OW), ents=["measure/r.txt"]), None, True), (dict(remote=ok("W-1"), ents=["measure/r.txt"]), "measure", False),
@@ -352,7 +352,9 @@ SHELL = [("echo x > \"%s/a\"" % P, 1), ("echo x >> /c/Prot/Root/a", 1), ("echo x
          ("chmod 755 %s/a" % P, 1), ("chmod 755 C:/work/a", 0), ("cp a.txt \\\n  %s/x.txt" % P, 1), ("rm -rf \\\r\n  %s/d" % P, 1),
          ("rm %s/d \\\n" % P, 1), ("git -C C:/ -C Prot/Root commit -m x", 1), ("git -C %s -C C:/work commit -m x" % P, 0),
          ("git --git-dir=%s/.git --work-tree=%s commit" % (P, P), 1), ("git --git-dir %s/.git commit" % P, 1),
-         ("GIT_DIR=%s/.git git commit" % P, 1), ("GIT_WORK_TREE=%s git add ." % P, 1)]
+         ("GIT_DIR=%s/.git git commit" % P, 1), ("GIT_WORK_TREE=%s git add ." % P, 1),
+         ("echo done \\\\\nrm -rf %s/d" % P, 1), ("GIT_DIR=.git git -C %s commit -m x" % P, 1),  # t-1984 N1, N2
+         ("GIT_DIR=C:/work/.git git -C %s checkout -- ." % P, 1), ("git -C %s --work-tree=C:/work commit -m x" % P, 1)]
 POWER = [("Set-Content -Path \"%s/a\" -Value x" % P, 1), ("set-content C:\\Prot\\Root\\a x", 1), ("Remove-Item %s/a -Force" % P, 1),
          ("Copy-Item %s/a C:/work/b" % P, 0), ("Copy-Item C:/work/a -Destination %s/b" % P, 1), ("\"x\" | Out-File %s/a" % P, 1),
          ("echo x > %s/a" % P, 1), ("Get-Content %s/a" % P, 0), ("Move-Item %s/a C:/work/b" % P, 1),

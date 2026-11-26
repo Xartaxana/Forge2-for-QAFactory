@@ -7,8 +7,8 @@ first refusal (N14): remote named -> [B19 slot: local/ refs, old roots] -> range
 owner-word -> ci.py. A malformed line is refused and the others are still judged, but then ci.py is not run. Crash, git
 absent -> refuse. Each refusal that knows its repository root is journaled into logs/journal/git-hooks.jsonl; a crash refusal
 and one with no known root (git absent) write no line, only stderr (named residual: `crash refusals of git hooks journaled
-best-effort | node: B17`). Other remote: the TIP commit of each pushed ref needs owner-word (brief section 8, A2). A remote
-name or URL is printed with any user[:password]@ shown as ***@.
+best-effort | node: B17`). Other remote: the TIP commit (the pushed sha) of each pushed ref needs owner-word (brief section
+8, A2). A remote name or URL is printed with any user[:password]@ shown as ***@ and any query as ?***.
 """
 import datetime
 import json
@@ -58,8 +58,9 @@ def url_key(u):
 
 
 def mask(u):
-    """The URL (or remote name) for a message: the userinfo is never shown."""
-    return re.sub(USERINFO, r"\1***@", u.strip())
+    """The URL (or remote name) for a message: the userinfo and a query (from the first ? on, printed ?***; t-1984 N4) are
+    never shown. The userinfo goes first, so a ? inside a password cannot leave its head printed."""
+    return re.sub(r"\?.*", "?***", re.sub(USERINFO, r"\1***@", u.strip()), flags=re.S)
 
 
 def revs(root, f, name):
@@ -96,11 +97,11 @@ def steps(root, name, url, act, do_ci):
         return cache[f[1] + f[3]]
 
     if url_key(url) != url_key(cfg["origin"]):
-        for f in act:
-            for c in walked(f)[0][:1]:  # the tip names the push; older commits of the range need no line (A2)
-                if not owner_word(message(root, c)):
-                    return "push to remote %s (%s), not origin: tip commit %s lacks an owner-word line" % (
-                        mask(name), mask(url), c[:12]), "other"
+        for f in act:  # the tip names the push; older commits of the range need no line (A2)
+            c = f[1]  # the pushed sha: an empty range (a rewind, a tip on a remote ref) is judged too (t-1984 N3)
+            if not owner_word(message(root, c)):
+                return "push to remote %s (%s), not origin: tip commit %s lacks an owner-word line" % (
+                    mask(name), mask(url), c[:12]), "other"
     # step slot: B19 (local/ refs, local-only history, old roots) lands here, after B17
     try:
         ents = sorted({(c[:12], pa, s) for f in act for c, pa, s in walked(f)[1]})
