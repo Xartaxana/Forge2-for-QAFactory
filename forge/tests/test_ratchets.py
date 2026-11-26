@@ -414,20 +414,23 @@ def go(tmp_path, now, args, shas):
     ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c1"], 1, "b"),
     ([row("a"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 0, "b"),
     ([row("b"), row("nb", "not_built")], ["--base", "@c1", "--head", "@c2"], 1, "a"),
-    (OLD, ["--base", "@c3", "--head", "@c3"], 2, None),
-    (OLD, ["--base", "nope"], 2, None),
+    (OLD, ["--base", "@c3", "--head", "@c3"], 2, "@c3:forge/ci-jobs.json"),
+    (OLD, ["--base", "nope"], 2, "nope"),
 ])
 def test_ci_check(tmp_path, ci_repo, now, args, code, has):
     c, o = go(tmp_path, now, ["check"] + args, ci_repo)
-    assert c == code and (has is None or re.search(r"\b%s\b" % has, o.split(" (")[0])), o  # the parenthesised tail is ci.py's prose
+    has = ci_repo[has[1:3]] + has[3:] if has and has[0] == "@" else has  # @cN = that commit's sha
+    assert c == code and (has is None or re.search(r"\b%s\b" % re.escape(has), o.split(" (")[0])), o  # the parenthesised tail is ci.py's prose
 
 
 # expected from: the output lines' reader .github/workflows/ci.yml:17-21, 45, 75-79 (a data joint, TESTING.md rule 2) and part4b-2:16
-# (green, not built: N (<ids>)); base= and head= are empty when not given
+# (green, not built: N (<ids>)); base= and head= are empty when not given; base= is the base ci.py resolved (ci.yml:40, 62-64, F245 (c)):
+# zeros are no base, the fallback's merge-base with head is c1
 @pytest.mark.parametrize("args, base, head", [
     ([], "", ""),
     (["--base", "@c1", "--head", "@c2"], "c1", "c2"),
     (["--head", "@c2"], "", "c2"),
+    (["--base", "0" * 40, "--head", "@c3", "--base-fallback", "@c1"], "c1", "c3"),
 ])
 def test_ci_matrix(tmp_path, ci_repo, args, base, head):
     gh = os.path.join(str(tmp_path), "out.txt")
@@ -437,8 +440,8 @@ def test_ci_matrix(tmp_path, ci_repo, args, base, head):
     assert out["nb_line"] == "not built: 1 (nb)" and out["base"] == ci_repo.get(base, "") and out["head"] == ci_repo.get(head, ""), out
 
 
-# expected from: TESTING.md rules 6-7 and C1-6 part2:139-141 (exit 3 is not judged here, red on Actions; a token with no value is 3;
-# --only names a built row)
+# expected from: TESTING.md rule 7 and part4b-2:21 (exit 3 is not judged here, red on Actions; a token with no value is 3);
+# part2:141 only for 'not built: <job>, listed' (--only names a built row)
 @pytest.mark.parametrize("rows, args, actions, code, has, hasnt", [
     ([row("a")], [], None, 0, ["ok   a", "not built: 0"], ["FAIL"]),
     ([row("a", cmd=exit_with(1)), row("b"), row("nb", "not_built")], [], None, 1, ["FAIL a (exit 1)", "ok   b", "not built: 1 (nb)", "failed: a"], []),
