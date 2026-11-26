@@ -208,19 +208,22 @@ def uni_repo(tmp_path_factory):
     clean, held = state("a = 1\n"), state("a = 'pytest'\n", allow=[row("y")])  # each state green but for its raises
     wide = state("a = 1\n", names=dict(doc["names"], runner=["pytest", "jest"]),
                  basis=dict(uni.basis(), roots=uni.basis()["roots"] + ["x"]))
+    other = state("a = 1\n", basis=dict(uni.basis(), constants=dict(uni.basis()["constants"], match="x")))
     return world(tmp_path_factory, [("m", clean), ("m", held), ("m", None), ("m", clean),
-                                    ("ratchet-raise: universality-names.json clear -- W-1", None), ("m", wide), ("m", clean)])
+                                    ("ratchet-raise: universality-names.json clear -- W-1", None), ("m", wide), ("m", clean),
+                                    ("m", other), ("m", clean)])
 
 
-# expected from: t-1991 M2, t-1992 N4 and the brief section 4 (allow row added, allow emptied, name removed, root removed are
-# raises, N13 `clear`; until B3 a raise line cannot resolve; no change is green)
+# expected from: t-1991 M2, t-1992 N4, t-1994 F1 (probe P3) and the brief section 4 (allow row added, allow emptied, name
+# removed, a basis change are raises, N13 `clear` and `basis`; until B3 a raise line cannot resolve; no change is green)
 @pytest.mark.parametrize("head, base, code, has, hasnt", [
     (1, 0, 1, "allow row added needs", None),
     (2, 1, 0, "", "new:"),
     (3, 2, 1, "universality-names.json::clear allow emptied needs", None),
     (4, 2, 1, "cannot resolve W-1", "needs"),
     (6, 5, 1, "name removed needs", None),
-    (6, 5, 1, "root removed needs", None),
+    (6, 5, 1, "names.json::basis basis changed needs", None),
+    (8, 7, 1, "names.json::basis basis changed needs", None),
 ])
 def test_universality_raises(uni_repo, head, base, code, has, hasnt):
     g, shas, checkout = uni_repo
@@ -229,12 +232,26 @@ def test_universality_raises(uni_repo, head, base, code, has, hasnt):
     assert c == code and has in o and (hasnt is None or hasnt not in o), o
 
 
+# expected from: t-1994 M3 mutant and F2 probe P1 (N15: --update warns about an uncommitted path in scope; the files_of glob
+# factory/tools/**/*.py also holds a file directly under factory/tools); the dirty file is restored before the asserts
+def test_update_warns(uni_repo):
+    g, shas, checkout = uni_repo
+    checkout(8)
+    with open(os.path.join(g, "factory/tools/y.py"), "rb") as fh:
+        kept = fh.read()
+    put(g, {"factory/tools/y.py": "a = 2\n"})
+    c, o = run(uni, g, "--update")
+    said = []
+    ratchets.update(g, "", {"allow": []}, "allow", uni.key_of, set(), None, uni.RECORD, ["factory/tools/**/*.py"], said.append)
+    put(g, {"factory/tools/y.py": kept})
+    assert c == 0 and "uncommitted changes in scope: 1 paths" in o and said and "1 paths" in said[0], (o, said)
+
+
 # expected from: t-1992 N2 and the brief section 4 (no list file -> empty list; a file not born has no drift, is never written)
 def test_no_list_file(tmp_path):
     path, said = str(tmp_path / "absent.json"), []
     data, rows = ratchets.load_list(path, "x", uni.key_of)
     assert (data, rows) == ({"basis": None, "allow": []}, []) and ratchets.check_basis(None, uni.basis(), "d") is None
-    assert ratchets.shrink(path, data, "allow", uni.key_of, set(), said.append) is False
     assert ratchets.update(str(tmp_path), path, data, "allow", uni.key_of, set(), None, uni.RECORD, ["f"], said.append) == 0
     assert not os.path.exists(path) and said == []
 
