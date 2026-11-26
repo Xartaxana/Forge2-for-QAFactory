@@ -1,0 +1,9 @@
+{
+  "origin": "https://github.com/Xartaxana/Forge2-for-QAFactory.git",
+  "visibility": "public",
+  "default_branch": "main",
+  "required_check": "all-green",
+  "created": "2026-11-25T20:41:05Z",
+  "measure_cleared": null,
+  "releases": null
+}
