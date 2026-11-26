@@ -935,9 +935,19 @@ def counts_by_sha(root, roles, known):
     return counts
 
 
+def is_blob_at_head(root, path):
+    """t-2097 N1: `git show` also resolves ./x and directories, but edits_since matches the diff's own blob names; a path
+    is a unit only when ls-tree names exactly one blob under that very name."""
+    rows = [r for r in git(root, "ls-tree", "-z", "HEAD", "--", path).stdout.decode("utf-8", "replace").split("\0") if r]
+    meta, _, name = rows[0].partition("\t") if len(rows) == 1 else ("", "", None)
+    return name == path and meta.split()[1:2] == ["blob"]
+
+
 def absent_unit(root, row):
-    """F2: a unit that resolves to nothing at HEAD (file or heading absent) is an unknown, never `not due`."""
-    return next((u for u in row["units"] if unit_text(root, "HEAD", u) is None), None)
+    """F2: a unit that resolves to nothing at HEAD (file or heading absent, not a plain blob path) is an unknown, never
+    `not due`."""
+    return next((u for u in row["units"]
+                 if not is_blob_at_head(root, u.partition("#")[0]) or unit_text(root, "HEAD", u) is None), None)
 
 
 def due(a):

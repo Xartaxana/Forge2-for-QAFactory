@@ -302,6 +302,8 @@ DUE = [  # (edit commits: each a list of (file, old, new); new None deletes), ex
      "S11-7 edge (2): a commit counts once, however many units it touches"),
     ([[("b.md", None, None)]], "ok", {}, "not due: builder 0\nnot due: critic 0\ndue: solo unit absent: b.md",
      "t-2097 F2 edges line: a unit absent at HEAD prints unit absent, never not due (replaces the t-2096 row that expected not due: solo 1)"),
+    ([[("b.md", None, None)], [("b.md", None, "b\n")]], "ok", {}, "not due: builder 0\nnot due: critic 0\nnot due: solo 2",
+     "t-2097 N3 edge (2): a unit absent on one side of a commit counts as differing (deleted, then restored)"),
     ([], "bad", {"critic": "sonnet"}, "due: builder exam sha unknown\ndue: critic exam sha unknown\ndue: solo exam sha unknown",
      "t-2097 F6 / edge (3): exam sha unknown comes before model changed"),
     ([], "none", {}, "due: builder never examined\ndue: critic never examined\ndue: solo never examined",
@@ -317,8 +319,19 @@ DUE = [  # (edit commits: each a list of (file, old, new); new None deletes), ex
 
 @pytest.mark.parametrize("edits,exam,agents,expected,src", DUE)
 def test_due(tmp_path, capsys, edits, exam, agents, expected, src):
+    due_run(tmp_path, capsys, edits, exam, agents, expected, src)
+
+
+@pytest.mark.parametrize("unit", ["./b.md", "d", "d/", "#Crit", "nope.md"])
+def test_due_unit_not_a_blob(tmp_path, capsys, unit):
+    """t-2097 N1 edges line: only a path git names as a blob at HEAD is a unit; any other prints unit absent."""
+    due_run(tmp_path, capsys, [[("d/x.md", "x", "y")]], "ok", {}, "not due: builder 0\nnot due: critic 0\ndue: solo unit absent: " + unit,
+            "N1 unit %r" % unit, unit)
+
+
+def due_run(tmp_path, capsys, edits, exam, agents, expected, src, solo="b.md"):
     root = str(tmp_path)
-    files = {"rules.md": SECT.encode(), "b.md": b"b\n"}
+    files = {"rules.md": SECT.encode(), "b.md": b"b\n", "d/x.md": b"x\n"}
     files.update({".claude/agents/%s.md" % r: ("---\nmodel: %s\n---\n" % m).encode() for r, m in agents.items()})
     sha = repo(root, files)["sha"]
     for commit in edits:
@@ -326,12 +339,14 @@ def test_due(tmp_path, capsys, edits, exam, agents, expected, src):
             path = os.path.join(root, name)
             if new is None:
                 os.remove(path)
+            elif old is None:
+                seeded.put_file(root, name, new.encode())
             else:
                 seeded.put_file(root, name, open(path).read().replace(old, new).encode())
         git(root, "add", "-A")
         git(root, "commit", "-q", "--no-verify", "-m", "e")
     last = {"ok": [{"sha": sha}], "none": [], "bad": [{"sha": "0" * 40}], "obj": [5]}[exam]
-    units = {"builder": ["rules.md#Shared", "rules.md#Build"], "critic": ["rules.md#Shared", "rules.md#Crit"], "solo": ["b.md"]}
+    units = {"builder": ["rules.md#Shared", "rules.md#Build"], "critic": ["rules.md#Shared", "rules.md#Crit"], "solo": [solo]}
     sets = {"schema": "sets/1", "roles": {r: {"units": u, "bound": "opus", "exams": last} for r, u in units.items()}}
     seeded.put_file(root, seeded.SETS_FILE, json.dumps(sets).encode())
     assert seeded.main(["due", "--root", root]) == 0
@@ -400,8 +415,11 @@ LIVE = [  # (journal, extra raw line, must print, must not print, expected from)
      ["verdict: within", "verdict: worse"], "t-2097 F3 edges line: M1 20/27 is within, (20+10)/27 = 1.11 > 1"),
     ("A" * 12, '{"ts": "z", "event": "accept", "by": "lead", "note": "n"}', ["builder accepts 12", "role unreadable: 1"], [],
      "t-2097 F4 edges line: a close without task is unreadable, no exception"),
-    ("A" * 12, '{"ts": "z", "event": "dispatch", "by": "lead", "note": "role:builder"}', ["builder accepts 12"], ["unreadable"],
-     "t-2097 F4 edges line: a dispatch without task is ignored"),
+    ("A" * 12, '{"ts": "y", "event": "dispatch", "by": "lead", "note": "role:builder"}\n'
+     '{"ts": "z", "event": "accept", "by": "lead", "note": "n"}', ["builder accepts 12", "role unreadable: 1"], [],
+     "t-2097 N4 edges line: a taskless dispatch is ignored, so the taskless accept next to it stays unreadable"),
+    ("S" * 5 + "Y" * 7 + "A" * 27, "", ["verdict: unknown (7 rejects without cause or role could make it worse)", "role unreadable: 7"],
+     ["verdict: within", "verdict: worse"], "t-2097 N2 edges line: M2 5/27 is within, (5+7)/27 = 0.444 > 0.39"),
 ]
 
 
