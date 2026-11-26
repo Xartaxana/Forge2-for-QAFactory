@@ -35,6 +35,13 @@ BOOT = "# Boot\n\ncarry: FR-9\n\n- Quartz lynx sleeps.\n- Nimbus gecko waits (ca
 BASE = {"CLAUDE.md": CLAUDE, "forge/BOOT.md": BOOT}
 CUT, CARRY, GL = (B1, ""), ("carry: FR-7, FR-8", "carry: FR-8"), 'rule-cut: "Lantern quokka rules every" -- %s'
 LOW = (J, "- Alfa bravo charlie delta echo kilo lima mike november oscar.\n")  # 5 of 10 equal-weight tokens kept: 0.5
+J6 = (J, "- Alfa bravo charlie delta echo foxtrot kilo lima mike november.\n")  # 6 of 10: 0.60
+# K12's 9939cb0 pair, verbatim (forge/COORDINATOR.md): a built tool's mark dropped from a parenthesis
+IDEA = ("- A new idea: ask the owner about intent first, then a goal document by `.claude/skills/idea-goal/SKILL.md` (eight "
+        "steps%s) with measured success, carried facts and reasoned exclusions, before any design. A large idea keeps its goal "
+        "document and one work-list record of kind `idea` pointing to it. (case: owner 11.11.2026, fr:A25)\n")
+SPEC = ("- Large specs are drafted by a designer (counted by code, tool: none yet; the Lead drafting it anyway is legal ONLY "
+        "with a dispatch_skipped event); the designer returns forks.\n")  # COORDINATOR.md:52's form
 
 
 @pytest.fixture(autouse=True)
@@ -63,14 +70,16 @@ def roots(tmp_path_factory):
     return out
 
 
-def core(roots, subs=(), extra=None, log="", broken=0):
-    """The pure core on BASE against BASE edited (subs on CLAUDE.md; extra files, None deletes), filtered as tree() filters."""
-    text = CLAUDE
+def core(roots, subs=(), extra=None, log="", broken=0, add=""):
+    """The pure core on BASE against BASE edited (subs on CLAUDE.md; extra files, None deletes), filtered as tree() filters;
+    add is appended to CLAUDE.md on both sides; forge/tools/x.py counts as changed in the range."""
+    text = CLAUDE + add
     for old, new in subs:
         text = text.replace(old, new)
     head = {**BASE, "CLAUDE.md": text, **(extra or {})}
     head = {r: t for r, t in head.items() if t is not None and rc.in_set(r, CFG["files"])}
-    code, said = rc.judge(BASE, head, log, CFG, lambda rid: ratchets.resolve(roots[broken], rid, ("word",)))
+    code, said = rc.judge({**BASE, "CLAUDE.md": CLAUDE + add}, head, log, CFG,
+                          lambda rid: ratchets.resolve(roots[broken], rid, ("word",)), {"forge/tools/x.py"})
     return code, "\n".join(said)
 
 
@@ -98,6 +107,8 @@ def holds(out, has):
     ([(LONG, "")], 'rule-cut: "%s" -- W-1' % " ".join("w%03d" % i for i in range(50, 58)), 0, 0, ["1 covered"]),
     ([], GL % "W-1", 0, 0, ["unused: " + GL % "W-1"]),
     ([CUT], GL % "W-188", 0, 1, ["cannot confirm: W-188 is listed in forge/rule-cuts.json not_confirming"]),
+    ([CUT], "rule-cut: - -- W-1", 0, 1, ["not read: - is no carry id", "0 covered"]),  # t-2079 B1: only a base carry id
+    ([CUT], "rule-to-code: every -- forge/tools/x.py", 0, 1, ["not read: every is no carry id", "0 covered"]),
 ])
 def test_cut(roots, subs, log, broken, code, has):
     c, o = core(roots, subs, None, log, broken)
@@ -133,8 +144,7 @@ def test_ids(roots, subs, extra, log, code, has):
     ([(J, "- Alfa bravo charlie delta echo. Foxtrot golf hotel india juliet.\n")], {}, "", 0, ["!new:", "!paired"]),
     ([("- Quartz lynx sleeps.\n", "")], {}, "", 0, ["cuts: 0 fragments"]),
     ([("## Worker duties", "## Duties of workers"), ("(case: FR-7)", "(case: FR-70)")], {}, "", 0, ["!new:"]),
-    ([(J, "- Alfa bravo charlie delta echo foxtrot kilo lima mike november.\n")], {}, "", 0,
-     ['paired: CLAUDE.md::Worker%20duties "- Alfa', "(0.60)"]),
+    ([J6], {}, "", 0, ['paired: CLAUDE.md::Worker%20duties "- Alfa', "(0.60)"]),
     ([LOW], {}, "", 1, ['cut "- Alfa bravo charlie delta echo foxtrot']),
     ([LOW], {}, 'rule-reworded: "golf hotel india" -- "kilo lima mike"', 0, ['reworded (by line): "golf hotel india" -> "kilo']),
     ([LOW], {}, 'rule-reworded: "golf hotel india" -- "velvet thistle opens"', 1, ["not read: new gist names no new text"]),
@@ -147,6 +157,24 @@ def test_kept(roots, subs, extra, log, code, has):
     assert c == code and holds(o, has), o
 
 
+# expected from: t-2079 B3 (the Lead's decision: a gist equal to a whole fragment is read at any length; an ordinal-only
+# fragment is structure), F1 (a tool clause is cut up to its `;` or `)`, never the whole parenthesis; K12's 9939cb0), M2 (17
+# head units: 6 of 10 equal weights land below 0.6 in float, so the E28 tolerance is what keeps the share AT keep)
+@pytest.mark.parametrize("add, subs, log, code, has", [
+    ("\n13. Pewter jackal hums;\nepsilon.\n", [("\nepsilon.", "")], 'rule-cut: "epsilon" -- W-1', 0, ["1 covered"]),
+    ("\n13. Pewter jackal hums;\nepsilon.\n", [("13. Pewter jackal hums;\n", "")], "", 1,
+     ['cut "Pewter jackal hums;"', '!cut "13."', "1 fragments"]),
+    (IDEA % "; tool: B10, not built", [(IDEA % "; tool: B10, not built", IDEA % "")], "", 0, ["cuts: 0 fragments"]),
+    ("- Six gaps, one rule each (tools: B14, B17, not built): ids come from code.\n", [(" (tools: B14, B17, not built)", "")],
+     "", 0, ["cuts: 0 fragments"]),
+    (SPEC, [("the Lead drafting it anyway is legal ONLY with a dispatch_skipped event", "")], "", 1, ['cut "the Lead drafting']),
+    ("\n- Zinc yak roams.\n", [J6], "", 0, ['paired: CLAUDE.md::Worker%20duties "- Alfa', "(0.60)"]),
+])
+def test_added(roots, add, subs, log, code, has):
+    c, o = core(roots, subs, None, log, 0, add)
+    assert c == code and holds(o, has), o
+
+
 @pytest.fixture(scope="module")
 def repo(tmp_path_factory):
     """One repository: (root, shas, checkout(i)); commit 7 is on a side branch merged by commit 9 (t-1992 N6's form)."""
@@ -156,14 +184,17 @@ def repo(tmp_path_factory):
     sh("init", "-q")
     cut, x1, shas, at = CLAUDE.replace(B1, ""), {"forge/tools/x.py": "x = 1\n"}, [], [None]
     nocarry = {"CLAUDE.md": CLAUDE.replace(*CARRY)}
-    lose = json.dumps(dict(CFG, files=CFG["files"][:-1]))
+    lose, narrow = json.dumps(dict(CFG, files=CFG["files"][:-1])), json.dumps(dict(CFG, keep=0.01, not_confirming=[]))
+    probe = ("ratchet-raise: rule-cuts.json keep -- %s\nratchet-raise: rule-cuts.json not_confirming -- %s\n"
+             'rule-cut: "Marble otter guards" -- %s')  # t-2079 B2's probe: the gate narrowed by the word it refuses
     for i, (msg, files) in enumerate([
             ("empty", {}), ("start", {**BASE, **x1, REGF: json.dumps({"schema": "words/2", "records": RECS}), rc.REL: CFG_TEXT}),
             ("m", {"CLAUDE.md": cut}), ("m", BASE), (GL % "W-1", {}), ("m", {"CLAUDE.md": cut}), (GL % "W-1", {}),
             ('rule-cut: "Marble otter guards" -- W-1', {"CLAUDE.md": cut.replace(B2, "")}), ("m", {"forge/tools/x.py": "x = 2\n"}),
             ("merge", None), ("rule-to-code: FR-7 -- forge/tools/x.py", {**nocarry, **x1}), ("m", {"CLAUDE.md": cut}),
             ("rule-to-code: FR-7 -- forge/tools/x.py", nocarry), ("m", {"CLAUDE.md": b"\xff\xfe# x\n"}), ("m", {"CLAUDE.md": cut}),
-            ("m", {rc.REL: lose}), ("ratchet-raise: rule-cuts.json files -- W-1", {rc.REL: CFG_TEXT})]):
+            ("m", {rc.REL: lose}), ("ratchet-raise: rule-cuts.json files -- W-1", {rc.REL: CFG_TEXT}),
+            (probe % (("W-188",) * 3), {"CLAUDE.md": cut.replace(B2, ""), rc.REL: narrow}), (probe % (("W-1",) * 3), {})]):
         sh("checkout", "-q", "-b", "side") if i == 7 else sh("checkout", "-q", "-") if i == 8 else None
         if files is None:
             sh("merge", "-q", "--no-ff", "-m", msg, "side")
@@ -197,6 +228,10 @@ def repo(tmp_path_factory):
     (16, None, 0, ["cuts not judged: no base"]),
     (16, "nope", 2, ["not a commit"]),
     (16, 16, 0, ["cuts: 0 fragments, 0 ids gone"]),
+    (17, 16, 1, ["new: forge/rule-cuts.json::keep cannot confirm: W-188 is listed in not_confirming",
+                 "new: forge/rule-cuts.json::not_confirming cannot confirm: W-188",
+                 "cannot confirm: W-188 is listed in forge/rule-cuts.json not_confirming"]),
+    (18, 16, 0, ["1 covered", "!new:"]),  # the same with a live word not listed: every raise line, not one, must be listed
 ])
 def test_range(repo, head, base, code, has):
     g, shas, checkout = repo
@@ -207,7 +242,8 @@ def test_range(repo, head, base, code, has):
     assert c == code and holds(buf.getvalue(), has), buf.getvalue()
 
 
-# expected from: t-2070 2.2 step 1 and 2.5 (a malformed config is exit 2); I3 (a config base that is no object refuses)
+# expected from: t-2070 2.2 step 1 and 2.5 (a malformed config is exit 2); I3 (a HEAD config that is no object refuses: the
+# b"[]" row; the base side's refusal in raised is reached only by history older than HEAD validation, no row: t-2079 F2)
 @pytest.mark.parametrize("raw", [b"{not json", b"\xff", json.dumps(dict(CFG, keep=0)).encode(), b"[]"])
 def test_config(raw):
     with pytest.raises(ratchets.Refuse):

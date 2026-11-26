@@ -7,12 +7,13 @@ of the base set that the head set holds fewer times is removed; its sentence pie
 head sentence, or a window of two adjacent sentences of one block, holds `keep` of its IDF-weighted token share (tokens cut to
 `prefix` characters) and every number of it; else it is a cut. An id on a `carry:` or `rows:` line of the base set and on no
 such line of the head set is gone. Lines read from the messages of base..HEAD (a leading `>`, space or tab is skipped):
-  rule-cut: <id | "gist"> -- <W-n>               a live owner word, none listed in `not_confirming`
+  rule-cut: <id | "gist"> -- <W-n>               a live owner word, none listed in `not_confirming` (base or HEAD)
   rule-reworded: "<old gist>" -- "<new gist>"    the new gist in a head sentence absent at the base
   rule-to-code: <id | "gist"> -- <path>          a tool or hook file that differs between the trees
-A gist holds `gist_min` words and covers every cut holding it (normal form, casefolded); an id covers its gone id and every
-cut whose removed line holds it. `paired:`, `reworded (by line):`, `to code (by line):` and `unused:` are evidence for the
-critic and the Lead, never a verdict. A config key changed against the base needs `ratchet-raise: rule-cuts.json <key> -- <W-n>`.
+A gist holds `gist_min` words and covers every cut holding it (normal form, casefolded), or equals one whole cut and covers
+the cuts it equals; an id is one of the base set's carry ids and covers its gone id and every cut whose removed line holds
+it. `paired:`, `reworded (by line):`, `to code (by line):` and `unused:` are evidence for the critic and the Lead, never a
+verdict. A config key changed against the base needs `ratchet-raise: rule-cuts.json <key> -- <W-n>`.
 """
 import collections
 import fnmatch
@@ -30,7 +31,8 @@ FENCE_RE = re.compile(r"\s*(```|~~~)")
 HEADING_RE = re.compile(r" {0,3}#{1,6}(\s|$)")
 IDS_RE = re.compile(r"(?:carry|rows):(.*)")
 ITEM_RE = re.compile(r"\s*([-*+]|\d+[.)])\s|\s*\|")
-SPAN_RE = re.compile(r"\((?:case|tool):")
+SPAN_RE = re.compile(r"\(case:|(?:(?<=\()|(?<=; )|(?<=, ))tools?:")
+ORDINAL_RE = re.compile(r"\d+[.)]")
 SENT_RE = re.compile(r"(?<=[.;!?])\s+")
 LINE_RE = re.compile(r'^[ \t>]*rule-(cut|reworded|to-code): ("[^"\n]*"|[^\s"]+) -- ("[^"\n]*"|\S+)[ \t\r]*$', re.M)
 EPS = 1e-9  # E28: a share AT keep is kept, though a sum of equal float weights can land a hair below it
@@ -48,17 +50,30 @@ Line = collections.namedtuple("Line", "kind target to text err")
 
 # ---- text: normal form, words, sentences, the parse of one rule file
 
+def span_end(text, i, tool):
+    """Past the balancing `)` of a case span opened at i; at a tool clause's own `;` or its parenthesis' `)` (or the end)."""
+    depth = 0
+    for k in range(i, len(text)):
+        depth += (text[k] == "(") - (text[k] == ")")
+        if tool and (depth < 0 or text[k] == ";" and not depth):
+            return k
+        if not tool and not depth:
+            return k + 1
+    return len(text)
+
+
 def strip_spans(text):
-    """F7: a `(case: ...)` or `(tool: ...)` span is cut up to its balancing parenthesis (or the line's end)."""
+    """F7: a `(case: ...)` span is cut whole. A `tool:`/`tools:` clause opening a parenthesis or after its `; ` or `, ` is cut
+    only to that clause's end: `(counted by code, tool: none yet; <rule>)` keeps its rule, and a built tool's mark dropped is
+    no cut (t-2079 F1: K12's 9939cb0 went red on `(eight steps; tool: B10, not built)`)."""
     m = SPAN_RE.search(text)
     while m:
-        depth, j = 0, m.start()
-        for j, ch in enumerate(text[m.start():], m.start() + 1):
-            depth += (ch == "(") - (ch == ")")
-            if not depth:
-                break
-        text = text[:m.start()] + " " + text[j:]
-        m = SPAN_RE.search(text, m.start())
+        i, tool = m.start(), text[m.start()] != "("
+        if tool and text[:i].count("(") <= text[:i].count(")"):  # `, tool:` outside a parenthesis is rule text
+            m = SPAN_RE.search(text, m.end())
+            continue
+        text = text[:i] + " " + text[span_end(text, i, tool):]
+        m = SPAN_RE.search(text, i)
     return text
 
 
@@ -140,7 +155,8 @@ def fragments(base, head, prefix):
     out = []
     for place, raw, n in removed(base, head):
         ids = set(re.split(r"[^\w:-]+", raw))  # 2.3: an id as a whole token of the raw line, `(case: ...)` included
-        out += [Frag(place, s, ids, toks(s, prefix), nums(s)) for s in sentences(n) if words(s)]
+        # t-2079 B3: an ordinal alone (`12.`) is list numbering, structure, not a fragment
+        out += [Frag(place, s, ids, toks(s, prefix), nums(s)) for s in sentences(n) if words(s) and not ORDINAL_RE.fullmatch(s)]
     return out
 
 
@@ -194,13 +210,27 @@ def gist(quoted):
     return norm(quoted[1:-1]).casefold()
 
 
+def whole(text):
+    """t-2079 B3: the whole form of a fragment or a gist -- normal form, casefolded, a trailing `.;!?` dropped."""
+    return re.sub(r"[\s.;!?]+$", "", norm(text).casefold())
+
+
+def short(quoted, cfg):
+    return len(words(quoted)) < cfg["gist_min"]
+
+
 def refusal(kind, target, to, cfg, ctx):
-    """Why a line is not read (it covers nothing), or None. ctx: (head, base, paths changed in the range)."""
-    head, base, changed = ctx
+    """Why a line is not read (it covers nothing), or None. ctx: (head, base, paths changed in the range, the whole forms of
+    the cuts). A short target gist is read when it equals a whole cut (t-2079 B3: a 1-2 word fragment had no door); a short
+    gist covers only the fragments it equals (E25)."""
+    head, base, changed, wholes = ctx
     quoted = [q for q in (target, to if kind == "reworded" else "") if q.startswith('"')]
     if kind == "reworded" and len(quoted) < 2:
         return "rule-reworded takes two quoted gists"
-    if any(len(words(q)) < cfg["gist_min"] for q in quoted):
+    if not target.startswith('"') and target not in base.ids:  # t-2079 B1: any word or `-` covered every cut
+        return "%s is no carry id" % target
+    # quoted[0] is the target when any is quoted: an unquoted reworded target is refused above
+    if any(short(q, cfg) and (k or whole(q[1:-1]) not in wholes) for k, q in enumerate(quoted)):
         return "gist under %d words" % cfg["gist_min"]
     if kind == "reworded" and not any(gist(to) in s for s in head.sents - base.sents):
         return "new gist names no new text"
@@ -228,9 +258,13 @@ def lines_of(log, cfg, ctx, resolve, out):
     return read_lines
 
 
-def hits(line, frag, rid):
+def hits(line, frag, rid, cfg):
     if line.kind == "reworded" or line.target.startswith('"'):
-        return frag is not None and gist(line.target) in frag.text.casefold()
+        if frag is None:
+            return False
+        if short(line.target, cfg):
+            return whole(line.target[1:-1]) == whole(frag.text)
+        return gist(line.target) in frag.text.casefold()
     return line.target == rid if frag is None else line.target in frag.ids
 
 
@@ -247,7 +281,7 @@ def cover(cuts, gone, lines, cfg, out):
     items = [(f.place, f, None) for f in cuts] + [(rid, None, rid) for rid in sorted(gone)]
     used, covered, code = set(), 0, 0
     for place, frag, rid in items:
-        mine = [k for k, ln in enumerate(lines) if hits(ln, frag, rid)]
+        mine = [k for k, ln in enumerate(lines) if hits(ln, frag, rid, cfg)]
         used.update(mine)
         errs = [lines[k].err for k in mine]
         if None in errs:
@@ -270,7 +304,7 @@ def judge(base_files, head_files, log, cfg, resolve, changed=frozenset()):
     base, head = read(base_files), read(head_files)
     cuts = cuts_of(base, head, cfg, said.append)
     gone = {rid: p for rid, p in base.ids.items() if rid not in head.ids}
-    lines = lines_of(log, cfg, (head, base, changed), resolve, said.append)
+    lines = lines_of(log, cfg, (head, base, changed, {whole(f.text) for f in cuts}), resolve, said.append)
     code, covered = cover(cuts, gone, lines, cfg, said.append)
     said.append("cuts: %d fragments, %d ids gone, %d covered" % (len(cuts), len(gone), covered))
     return code, said
@@ -294,6 +328,17 @@ def raised(old, cfg):
     if not isinstance(old, dict):
         raise ratchets.Refuse("%s at the base: not one JSON object" % REL)
     return {k: ("key changed", ("word",)) for k in sorted(set(old) | set(cfg)) if old.get(k) != cfg.get(k)}
+
+
+def unconfirmable(keys, log, listed):
+    """t-2079 B2: {key: id} for a changed config key whose every raise line cites a listed id. judge_raises resolves with no
+    not_confirming filter, so `ratchet-raise: rule-cuts.json keep -- W-188` narrowed the gate by the word it refuses."""
+    out = {}
+    for key in keys:
+        ids = [i for f, k, i in ratchets.RAISE_RE.findall(log) if k == key and (REL == f or REL.endswith("/" + f))]
+        if ids and all(i in listed for i in ids):
+            out[key] = ids[0]
+    return out
 
 
 def in_set(rel, pats):
@@ -350,10 +395,17 @@ def run(argv):
         print("cuts not judged: no base")
         return 0
     old = ratchets.base_doc(a.root, base, REL, print)
-    codes = [ratchets.judge_raises(a.root, base, REL, raised(old, cfg), print) if old is not None else 0]
+    keys = raised(old, cfg) if old is not None else {}
+    was = old.get("not_confirming") if isinstance(old, dict) else None
+    listed = set(cfg["not_confirming"]) | set(was if CHECKS["not_confirming"](was) else ())  # B2: the push may empty it
     log = ratchets.text_of(ratchets.git(a.root, "log", "--format=%B", "%s..HEAD" % base))
+    stop = unconfirmable(keys, log, listed)
+    for key, wid in stop.items():
+        print(ratchets.finding("%s::%s" % (REL, key), "cannot confirm: %s is listed in not_confirming" % wid))
+    rest = {k: v for k, v in keys.items() if k not in stop}
+    codes = [int(bool(stop)), ratchets.judge_raises(a.root, base, REL, rest, print)]
     moved = changed(a.root, base) if "rule-to-code:" in log else frozenset()  # one process fewer on most runs
-    code, said = judge(*trees(a.root, [base, "HEAD"], cfg["files"]), log, cfg,
+    code, said = judge(*trees(a.root, [base, "HEAD"], cfg["files"]), log, dict(cfg, not_confirming=sorted(listed)),
                        lambda rid: ratchets.resolve(a.root, rid, ("word",)), moved)
     print("\n".join(said))
     return ratchets.verdict(codes + [code])
