@@ -13,7 +13,10 @@ quotes nothing joins. The same character escapes a quote character on an odd run
 Residuals, named: a symlink, junction, `~`, a variable, a script, an alias or an indirect write errs GREEN; so do a UNC admin
 share (//host/C$) and an 8.3 short name (they are not resolved); so does an agent editing the roots file or a live hook (the
 acceptance diff is the net); so do git path arguments other than the work tree, git-dir, clone/init/worktree add targets
-and --separate-git-dir (e.g. worktree move, archive -o, diff --output).
+and --separate-git-dir (e.g. worktree move, archive -o, diff --output, format-patch -o, bundle create, submodule add); so
+do Bash ANSI-C quoting (the dollar-quote $'...'), an abbreviated long option (git --sep=) and a value-taking option missing
+from the arity lists (git init --ref-format, git clone --template / -u and the rest of clone -h value options; the target
+is misread). The hook is protection against an agent's accidental write, not against an adversary.
 """
 import argparse
 import json
@@ -186,12 +189,8 @@ def positional(args, takes=()):
 
 
 def dest_opt(args):
-    for i, a in enumerate(args):
-        if a == "-t" and i + 1 < len(args):
-            return args[i + 1]
-        if a.startswith("--target-directory="):
-            return a.split("=", 1)[1]
-    return None
+    """cp/install/rsync/mv -t or --target-directory, each in the = and space forms (t-1986 D1, R4)."""
+    return long_opt(args, "-t") or long_opt(args, "--target-directory")
 
 
 def long_opt(args, name):
