@@ -147,7 +147,7 @@ def gaps(text, names):
 
 def read(path):
     with open(path, encoding="utf-8", newline="") as fh:
-        return fh.read()
+        return fh.read().replace("\r\n", "\n")  # core.autocrlf checkouts return CRLF: not a hand edit
 
 
 def fresh_file(session, win, block, names, miss):

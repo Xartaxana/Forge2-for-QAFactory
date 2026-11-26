@@ -374,6 +374,11 @@ def test_retro_check_sum_missing(tmp_path):
     assert got == 0 and "reasons missing: dispatch" in out and "answers missing: Q1, Q2, Q3, Q4, Q5" in out
     f.write_bytes(f.read_bytes().replace(b"accept: 1", b"accept: 9"))
     assert run("retro.py", ["check", str(f)], tmp_path)[0] == 1
+    f.write_bytes(f.read_bytes().replace(b"accept: 9", b"accept: 1").replace(b"\n", b"\r\n"))  # autocrlf checkout
+    assert run("retro.py", ["check", str(f)], tmp_path)[0] == 0
+    f.write_bytes(f.read_bytes().replace(b"accept: 1", b"accept: 9"))
+    assert run("retro.py", ["check", str(f)], tmp_path)[0] == 1
+    f.write_bytes(f.read_bytes().replace(b"accept: 9", b"accept: 1"))
     got, out = run("retro.py", ["sum", "--since", "2026-11-01"], tmp_path)
     assert got == 0 and "(s0, s1)" in out and "ask_owner: 4" in out
     assert "dispatch: builder=2 lead=2" in out
