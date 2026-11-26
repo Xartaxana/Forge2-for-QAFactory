@@ -227,10 +227,11 @@ def boot_line(root, s):
         if pat.fullmatch(s):
             return "exempt:%d" % i
     m = re.search(r"\(plan (\S+)\)$", s)
-    # t-2025 F3, t-2028 F5: the page states principles, her words stay records (W-101); a W id anywhere is refused
-    if any(c.group(1) == "W" for c in CITE_RE.finditer(s)):
+    # t-2025 F3, t-2028 F5: the page states principles, her words stay records (W-101); a W or D id anywhere is refused
+    kinds = {c.group(1) for c in CITE_RE.finditer(s)}
+    if "W" in kinds:
         return "owner word on BOOT: cite the plan item that states the rule"
-    if re.search(r"\(D-[1-9]\d*\)$", s):
+    if "D" in kinds:
         return "decision cited as owner's word"
     if m:
         return {True: "ok", False: "plan id absent: " + m.group(1), None: "plan copy unreadable"}[plan_key_ok(root, m.group(1))]
