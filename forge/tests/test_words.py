@@ -105,6 +105,8 @@ CHECK = [  # (records, files, exit, fragments in the output, expected from)
      "forge/COORDINATOR.md:2: P0 no such principle"], "t-2054 edge: P<n> outside 1-31 red with file:line and number"),
     ([FORGE], {words.PRINCIPLES: None, "CLAUDE.md": "P20"}, 1, ["red: forge/PRINCIPLES.md: absent"],
      "t-2054 edge: forge/PRINCIPLES.md absent -> red naming the file"),
+    ([FORGE], {"CLAUDE.md": "fix P40-1 (P20)"}, 0, ["1 principle citations"],
+     "Lead t-2054 follow-up: P<n>-<digit> is a fix id -- not counted, not red"),
     ([FORGE], {words.PRINCIPLES: P31 + "- P7: again\n"}, 1, ["forge/PRINCIPLES.md:32: P7 stands twice"],
      "t-2054 edge: a `- P<n>:` line twice -> red"),
 ]
