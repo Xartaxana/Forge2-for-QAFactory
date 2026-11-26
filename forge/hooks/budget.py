@@ -20,8 +20,9 @@ main row; a worker: its role's row; an unknown role: any worker row, for the str
 cut; dispatch.py prints `caps: missing` by the same test (t-2032 N3). Fail closed on the state (t-2032 N1; the card's
 invariant: no call after the cap passes except the three moves): a worker's sidecar that exists but cannot be read or is not
 of the state's shape is a cut, `cut` journaled once with cause `budget state unreadable` and the sidecar rewritten as a cut
-state; a worker call whose Write/Edit path or shell command names logs/budget/ is refused, even as one of the three moves, and
-journaled as a cut (tampering). main is never cut: its unreadable sidecar is a line only, nothing written. The save is atomic:
+state; a worker Write/Edit whose path names logs/budget/ is refused, even as one of the three moves, and journaled as a cut
+(tampering); a worker shell command naming logs/budget/ is refused for that call only (the Grep tool is the read door),
+journaled once as `refuse`, never a cut (t-2036 T1, Lead ruling: a grep is no write). main is never cut: its unreadable sidecar is a line only, nothing written. The save is atomic:
 a temporary file, os.replace retried up to 5 times with a short backoff, the temporary file removed on final failure.
 Residuals, named: parallel calls read one snapshot, so one warn or cut may be journaled twice (readers dedup per agent); a
 sidecar deleted by other means is a first call (the clock restarts); a command that builds the path (a variable, a glob) is
@@ -49,7 +50,9 @@ FIELDS = NAMES["tokens"] + NAMES["wall"]
 USAGE = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
 TRIES_READ, TRIES_SAVE = 3, 6  # a save: one try and up to 5 retries (t-2032 N4: os.replace loses to a reader on Windows)
 TAMPER = re.compile(r"logs[\\/]+budget\b", re.I)
-LOST, TAMPERED = "budget state unreadable", "budget state tampering: the call names logs/budget/"
+LOST, TAMPERED = "budget state unreadable", "budget state tampering: a Write/Edit names logs/budget/"
+SHELL_TEXT = ("budget: refused for this call: logs/budget/ holds the hook's state, not a worker's to touch; to read it use the "
+              "Grep tool. The next call is judged as usual")
 NONE = type(None)
 SHAPE = {"t0": (int, float), "offset": int, "ctx": (int, NONE), "spend": int, "last_id": (str, NONE), "role": (str, NONE),
          "handoff": (str, NONE), "task": (str, NONE), "said": list, "level_tokens": int, "level_wall": int}
@@ -184,11 +187,25 @@ def call_of(payload):
 
 
 def tampers(payload):
-    """True when a call's Write/Edit path or shell command names logs/budget/ (t-2032 N1 (a): the state is the hook's alone)."""
+    """`write` when a call's Write/Edit path names logs/budget/, `shell` when its shell command does, else None (t-2032 N1 (a):
+    the state is the hook's alone; t-2036 T1: a shell command is refused for its call only, a write is a cut)."""
     tool, ti = call_of(payload)
-    p = ti.get("file_path") if tool in ("Write", "Edit") else None
-    text = os.path.normpath(p) if isinstance(p, str) else ti.get("command") if tool in ("Bash", "PowerShell") else None
-    return isinstance(text, str) and bool(TAMPER.search(text))
+    p, cmd = ti.get("file_path"), ti.get("command")
+    if tool in ("Write", "Edit") and isinstance(p, str) and TAMPER.search(os.path.normpath(p)):
+        return "write"
+    return "shell" if tool in ("Bash", "PowerShell") and isinstance(cmd, str) and TAMPER.search(cmd) else None
+
+
+def shell_door(root, session, role, st, payload, worker):
+    """The refusal text of a worker's shell command naming logs/budget/, else None: refused for this call only, journaled once
+    as `refuse`, never a cut (t-2036 T1, Lead ruling)."""
+    if not worker or tampers(payload) != "shell":
+        return None
+    if "shell_state" not in st["said"]:
+        st["said"].append("shell_state")
+        HIO.journal(root, "refuse", "budget", session, "role:%s a shell command names logs/budget/; refused for this call" % role,
+                    st["task"] or "unknown")
+    return SHELL_TEXT
 
 
 def allowed(payload, handoff):
@@ -351,7 +368,7 @@ def cause_of(lost, worker, payload):
     """The cut a worker's state forces on this call, or None (t-2032 N1: a state that cannot be proved is a cut, not a pass)."""
     if lost:
         return LOST
-    return TAMPERED if worker and tampers(payload) else None
+    return TAMPERED if worker and tampers(payload) == "write" else None
 
 
 def evaluate(payload, root):
@@ -377,9 +394,12 @@ def evaluate(payload, root):
     cause = cause_of(lost, worker, payload)
     forced = [cut_once(root, session, st, "role:%s %s spend %s" % (role, cause, spend_text(st)))] if cause else []
     cuts = verdict(payload, st, role, forced + cuts)
+    door = None if cuts else shell_door(root, session, role, st, payload, worker)
     save(sp, st)  # a lost state is rewritten here as a cut state, so the next call reads it
     if cuts:
         return 2, "\n".join([CUT_TEXT % cuts[0]] + info), []
+    if door:
+        return 2, "\n".join([door] + info), []
     return 0, "", info + warns
 
 

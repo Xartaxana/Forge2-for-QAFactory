@@ -676,19 +676,32 @@ def test_budget_cut_edges(tmp_path):  # F7: no handoff line; t-2032 N1: a torn s
 
 
 # t-2032 N1 (Lead ruling, card B5 invariant "no call after the cap passes except the three moves"): a state that cannot be
-# proved is a cut, journaled once; a call naming logs/budget/ is refused even as a plain git move
-@pytest.mark.parametrize("side,ctx,tool,ti,cause", [
-    ("{}", 900000, "Read", {}, "budget state unreadable"), ('{"t0": 1, "said": 5}', 10, "Read", {}, "budget state unreadable"),
-    (None, 10, "Write", {"file_path": "SIDE"}, "tampering"),
-    (None, 10, "Bash", {"command": "git add logs\\budget\\a1.json"}, "tampering"),
-    (None, 10, "PowerShell", {"command": "Set-Content logs/Budget/a1.json '{}'"}, "tampering")])
-def test_budget_state_fail_closed(tmp_path, side, ctx, tool, ti, cause):
+# proved is a cut, journaled once; a Write naming logs/budget/ is a cut; t-2036 T1 (Lead ruling): a shell command naming it,
+# a plain git move included, is refused for that call only, journaled once as `refuse`, and the next call passes
+@pytest.mark.parametrize("side,ctx,tool,ti,cause,after,event", [
+    ("{}", 900000, "Read", {}, "budget state unreadable", 2, "cut"),
+    ('{"t0": 1, "said": 5}', 10, "Read", {}, "budget state unreadable", 2, "cut"),
+    (None, 10, "Write", {"file_path": "SIDE"}, "tampering", 2, "cut"),
+    (None, 10, "Bash", {"command": "git add logs\\budget\\a1.json"}, "Grep tool", 0, "refuse"),
+    (None, 10, "PowerShell", {"command": "Select-String x logs/Budget/a1.json"}, "Grep tool", 0, "refuse")])
+def test_budget_state_fail_closed(tmp_path, side, ctx, tool, ti, cause, after, event):
     root, tp = fx(tmp_path, ctx)
     if side:
         put(root + "/logs/budget/a1.json", side)
-    got = call(root, tp, tool, **{k: v.replace("SIDE", root + "/logs/budget/a1.json") for k, v in ti.items()})
-    cut = [e["note"] for e in events(root) if e["event"] == "cut"]
-    assert got[0] == call(root, tp)[0] == 2 and cause in got[1] and len(cut) == 1 and cause in cut[0]
+    ti = {k: v.replace("SIDE", root + "/logs/budget/a1.json") for k, v in ti.items()}
+    got = [call(root, tp, tool, **ti) for _ in range(2)] + [call(root, tp)]
+    evs = events(root)
+    assert [g[0] for g in got] == [2, 2, after] and cause in got[0][1]
+    assert [e["event"] for e in evs] == [event] and (event == "refuse" or cause in evs[0]["note"])
+
+
+@pytest.mark.parametrize("side", ["{torn", '{"t0": 1, "said": 5}'])
+def test_budget_main_lost_state_line_only(tmp_path, side):  # t-2036 R1: main is never cut, its unreadable sidecar a line
+    root, tp = fx(tmp_path, 900000)
+    put(root + "/logs/budget/main-s1.json", side)
+    got = [call(root, tp, agent=None) for _ in range(2)]
+    assert [g[0] for g in got] == [0, 0] and all("main is never cut" in g[1] for g in got) and not events(root)
+    assert open(root + "/logs/budget/main-s1.json").read() == side
 
 
 @pytest.mark.parametrize("fails,written", [(6, False), (2, True)])
