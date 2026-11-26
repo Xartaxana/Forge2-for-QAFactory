@@ -9,6 +9,7 @@
   {"id": "w1", "command": "python -B factory/tools/rows.py walk", "card": "C3-2", "state": "not_built"},
   {"id": "secrets", "command": "python -B forge/hooks/secret_scan.py --range {range}", "card": "C1-5", "state": "built"},
   {"id": "words", "command": "python -B forge/tools/words.py check", "card": "B3", "state": "built"},
+  {"id": "rule-cuts", "command": "python -B forge/tools/rule_cuts.py", "card": "B22", "state": "built"},
   {"id": "worklist", "command": "python -B forge/tools/worklist.py check --base {base}", "card": "B11", "state": "not_built"},
   {"id": "refs", "command": "python -B forge/tools/refs.py check", "card": "B13", "state": "not_built"},
   {"id": "rates", "command": "python -B measure/tools/price.py check --base {base}", "card": "B4", "state": "not_built"}

@@ -155,8 +155,12 @@ def fragments(base, head, prefix):
     out = []
     for place, raw, n in removed(base, head):
         ids = set(re.split(r"[^\w:-]+", raw))  # 2.3: an id as a whole token of the raw line, `(case: ...)` included
-        # t-2079 B3: an ordinal alone (`12.`) is list numbering, structure, not a fragment
-        out += [Frag(place, s, ids, toks(s, prefix), nums(s)) for s in sentences(n) if words(s) and not ORDINAL_RE.fullmatch(s)]
+        sents, mark = sentences(n), ITEM_RE.match(raw)
+        # t-2079 B3, t-2082 R1: an ordinal is structure only as the item marker of its own line (`12. text`); a bare
+        # number that a wrap left alone on a line (`3600.`) is rule text
+        if mark and mark.group(1) and len(sents) > 1 and ORDINAL_RE.fullmatch(sents[0]):  # the marker, then its text
+            sents = sents[1:]
+        out += [Frag(place, s, ids, toks(s, prefix), nums(s)) for s in sents if words(s)]
     return out
 
 
@@ -211,8 +215,9 @@ def gist(quoted):
 
 
 def whole(text):
-    """t-2079 B3: the whole form of a fragment or a gist -- normal form, casefolded, a trailing `.;!?` dropped."""
-    return re.sub(r"[\s.;!?]+$", "", norm(text).casefold())
+    """t-2079 B3: the whole form of a fragment or a gist -- normal form, casefolded, a trailing `.;!?` dropped; a `"` is
+    dropped too (a quoted gist cannot hold one, t-2082 N1)."""
+    return re.sub(r"[\s.;!?]+$", "", norm(text.replace('"', "")).casefold())
 
 
 def short(quoted, cfg):
@@ -272,6 +277,9 @@ def need(frag, rid, gone, cfg):
     if frag is None:
         return ("left every carry line (base: %s) -- put it on the carry line where its rule now stands, or rule-cut: %s -- "
                 "<W-n>" % (ratchets.encode(gone[rid]), rid))
+    if short(frag.text, cfg):  # t-2082 N1: under gist_min words the door is the whole fragment, typed as printed here
+        door = frag.text.replace('"', "")
+        return 'cut "%s" -- needs rule-cut: "%s" -- <W-n>, or rule-reworded: "%s" -- "<new>"' % (shown(frag.text), door, door)
     return ('cut "%s" -- needs rule-cut: "<%d+ words of it>" -- <W-n>, or rule-reworded: "<old>" -- "<new>"'
             % (shown(frag.text), cfg["gist_min"]))
 
@@ -328,17 +336,6 @@ def raised(old, cfg):
     if not isinstance(old, dict):
         raise ratchets.Refuse("%s at the base: not one JSON object" % REL)
     return {k: ("key changed", ("word",)) for k in sorted(set(old) | set(cfg)) if old.get(k) != cfg.get(k)}
-
-
-def unconfirmable(keys, log, listed):
-    """t-2079 B2: {key: id} for a changed config key whose every raise line cites a listed id. judge_raises resolves with no
-    not_confirming filter, so `ratchet-raise: rule-cuts.json keep -- W-188` narrowed the gate by the word it refuses."""
-    out = {}
-    for key in keys:
-        ids = [i for f, k, i in ratchets.RAISE_RE.findall(log) if k == key and (REL == f or REL.endswith("/" + f))]
-        if ids and all(i in listed for i in ids):
-            out[key] = ids[0]
-    return out
 
 
 def in_set(rel, pats):
@@ -399,11 +396,9 @@ def run(argv):
     was = old.get("not_confirming") if isinstance(old, dict) else None
     listed = set(cfg["not_confirming"]) | set(was if CHECKS["not_confirming"](was) else ())  # B2: the push may empty it
     log = ratchets.text_of(ratchets.git(a.root, "log", "--format=%B", "%s..HEAD" % base))
-    stop = unconfirmable(keys, log, listed)
-    for key, wid in stop.items():
-        print(ratchets.finding("%s::%s" % (REL, key), "cannot confirm: %s is listed in not_confirming" % wid))
-    rest = {k: v for k, v in keys.items() if k not in stop}
-    codes = [int(bool(stop)), ratchets.judge_raises(a.root, base, REL, rest, print)]
+    # t-2079 B2, t-2082 B2-bis: a listed id never confirms a config change either, whatever else the lines cite
+    codes = [ratchets.judge_raises(a.root, base, REL, keys, print, lambda wid: (
+        "cannot confirm: %s is listed in not_confirming" % wid if wid in listed else None))]
     moved = changed(a.root, base) if "rule-to-code:" in log else frozenset()  # one process fewer on most runs
     code, said = judge(*trees(a.root, [base, "HEAD"], cfg["files"]), log, dict(cfg, not_confirming=sorted(listed)),
                        lambda rid: ratchets.resolve(a.root, rid, ("word",)), moved)

@@ -141,15 +141,16 @@ def resolve(root, rid, kinds=("word",)):
     return None
 
 
-def judge_raises(root, base, rel, keys, out):
-    """keys: {key: (what, kinds)}. Each needs `ratchet-raise: <file> <key> -- <id>` in --base..HEAD, the id resolving to a kind."""
+def judge_raises(root, base, rel, keys, out, refuse=None):
+    """keys: {key: (what, kinds)}. Each needs `ratchet-raise: <file> <key> -- <id>` in --base..HEAD, the id resolving to a kind.
+    refuse(id): the caller's red text for an id that never confirms here (B22: not_confirming), read before the registry."""
     if not keys:
         return 0
     log = text_of(git(root, "log", "--format=%B", "%s..HEAD" % base))
     lines, code = RAISE_RE.findall(log), 0
     for key, (what, kinds) in keys.items():
         ids = [i for f, k, i in lines if k == key and (rel == f or rel.endswith("/" + f))]
-        errs = [resolve(root, i, kinds) for i in ids]  # F1: None is a record that resolves
+        errs = [(refuse(i) if refuse else None) or resolve(root, i, kinds) for i in ids]  # F1: None is a record that resolves
         if None in errs:
             continue
         msg = errs[0] if ids else "%s needs `ratchet-raise: %s %s -- <W-n | D-n>`" % (what, os.path.basename(rel), key)

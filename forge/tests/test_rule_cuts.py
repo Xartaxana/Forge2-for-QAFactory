@@ -169,6 +169,15 @@ def test_kept(roots, subs, extra, log, code, has):
      "", 0, ["cuts: 0 fragments"]),
     (SPEC, [("the Lead drafting it anyway is legal ONLY with a dispatch_skipped event", "")], "", 1, ['cut "the Lead drafting']),
     ("\n- Zinc yak roams.\n", [J6], "", 0, ['paired: CLAUDE.md::Worker%20duties "- Alfa', "(0.60)"]),
+    # t-2082 R1: a number a wrap left alone on its line is rule text, both ordinal shapes
+    ("\nA wait is capped at\n4800.\n", [("\n4800.", "\n9600.")], "", 1, ['cut "4800."']),
+    ("\nThe rounds stop at\n5)\n", [("\n5)", "\n6)")], "", 1, ['cut "5)"']),
+    # t-2082 M2b: a short gist covers only the fragments it equals (E25), never the ones holding it
+    ("\nepsilon.\n- Epsilon wolf fades quietly now.\n", [("\nepsilon.\n- Epsilon wolf fades quietly now.", "")],
+     'rule-cut: "epsilon" -- W-1', 1, ['cut "- Epsilon wolf', "2 fragments", "1 covered"]),
+    # t-2082 N1: the door printed for a short fragment is one the gate reads, a `"` inside it dropped
+    ("\nepsilon.\n", [("\nepsilon.", "")], "", 1, ['needs rule-cut: "epsilon." -- <W-n>', "!words of it"]),
+    ("\nsay \"zed\".\n", [('\nsay "zed".', "")], 'rule-cut: "say zed." -- W-1', 0, ["1 covered"]),
 ])
 def test_added(roots, add, subs, log, code, has):
     c, o = core(roots, subs, None, log, 0, add)
@@ -194,7 +203,8 @@ def repo(tmp_path_factory):
             ("merge", None), ("rule-to-code: FR-7 -- forge/tools/x.py", {**nocarry, **x1}), ("m", {"CLAUDE.md": cut}),
             ("rule-to-code: FR-7 -- forge/tools/x.py", nocarry), ("m", {"CLAUDE.md": b"\xff\xfe# x\n"}), ("m", {"CLAUDE.md": cut}),
             ("m", {rc.REL: lose}), ("ratchet-raise: rule-cuts.json files -- W-1", {rc.REL: CFG_TEXT}),
-            (probe % (("W-188",) * 3), {"CLAUDE.md": cut.replace(B2, ""), rc.REL: narrow}), (probe % (("W-1",) * 3), {})]):
+            (probe % (("W-188",) * 3), {"CLAUDE.md": cut.replace(B2, ""), rc.REL: narrow}), (probe % (("W-0",) * 3), {}),
+            (probe % (("W-1",) * 3), {})]):
         sh("checkout", "-q", "-b", "side") if i == 7 else sh("checkout", "-q", "-") if i == 8 else None
         if files is None:
             sh("merge", "-q", "--no-ff", "-m", msg, "side")
@@ -231,7 +241,9 @@ def repo(tmp_path_factory):
     (17, 16, 1, ["new: forge/rule-cuts.json::keep cannot confirm: W-188 is listed in not_confirming",
                  "new: forge/rule-cuts.json::not_confirming cannot confirm: W-188",
                  "cannot confirm: W-188 is listed in forge/rule-cuts.json not_confirming"]),
-    (18, 16, 0, ["1 covered", "!new:"]),  # the same with a live word not listed: every raise line, not one, must be listed
+    # t-2082 B2-bis: a raise line citing an id that does not resolve opens nothing beside the listed one
+    (18, 16, 1, ["new: forge/rule-cuts.json::keep cannot", "new: forge/rule-cuts.json::not_confirming cannot"]),
+    (19, 16, 0, ["1 covered", "!new:"]),  # the same with a live word not listed: that word confirms
 ])
 def test_range(repo, head, base, code, has):
     g, shas, checkout = repo
