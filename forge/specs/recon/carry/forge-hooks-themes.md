@@ -331,7 +331,7 @@ Cards to write from these verdicts (a designer; one critic pass per card group):
 - what it was for: Too many concurrent writers collided on files and exhausted the machine; an unknown must never let a seventh through, and overlap was left to the Lead's memory.
 - nearest cards: B14, B5, C1-4
 - rows not-found: FH-1076, FH-6049, FH-6050, FH-6051, FH-6052, FH-6053
-- verdict: split -- carry (B18, amends C1-4's dispatch check): an owns path held by an open dispatch of the journal is flagged; a rule line (B21, amends C1-1) holding the owner's tempo word of 13.11 and 16.11.2026: the goal is six writing workers when there is parallel work, and no more than six at once (corrected 2026-11-26 after the owner's question); dropped: only the code that counted live writer transcripts and refused the seventh (it read host files and took an unreadable one for a live worker)
+- verdict: split -- carry (B18, amends C1-4's dispatch check): an owns path held by an open dispatch of the journal is flagged; a rule line (B21, amends C1-1) holding the owner's tempo word of 13.11 and 16.11.2026: the goal is six writing builders when there is parallel work, and no fewer; a seventh when the coordinator needs it (a red CI to fix) through a named door; six is a goal, never at the cost of efficiency (wording corrected 2026-11-26 by the Lead against the old forge's PROJECT.md item 12: "no more than six at once" was a misreading) (corrected 2026-11-26 after the owner's question); dropped: only the code that counted live writer transcripts and refused the seventh (it read host files and took an unreadable one for a live worker)
 - decider: architect 2026-11-26
 
 ## H37 Test volume warning
