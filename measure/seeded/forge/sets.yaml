@@ -1,1 +1,28 @@
-{"schema": "sets/1", "roles": {"critic": {"units": [".claude/agents/critic.md", "CLAUDE.md#Worker duties"], "bound": "claude-opus-5-5", "exams": []}}}
+{
+  "schema": "sets/1",
+  "roles": {
+    "critic": {
+      "units": [
+        ".claude/agents/critic.md",
+        "CLAUDE.md#Worker duties"
+      ],
+      "bound": "claude-opus-5-5",
+      "exams": [
+        {
+          "date": "2026-11-26",
+          "sha": "ab6dc5f99317a4e949e2c4a7273f7968a9f64dbe",
+          "model": "claude-opus-5-5",
+          "losses": [],
+          "gains": [
+            {
+              "item": "T3-2",
+              "ledger_row": "forge/specs/recon/carry/forge-roles.1.md:FO-83"
+            }
+          ],
+          "rank": "does not rank (2 discriminating, 0 unmeasured; LOSS 0, GAIN 1)",
+          "result": "measure/runs/forge-roles/critic/20261126/result.md"
+        }
+      ]
+    }
+  }
+}

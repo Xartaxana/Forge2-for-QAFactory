@@ -1,0 +1,1 @@
+launch tools Read, Glob, Grep in every arm: traps that need a run or a write are not exercisable (both arms)
