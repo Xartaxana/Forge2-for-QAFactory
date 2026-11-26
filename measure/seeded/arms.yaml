@@ -1,16 +1,17 @@
 {
   "schema": "arms/1",
-  "note": "Card S11-1; written in JSON syntax (valid YAML), read with json by measure/tools/seeded.py. export = the frozen forge 2 snapshot every arm's tree is cut from (draft I1, I6); a row's source = where its rule files come from. The Lead pins every sha (draft c1) and re-pins new's source at each exam. launch = mechanism A (E0 / S11-0, the Lead's input to t-2056): cwd = the arm tree, stdin empty. Mechanism B, a data alternative only: the same command with `--append-system-prompt-file`, `{role_file}` in place of `--agent`, `{role}` (never the inline --append-system-prompt: WinError 206 at ~33 KB on Windows). text_key and models_key name the json output's fields (estimate, the json form E0 read).",
+  "note": "Card S11-1; written in JSON syntax (valid YAML), read with json by measure/tools/seeded.py. export = the frozen forge 2 snapshot every arm's tree is cut from (draft I1, I6); a row's source = where its rule files come from. The Lead pins every sha (draft c1) and re-pins new's source at each exam. launch = mechanism A (E0 / S11-0), cwd = the arm tree, stdin empty, and by the Lead's B4 decision (i) (critic t-2062) every arm, bare too, gets the same read-only tools Read, Glob, Grep: the old arm's closure (F2 (b)) and the task's input/ are now readable through them. Reads by absolute path outside the tree are possible; the key canary is the backstop (I2). The judge keeps no tools (it reads only its prompt). E0's probe-v2 under THIS launch row must run before the first measuring run (S11-2). Mechanism B, a data alternative only: `--append-system-prompt-file`, `{role_file}` in place of `--agent`, `{role}` (never the inline --append-system-prompt: WinError 206 at ~33 KB on Windows). text_key and models_key name the json output's fields (estimate, the json form E0 read).",
   "copies_root": "C:/QAFactory/forge2-copies/seeded",
   "export": {"repo": "C:/QAFactory/forge2-repo", "sha": "a09c9d147096737e9a9b4740a7d62163e143faf2"},
   "host_paths": {"instructions": "CLAUDE.md", "role": ".claude/agents/<role>.md", "settings": ".claude/settings.json", "skills": ".claude/skills"},
   "launch": {
     "mechanism": "A",
-    "command": ["claude", "-p", "--model", "{model}", "--tools", "", "--output-format", "json", "--no-session-persistence", "--agent", "{role}", "{task}"],
+    "command": ["claude", "-p", "--model", "{model}", "--tools", "Read,Glob,Grep", "--output-format", "json", "--no-session-persistence", "--agent", "{role}", "{task}"],
     "judge_command": ["claude", "-p", "--model", "{model}", "--tools", "", "--output-format", "json", "--no-session-persistence", "{task}"],
     "version_command": ["claude", "--version"],
     "text_key": "result",
-    "models_key": "modelUsage"
+    "models_key": "modelUsage",
+    "residual": "launch tools Read, Glob, Grep in every arm: traps that need a run or a write are not exercisable (both arms)"
   },
   "arms": [
     {"id": "new", "kind": "tree_overlay",

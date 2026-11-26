@@ -32,14 +32,16 @@ ARM = os.path.join(HERE, "arm.py")
 ARMS_REL = "measure/seeded/arms.yaml"
 SETS_REL = "measure/seeded/forge"
 RUNS_REL = "measure/runs/forge-roles"
-ALWAYS = ("measure/seeded", "forge/specs")  # I2: never in an arm tree; host_paths settings and skills join them (F3)
+# I2: never in an arm tree; host_paths settings and skills join them (F3). measure/runs/forge-roles holds result rows
+# naming items and ledger rows: an arm with read tools would see them once the export is re-pinned (t-2062 F6).
+ALWAYS = ("measure/seeded", "forge/specs", "measure/runs/forge-roles")
 REFERENCE, CANDIDATE, CONTROL = "old", "new", "bare"  # draft Q5's three arms
 RUNS = 3  # Q5: a disagreeing task runs both arms to a majority of 3
 SET_RE = re.compile(r"[a-z0-9_-]+")
 HEADER = ("schema", "note", "copies_root", "export", "host_paths", "launch", "arms")
 HEADER_REQ = ("schema", "copies_root", "export", "host_paths", "launch", "arms")
 HOST = ("instructions", "role", "settings", "skills")
-LAUNCH = ("mechanism", "command", "judge_command", "version_command", "text_key", "models_key")
+LAUNCH = ("mechanism", "command", "judge_command", "version_command", "text_key", "models_key", "residual")
 SOURCE = ("repo", "sha")
 KINDS = ("tree_overlay",)
 ROW = ("id", "kind", "source", "put", "remove", "closure", "model", "body")
@@ -49,7 +51,7 @@ KEY = ("canary", "items", "intact")
 KEY_TYPES = {"canary": str, "items": list, "intact": list}
 ITEM = ("id", "ledger_row", "old_text", "new_text", "judged_by", "catch", "command")
 ITEM_REQ = ("id", "ledger_row", "old_text", "new_text", "judged_by", "catch")
-ITEM_TYPES = {"id": str, "catch": str, "command": list}
+ITEM_TYPES = {"id": str, "ledger_row": str, "catch": str, "command": list}
 INTACT = ("id", "passage")
 JUDGED_BY = ("critic", "run")
 ITEM_CLASS = {("caught", "missed"): "LOSS", ("missed", "caught"): "GAIN", ("missed", "missed"): "NOISE"}
@@ -165,6 +167,8 @@ def check_item(rel, item):
     where = "%s row %s" % (rel, row_id(item))
     fields(item, ITEM, ITEM_REQ, where)
     types(item, ITEM_TYPES, where)
+    if not item["ledger_row"].strip():
+        raise Refuse("%s: ledger_row empty (I8: an item exists only for a ledger row)" % where)
     if item["judged_by"] not in JUDGED_BY:
         raise Refuse("%s: judged_by must be critic or run" % where)
     if (item["judged_by"] == "run") != ("command" in item):
@@ -362,7 +366,7 @@ class Exam:
 
     def __init__(self, root, role, doc, keys):
         self.root, self.role, self.doc, self.keys, self.seq = root, role, doc, keys, 0
-        self.stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
+        self.stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S%f")  # run ids unique
         self.out = next_dir(os.path.join(root, RUNS_REL, role), self.stamp[:8])
         self.copies = os.path.join(doc["copies_root"], "forge-roles", role, self.stamp)
         self.prior, self.here = prior_rows(os.path.join(root, RUNS_REL, role)), set()
@@ -459,13 +463,14 @@ def text_at(path):
 
 
 def all_items(key):
-    """(id, ledger_row, judged_by) of every item and intact passage (an intact passage has no ledger row)."""
-    rows = [(i["id"], i["ledger_row"], i["judged_by"]) for i in key["items"]]
-    return rows + [(p["id"], None, "critic") for p in key.get("intact", [])]
+    """(id, ledger_row, judged_by, kind) of every item and intact passage. The kind sets the polarity at scoring, never a
+    null ledger row (t-2062 B1: a null ledger_row once scored an item as a passage, LOSS printed as GAIN)."""
+    rows = [(i["id"], i["ledger_row"], i["judged_by"], "item") for i in key["items"]]
+    return rows + [(p["id"], None, "critic", "intact") for p in key.get("intact", [])]
 
 
 def uniform(key, catch, judge):
-    return {i: (catch, judge) for i, _, _ in all_items(key)}
+    return {r[0]: (catch, judge) for r in all_items(key)}
 
 
 def parse_marks(text, ids):
@@ -497,8 +502,16 @@ def ask_judge(ex, key, ids, run_row, text):
                     os.path.join(folder, "out"))
     jtext = text_at(os.path.join(folder, "out", "out.txt")) if jrow["status"] == "measured" else ""
     keep_judge(ex, dict(jrow, task=run_row["task"]), jtext, {"label": label, "arm": run_row["arm"], "run": run_row["run"]})
+    return marks_of(jrow, jtext, ids)
+
+
+def marks_of(jrow, jtext, ids):
+    """A judge that did not run (status not measured) gives `unmeasured`, never `unsure` -> `missed`: F170 reads a
+    verdict, and a failed judgment is no verdict (t-2062 B2, I9: the old arm's long outputs hit the argv cap first)."""
+    if jrow["status"] != "measured":
+        return {i: ("unmeasured", jrow["run"]) for i in ids}
     marks = parse_marks(jtext, ids)
-    return {i: (marks[i], jid) for i in ids}
+    return {i: (marks[i], jrow["run"]) for i in ids}
 
 
 def keep_judge(ex, jrow, jtext, lot):
@@ -545,9 +558,10 @@ def verdicts_for(ex, task, tree, run_row, text):
 
 
 def score_rows(key, task, run_row, verdicts):
-    return [{"task": task, "item": i, "ledger_row": ledger, "arm": run_row["arm"], "run": run_row["run"],
+    return [{"task": task, "item": i, "ledger_row": ledger, "kind": kind, "judged_by": by, "arm": run_row["arm"],
+             "run": run_row["run"], "fingerprint": run_row.get("fingerprint", {}),
              "catch": verdicts[i][0], "judge": verdicts[i][1], "tokens": run_row.get("tokens", {}),
-             "wall": run_row.get("wall_s")} for i, ledger, _ in all_items(key)]
+             "wall": run_row.get("wall_s")} for i, ledger, by, kind in all_items(key)]
 
 
 def fresh(ex, task, row):
@@ -590,9 +604,15 @@ def reusable(ex, task, row, fp):
     return sorted(rid for rid, r in ex.prior[0].items() if matches(r, task, row["id"], fp))
 
 
+def once(scores):
+    """Each (run, task, item) once: a reused run's rows sit in every folder that reused it, and counting each copy
+    weighed one run several times in the majority (t-2062 B3)."""
+    return list({(s["run"], s["task"], s["item"]): s for s in reversed(scores)}.values())[::-1]
+
+
 def reuse(ex, task, row, fp):
     same = reusable(ex, task, row, fp)
-    kept = [s for s in ex.prior[1] if s.get("run") in same]
+    kept = once([s for s in ex.prior[1] if s.get("run") in same])
     record(ex, [ex.prior[0][rid] for rid in same], kept)
     return kept
 
@@ -672,7 +692,7 @@ def run(a):
 
 # ---- score (draft Q5, I4, I5, F6)
 
-def both_caught(bare, intact):
+def unchanged(bare, intact):
     return "same" if intact else ("does-not-rank" if bare == "caught" else "held")
 
 
@@ -682,7 +702,7 @@ def classify(old, new, bare, intact):
     does-not-rank (F6); an arm without a measured majority leaves the item `unmeasured` (never caught, I9)."""
     if "unmeasured" in (old, new):
         return "unmeasured"
-    return (INTACT_CLASS if intact else ITEM_CLASS).get((old, new)) or both_caught(bare, intact)
+    return (INTACT_CLASS if intact else ITEM_CLASS).get((old, new)) or unchanged(bare, intact)
 
 
 def split(scores, k):
@@ -705,24 +725,64 @@ def shown(by_arm, k):
     return "; ".join("%s %s" % (who, split(by_arm.get(who, []), k)) for who in (REFERENCE, CANDIDATE, CONTROL))
 
 
-def item_line(k, ledger, out, by_arm):
-    """(line, class, discriminating): discriminating = old caught and bare missed (F6), items only."""
+def measured_pair(s, task):
+    return s["task"] == task and s["arm"] in (REFERENCE, CANDIDATE) and s["catch"] in ("caught", "missed")
+
+
+def mismatch(rows, task):
+    """K3 wired (I1, t-2062 F5): the measured old and new runs of a task must be equal in every fingerprint field but
+    rules_bundle; else the first differing field, and the task's items are `unmeasured: <field>`."""
+    prints = [s.get("fingerprint", {}) for s in rows if measured_pair(s, task)]
+    return next((f for f in [arm.compare(prints[0], p, ("rules_bundle",)) for p in prints[1:]] if f), None)
+
+
+def mismatches(rows, info):
+    return {task: mismatch(rows, task) for task in {k[0] for k in info}}
+
+
+def candidate(old, bare):
+    return not (old == "missed" or bare == "caught")
+
+
+def undecided(old, bare, verdict):
+    """F7: a discriminating candidate (old not missed, bare not caught) whose verdict or discrimination is unmeasured;
+    a fingerprint mismatch leaves every item of the task undecided."""
+    if verdict.startswith("unmeasured"):
+        return candidate(old, bare) or verdict != "unmeasured"
+    return candidate(old, bare) and (old, bare) != ("caught", "missed")
+
+
+def verdict_of(old, new, bare, kind, bad):
+    return "unmeasured: %s" % bad if bad else classify(old, new, bare, kind == "intact")
+
+
+def flags(old, bare, verdict, kind, bad):
+    """(discriminating, undecided) for an item; an intact passage is neither (it never ranks)."""
+    item = kind == "item"
+    return item and (old, bare) == ("caught", "missed") and not bad, item and undecided(old, bare, verdict)
+
+
+def item_line(k, info, out, by_arm, bad):
+    """(line, class, discriminating, undecided); the polarity comes from the row's kind, never a null ledger row (B1)."""
     old, new, bare = [got(out, who, k) for who in (REFERENCE, CANDIDATE, CONTROL)]
-    verdict = classify(old, new, bare, ledger is None)
-    disc = ledger is not None and (old, bare) == ("caught", "missed")
-    return "%s %s %s %s | %s" % (k[0], k[1], ledger or "intact", verdict, shown(by_arm, k)), verdict, disc
+    verdict = verdict_of(old, new, bare, info[1], bad)
+    line = "%s %s %s %s | %s" % (k[0], k[1], info[0] or "intact", verdict, shown(by_arm, k))
+    return (line, verdict) + flags(old, bare, verdict, info[1], bad)
 
 
 def ledgers(rows):
-    return {(s["task"], s["item"]): s["ledger_row"] for s in rows}
+    return {(s["task"], s["item"]): (s["ledger_row"], s.get("kind", "item")) for s in rows}
 
 
-def report(rows):
-    by_arm = group(rows)
-    out = {who: outcomes(sc) for who, sc in by_arm.items()}
-    ledger = ledgers(rows)
-    items = [item_line(k, ledger[k], out, by_arm) for k in sorted(ledger)]
-    return [i[0] for i in items] + [rank_line(items)]
+def outcomes_by_arm(by_arm):
+    return {who: outcomes(sc) for who, sc in by_arm.items()}
+
+
+def report(rows, residual):
+    by_arm, info = group(rows), ledgers(rows)
+    out, bad = outcomes_by_arm(by_arm), mismatches(rows, info)
+    items = [item_line(k, info[k], out, by_arm, bad[k[0]]) for k in sorted(info)]
+    return [i[0] for i in items] + [rank_line(items), residual_line(rows, residual)]
 
 
 def count(items, pos, value):
@@ -730,10 +790,18 @@ def count(items, pos, value):
 
 
 def rank_line(items):
-    """F6: a set ranks only with at least 3 discriminating items (old caught, bare missed)."""
-    d = count(items, 2, True)
-    word = "ranks" if d >= 3 else "does not rank"
-    return "rank: %s (%d discriminating; LOSS %d, GAIN %d)" % (word, d, count(items, 1, "LOSS"), count(items, 1, "GAIN"))
+    """F6: a set ranks only with at least 3 discriminating items (old caught, bare missed); fewer, with a candidate
+    unmeasured, is `unmeasured (n)`, never the honest `does not rank` (t-2062 F7)."""
+    d, u = count(items, 2, True), count(items, 3, True)
+    word = "ranks" if d >= 3 else ("unmeasured (%d)" % u if u else "does not rank")
+    return "rank: %s (%d discriminating, %d unmeasured; LOSS %d, GAIN %d)" % (
+        word, d, u, count(items, 1, "LOSS"), count(items, 1, "GAIN"))
+
+
+def residual_line(rows, residual):
+    """B4 (i): every result names what the launch cannot exercise in either arm, and this set's run-judged items."""
+    ids = sorted({s["item"] for s in rows if s.get("judged_by") == "run"})
+    return "residual: %s; judged_by run items: %s" % (residual, ", ".join(ids) or "none")
 
 
 def latest(base):
@@ -753,7 +821,7 @@ def score(a):
     rows = read_jsonl(os.path.join(base, day_of(a, base), "scores.jsonl"))
     if not rows:
         raise Refuse("%s/%s: no score rows" % (RUNS_REL, a.set))
-    print("\n".join(report(rows)))
+    print("\n".join(report(rows, load_arms(a.root)["launch"]["residual"])))
     return 0
 
 
