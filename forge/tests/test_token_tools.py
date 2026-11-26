@@ -344,7 +344,7 @@ def test_retro_counts(tmp_path, mode):
     ("nogit", "s1", 0, ["refuse (git hooks): none journaled", "refuse: budget=1 foreign_write=2"]),
     ("zero", "s1", 0, ["nothing: <why>", "dispatch: 0"]),
     ("many", "s1", 0, ["retried tasks: 30", "  [cut: %d of 30 detail lines]" % (30 - (38 - 13) + 1), "accept: 0"]),
-    ("nowin", "s1", 0, ["missing: unknown"]),  # t-2024 N3; the block of a windowless session: question to the Lead (t-2031)
+    ("nowin", "s1", 0, ["counts: incomplete", "  no window: no own line parsable", "missing: unknown"]),  # t-2024 N3, t-2031
     ("base", "s2", 2, ["no journal lines of session s2"]),
     ("base", "../x", 2, ["refused"]),
     ("base", "git-hooks", 2, ["refused"]),

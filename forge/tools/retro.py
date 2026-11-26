@@ -69,7 +69,8 @@ def own_event(c, per_task, o, ev, note):
 
 
 def window(entries, own):
-    """(first ts, last ts) of the own file's valid lines; write records it, check reads it back (t-2029 N5)."""
+    """(first ts, last ts) of the own file's valid lines, recorded by write, read back by check and sum: every line that
+    can affect a block is dated no later than the recorded window end (t-2031)."""
     stamps = [e[0] for e in entries if e[1] == own and e[4] and e[0]]
     return (min(stamps), max(stamps)) if stamps else ("", "")
 
@@ -165,7 +166,7 @@ def counts_block(loaded, session, win=None):
         return ["counts: unknown -- no journal"], [], ("", ""), Counter()
     win = window(entries, session + ".jsonl") if win is None else win
     c, retried = tally(entries, session, win)
-    mine = problems(loaded, session + ".jsonl", win)
+    mine = problems(loaded, session + ".jsonl", win) + ([] if win[0] else ["no window: no own line parsable"])  # t-2031 Q2
     lines = render(c, retried, mine, git_word(loaded, win[1]), "incomplete" if mine else "ok")
     return lines, [label for label, key in NAMES if total(c, key) > 0], win, c
 
