@@ -1,0 +1,289 @@
+# card: C1-3
+"""Data-joint tests of C1-3: the three ratchets (crap, lint, clone) read a small temp tree, in-process through main(argv); ci.py
+passes FORGE_BASE to its jobs. No coverage run: the coverage JSON is a fixture, a missing module is a monkeypatched sys.modules."""
+import ast
+import contextlib
+import io
+import json
+import os
+import re
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import ci  # noqa: E402
+import clone_ratchet as clone  # noqa: E402
+import crap_ratchet as crap  # noqa: E402
+import lint_ratchet as lint  # noqa: E402
+import ratchets  # noqa: E402
+
+TOOLS = {"crap": crap, "lint": lint, "clone": clone}
+P = "factory/tools/u.py"
+HOOK = "#!/usr/bin/env python\n"
+
+
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    for k in [k for k in os.environ if k.startswith(("GIT_", "COVERAGE"))] + ["FORGE_BASE"]:
+        monkeypatch.delenv(k, raising=False)
+
+
+def put(root, files):
+    for rel, text in files.items():
+        p = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as fh:
+            fh.write(text if isinstance(text, bytes) else text.encode("utf-8"))
+
+
+def run(mod, root, *args):
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = mod.main(["--root", str(root)] + list(args))
+    return code, buf.getvalue()
+
+
+def new(out):
+    return re.findall(r"^new: (\S+)", out, re.M)
+
+
+def world(tmp_path, files, limit=20):
+    """The files and forge/budgets.json: limit an int, "absent", raw text, or the rows dict."""
+    root = str(tmp_path)
+    put(root, files)
+    rows = limit if isinstance(limit, dict) else {"crap_limit": {"unit": "limit", "ceiling": limit}}
+    if limit != "absent":
+        put(root, {"forge/budgets.json": limit if isinstance(limit, str) else json.dumps({"schema": "budgets/1", "rows": rows})})
+    return root
+
+
+def fn(name, c):  # complexity c by the F243 rule: 1 + (c - 1) ifs
+    return "def %s(x):\n%s    return x\n\n" % (name, "".join("    if x == %d:\n        x += 1\n" % i for i in range(c - 1)))
+
+
+def body(name, k, v):  # k statements; locals and literals differ with v, the normalised code does not
+    s = ["    %s = z.get(%d)\n" % (v, len(v))] + ["    %s = %s + z.get(%d)\n" % (v, v, i) for i in range(1, k - 1)]
+    return "def %s(z):\n%s    return %s\n\n" % (name, "".join(s), v)
+
+
+def frag(name, k, v, tail):  # k equal statements then a tail that differs
+    return "def %s(z):\n%s    %s\n\n" % (name, "".join("    %s = z.get(%d)\n" % (v, i) for i in range(k)), tail)
+
+
+def cov(root, files, covered, tests="0", excl=False, data=True):
+    out = {}
+    for path, src in files.items():
+        ex, miss = set(), set()
+        for d in [d for d in ast.parse(src).body if isinstance(d, ast.FunctionDef)]:
+            ex.add(d.lineno)
+            (ex if d.name in covered else miss).update(s.lineno for s in ast.walk(d) if isinstance(s, ast.stmt) and s is not d)
+        out[path] = {"executed_lines": sorted(ex), "missing_lines": sorted(miss), "excluded_lines": sorted(ex) if excl else []}
+    put(root, {"cov.json": json.dumps({"files": out if data else {}})})
+    return ["--coverage-json", os.path.join(root, "cov.json"), "--tests-exit", tests]
+
+
+LAY = {p: fn("f20", 20) + fn("f21", 21) for p in ("factory/a.py", "forge/tools/a.py", "forge/hooks/a.py", "measure/tools/a.py")}
+LAY["forge/hooks/git/pre-x"] = HOOK + fn("f20", 20) + fn("f21", 21)
+OUT = {"forge/hooks/git/pre-x.next": HOOK + fn("f22", 22), "forge/hooks/b.py.next": fn("f22", 22), "forge/tools/d.json": "{}",
+       "forge/hooks/git/sh": "#!/bin/sh\n" + fn("f22", 22), "factory/tests/test_t.py": fn("t22", 22)}
+H5, ALL = {P: fn("h5", 5)}, {"f20", "f21", "g25", "g26", "v5"}
+
+
+# expected from: C1-3 part2:109-113 and the brief (PART 2 section 4 limits, coverage, F241 (a), F253 (a), F255 (a), F256)
+@pytest.mark.parametrize("files, kw, code, ids, has", [
+    (dict(LAY, **OUT), {"covered": ALL}, 1, [p + "::f21" for p in LAY], ""),  # c20 green, c21 red, .next and sh and tests out
+    ({P: fn("u5", 5) + fn("u4", 4) + fn("v5", 5)}, {"covered": {"v5"}}, 1, [P + "::u5"], ""),  # c5 red, c4 at the limit green
+    ({P: fn("v5", 5)}, {"covered": ALL, "excl": True}, 1, [P + "::v5"], ""),  # excluded = missing
+    ({P: fn("g25", 25) + fn("g26", 26)}, {"limit": 25, "covered": ALL}, 1, [P + "::g26"], ""),
+    ({P: fn("v5", 5)}, {"covered": ALL, "tests": "1"}, 3, [], "tests exit 1"),
+    ({P: fn("v5", 5)}, {"covered": ALL, "data": False}, 3, [], "not measured: " + P),
+    (H5, {}, 3, [], "pip install -r forge/ci-requirements.txt"),
+    ({P: fn("h5", 5) + fn("big", 21)}, {}, 1, [P + "::big"], "not judged"),  # exit 1 beats 3
+    (H5, {"limit": "absent"}, 2, [], "crap_limit"),
+    (H5, {"limit": "{not json"}, 2, [], "crap_limit"),
+    (H5, {"limit": {}}, 2, [], "crap_limit"),
+    (H5, {"limit": {"crap_limit": {"unit": "bytes", "ceiling": 20}}}, 2, [], "crap_limit"),
+    (H5, {"limit": {"crap_limit": {"unit": "limit", "ceiling": "20"}}}, 2, [], "crap_limit"),
+    (H5, {"limit": True}, 2, [], "crap_limit"),
+    (H5, {"limit": -1}, 2, [], "crap_limit"),
+    ({}, {"limit": "absent"}, 0, [], ""),
+])
+def test_crap(tmp_path, monkeypatch, files, kw, code, ids, has):
+    root = world(tmp_path, files, kw.get("limit", 20))
+    args = []
+    if "covered" in kw:
+        args = cov(root, files, kw["covered"], kw.get("tests", "0"), kw.get("excl", False), kw.get("data", True))
+    else:
+        monkeypatch.setitem(sys.modules, "coverage", None)
+    c, o = run(crap, root, *args)
+    assert c == code and sorted(new(o)) == sorted(ids) and has in o, o
+
+
+# expected from: PART 2 section 4 coverage and JSON edges (a named input that cannot be read is never covered); F254 usage
+@pytest.mark.parametrize("text, args, code, has", [
+    (None, ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON"),
+    ("{not json", ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "coverage JSON"),
+    ('{"files": []}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "files"),
+    ('{"files": {"p": {"executed_lines": ["a"], "missing_lines": []}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "integers"),
+    ('{"files": {"p": {"executed_lines": [1]}}}', ["--coverage-json", "{j}", "--tests-exit", "0"], 2, "missing_lines"),
+    ('{"files": {}}', ["--coverage-json", "{j}"], 3, "tests exit not given"),
+    ('{"files": {}}', ["--tests-exit", "0"], 2, "usage"),
+])
+def test_coverage_input(tmp_path, text, args, code, has):
+    root = world(tmp_path, H5)
+    j = os.path.join(root, "cov.json")
+    put(root, {"cov.json": text} if text else {})
+    c, o = run(crap, root, *[j if a == "{j}" else a for a in args])
+    assert c == code and has in o, o
+
+
+# expected from: F243 (the rule text) and PART 2 N22 (rows, qualnames, #k)
+@pytest.mark.parametrize("src, want", [
+    ("def f(x):\n    if x:\n        pass\n", {"f": 2}),
+    ("def f(x):\n    for i in x:\n        pass\n    while x:\n        pass\n", {"f": 3}),
+    ("def f(x):\n    try:\n        pass\n    except A:\n        pass\n    except B:\n        pass\n", {"f": 3}),
+    ("def f(x):\n    return [a for a in x if a] if x else 0\n", {"f": 3}),
+    ("def f(x):\n    assert x and x or x\n", {"f": 4}),
+    ("def f(x):\n    match x:\n        case 1:\n            pass\n        case 2:\n            pass\n", {"f": 3}),
+    ("def f(x):\n    with x:\n        pass\n", {"f": 1}),
+    ("def f(x):\n    def g(y):\n        if y:\n            pass\n    return g\n", {"f": 1, "f.g": 2}),
+    ("def f(x):\n    return lambda y: y if x else 0\n", {"f": 2}),
+    ("class C:\n    if True:\n        pass\n    def m(self):\n        pass\n", {"C.m": 1}),
+    ("def f(x):\n    pass\n\n\ndef f(x):\n    if x:\n        pass\n", {"f": 1, "f#2": 2}),
+])
+def test_complexity(tmp_path, src, want):
+    c, o = run(crap, world(tmp_path, {"factory/tools/s.py": src}, 100), "--list")
+    got = {k: int(v) for k, v in re.findall(r"^factory/tools/s\.py::(\S+) complexity (\d+)", o, re.M)}
+    assert c == 0 and got == want, o
+
+
+SRC = "import os\nimport re\n"
+IDS = ["factory/tools/x.py::UnusedImport:os", "factory/tools/x.py::UnusedImport:re"]
+
+
+# expected from: B20 part9:129-132, 138-140 (K1 a moved finding, K2 basis, K3 stale and --update, K4 dead scanner), reason rule
+@pytest.mark.parametrize("src, rows, basis, args, code, has, left", [
+    ("\n" * 10 + SRC, "ok", {}, [], 0, "", 2),
+    (SRC, "bare", {}, [], 1, "row has no reason", 2),
+    (SRC, "ok", {"python": "3.0"}, [], 3, "not judged here", 2),
+    (SRC, "ok", {"tool": "pyflakes 0.0"}, [], 2, "0.0", 2),
+    (SRC, "ok", {"roots": ["factory", "forge/tools", "forge/hooks", "measure/tools"]}, [], 2, "roots", 2),
+    ("import os\n", "ok", {}, [], 1, "stale: " + IDS[1], 2),
+    ("import os\n", "ok", {}, ["--update"], 0, "updated", 1),
+    ("x = 1\n", "ok", {}, [], 2, "found nothing", 2),
+    ("x = 1\n", "ok", {}, ["--update"], 2, "found nothing", 2),
+    ("x = 1\n", "ok", {}, ["--update", "--record", "D-1"], 1, "cannot resolve D-1", 2),
+])
+def test_list_rules(tmp_path, src, rows, basis, args, code, has, left):
+    root = world(tmp_path, {"factory/tools/x.py": src})
+    path = "forge/baselines/lint.json"
+    put(root, {path: json.dumps({"basis": dict(lint.basis(), **basis), "rows": [
+        {"id": i, "reason": "r"} if rows == "ok" else {"id": i} for i in IDS]})})
+    c, o = run(lint, root, *args)
+    assert c == code and has in o and len(json.load(open(os.path.join(root, path)))["rows"]) == left, o
+
+
+# expected from: B20 part9:127-132 (a row added, the list emptied and a basis change are raises; python alone is not)
+@pytest.mark.parametrize("old, now, keys", [
+    ({"rows": [{"id": "a"}], "basis": {"t": 1}}, {"rows": [{"id": "a"}, {"id": "b"}], "basis": {"t": 1}}, {"b"}),
+    ({"rows": [{"id": "a"}], "basis": {}}, {"rows": [], "basis": {}}, {"clear"}),
+    ({"rows": [], "basis": {"t": 1}}, {"rows": [], "basis": {"t": 2}}, {"basis"}),
+    ({"rows": [], "basis": {"python": "3.11"}}, {"rows": [], "basis": {"python": "3.12"}}, set()),
+    ({"nothing": 1}, {"rows": [], "basis": {}}, None),
+])
+def test_raised(old, now, keys):
+    if keys is None:
+        with pytest.raises(ratchets.Refuse):
+            crap.raised(old, now)
+    else:
+        assert set(crap.raised(old, now)) == keys
+
+
+A = {"forge/tools/c1.py": body("p", 5, "w"), "forge/hooks/c2.py": body("q", 5, "kk")}
+B = {"forge/tools/e1.py": body("m", 6, "a"), "forge/hooks/e2.py": body("n", 6, "bb")}
+
+
+# expected from: PART 2 N27 and section 4 (5 statements AT, 4 below; window 6 AT, 5 below; one scope; tests out, F256)
+@pytest.mark.parametrize("files, has, hasnt", [
+    (dict(A, **{"forge/tools/d1.py": body("p4", 4, "w"), "forge/hooks/d2.py": body("q4", 4, "kk"),
+                "factory/tests/test_c.py": body("t", 5, "m")}), ["function 5 statements, 2 copies", "c1.py", "c2.py"],
+     ["d1.py", "test_c.py"]),
+    ({"forge/tools/d1.py": body("p4", 4, "w"), "forge/hooks/d2.py": body("q4", 4, "kk")}, [], ["new:"]),
+    ({"forge/tools/f1.py": frag("a", 6, "w", "print(w)"), "forge/hooks/f2.py": frag("b", 6, "kk", "del kk")},
+     ["fragment 6 statements, 2 copies"], []),
+    ({"forge/tools/f1.py": frag("a", 5, "w", "print(w)"), "forge/hooks/f2.py": frag("b", 5, "kk", "del kk")}, [], ["new:"]),
+])
+def test_clone_measure(tmp_path, files, has, hasnt):
+    c, o = run(clone, world(tmp_path, files, "absent"))
+    assert c == (1 if has else 0) and all(h in o for h in has) and not any(h in o for h in hasnt), o
+
+
+# expected from: B20 part9:131 (c) the diverged hint; PART 2 N27 (shrunk is green)
+def test_clone_rows(tmp_path):
+    root = world(tmp_path, dict(A, **B), "absent")
+    fp = {"A": "", "B": ""}
+    for line in [ln for ln in run(clone, root)[1].splitlines() if ln.startswith("new: ")]:
+        fp["A" if "c1.py" in line else "B"] = line.split()[1]
+    rows = [{"id": fp["A"], "members": ["forge/tools/c1.py", "forge/hooks/c2.py", "forge/tools/e1.py"], "reason": "r"},
+            {"id": fp["B"], "members": ["forge/tools/e1.py", "forge/hooks/e2.py"], "reason": "r"}]
+    put(root, {"forge/baselines/clone.json": json.dumps({"basis": clone.basis(), "rows": rows})})
+    c, o = run(clone, root)
+    assert c == 0 and "shrunk: " + fp["A"] in o and "new:" not in o, o
+    put(root, {"forge/hooks/c2.py": "def q(z):\n    return 1\n"})
+    c, o = run(clone, root)
+    assert c == 1 and "stale: %s diverged: changed in one place" % fp["A"] in o, o
+
+
+# expected from: PART 2 section 4 scope and reading (cannot parse is red in every tool, never allowed; --update refused)
+@pytest.mark.parametrize("name", list(TOOLS))
+@pytest.mark.parametrize("src", ["def (:\n", b"s = '\xe9'\n", "x = " + " + ".join(["1"] * 60000) + "\n"], ids=["syntax", "latin1", "deep"])
+def test_unreadable(tmp_path, name, src):
+    root = world(tmp_path, {"factory/tools/bad.py": src, "forge/tools/ok.py": "x = 1\n"})
+    c, o = run(TOOLS[name], root)
+    c2, o2 = run(TOOLS[name], root, "--update")
+    assert (c, c2) == (1, 1) and "new: factory/tools/bad.py cannot parse" in o and not os.path.exists(root + "/forge/baselines"), o2
+
+
+# expected from: PART 2 section 4 (an empty file is green; K1 the empty repository; pyflakes first, exit 2 with the door)
+@pytest.mark.parametrize("name", list(TOOLS))
+@pytest.mark.parametrize("files", [{}, {"factory/tools/e.py": ""}])
+def test_clean_inputs(tmp_path, name, files):
+    assert run(TOOLS[name], world(tmp_path, files, "absent"))[0] == 0
+
+
+def test_pyflakes_absent(tmp_path, monkeypatch):
+    for mod in ("pyflakes", "pyflakes.api"):  # both: an earlier row may have cached the submodule
+        monkeypatch.setitem(sys.modules, mod, None)
+    c, o = run(lint, world(tmp_path, {}, "absent"))
+    assert c == 2 and "pip install -r forge/ci-requirements.txt" in o
+
+
+# expected from: PART 2 F254 (a): the tests row of the one job list, `python -B -m pytest <args>`
+@pytest.mark.parametrize("jobs, want", [
+    ([{"id": "tests", "command": "python -B -m pytest forge/tests -q", "card": "x", "state": "built"}], "forge/tests -q"),
+    ([{"id": "tests", "command": "python -B -m pytest forge/tests", "card": "x", "state": "not_built"}], crap.NotJudged),
+    ([{"id": "tests", "command": "pytest forge/tests", "card": "x", "state": "built"}], crap.NotJudged),
+    ([], crap.NotJudged),
+    (None, ratchets.Refuse),
+])
+def test_tests_command(tmp_path, jobs, want):
+    put(str(tmp_path), {"forge/ci-jobs.json": json.dumps(jobs)} if jobs is not None else {})
+    if isinstance(want, str):
+        assert crap.tests_command(str(tmp_path)) == want
+    else:
+        with pytest.raises(want):
+            crap.tests_command(str(tmp_path))
+
+
+# expected from: F245 (c) and PART 2 section 4 (a job sees FORGE_BASE iff ci.py resolved a base, and it equals that base)
+@pytest.mark.parametrize("given, want_base", [(True, True), (False, False)])
+def test_ci_base(tmp_path, monkeypatch, given, want_base):
+    head, got = ci.commit_of("HEAD"), os.path.join(str(tmp_path), "got.txt")
+    put(str(tmp_path), {"job.py": "import os, sys\nopen(sys.argv[1], 'w').write(os.environ.get('FORGE_BASE', ''))\n"})
+    put(str(tmp_path), {"jobs.json": json.dumps([{"id": "fb", "card": "x", "state": "built", "command": '"%s" -B "%s" "%s"' % (
+        sys.executable, os.path.join(str(tmp_path), "job.py"), got)}])})
+    monkeypatch.setenv("FORGE_BASE", "deadbeef")
+    with contextlib.redirect_stdout(io.StringIO()):
+        assert ci.main(["--list", os.path.join(str(tmp_path), "jobs.json")] + (["--base", head] if given else [])) == 0
+    assert head and open(got).read() == (head if want_base else "")

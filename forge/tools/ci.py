@@ -118,6 +118,15 @@ def not_built_line(rows):
     return "not built: %d%s" % (len(ids), " (%s)" % ", ".join(ids) if ids else ""), ids
 
 
+def job_env(base):
+    """The env of every job: FORGE_BASE is the base this run resolved, else absent -- never a value inherited from the shell,
+    so ci.py stays the one resolver (F245)."""
+    env = {k: v for k, v in os.environ.items() if k != "FORGE_BASE"}
+    if base:
+        env["FORGE_BASE"] = base
+    return env
+
+
 def run_all(rows, base, head, only=None):
     on_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     if only is not None and only not in [r["id"] for r in rows if r["state"] == "built"]:
@@ -130,7 +139,7 @@ def run_all(rows, base, head, only=None):
         if cmd is None:
             code = 3  # a token with no value: part not judged
         else:
-            code = subprocess.run(cmd, shell=True, cwd=ROOT).returncode
+            code = subprocess.run(cmd, shell=True, cwd=ROOT, env=job_env(base)).returncode
         if code == 0:
             print("ok   %s" % r["id"])
         elif code == 3 and not on_actions:
