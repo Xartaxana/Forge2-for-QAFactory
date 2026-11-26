@@ -11,6 +11,16 @@
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/forge/hooks/session_start.py\""
+          }
+        ]
+      }
+    ],
     "PreCompact": [
       {
         "hooks": [
