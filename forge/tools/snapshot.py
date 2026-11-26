@@ -31,14 +31,16 @@ def git(root, *args):
 
 
 def carriers(root):
+    """The one reader of forge/carriers.json (t-2010 B2-4; session_start.py is the second caller): (rows, error).
+    error is one wording for absent and for malformed, rows is [] then."""
     p = os.path.join(root, "forge", "carriers.json")
     if not os.path.isfile(p):
-        return ["forge/carriers.json absent (B7)"]
+        return [], "forge/carriers.json absent (B7)"
     try:
         with open(p, encoding="utf-8") as fh:
-            return ["%s -> %s" % (r["what goes there"], r["carrier"]) for r in json.load(fh)]
+            return ["%s -> %s" % (r["what goes there"], r["carrier"]) for r in json.load(fh)], ""
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        return ["forge/carriers.json malformed: %s" % exc]
+        return [], "forge/carriers.json malformed: %s" % exc
 
 
 def guard(name, fn):
@@ -73,7 +75,7 @@ def main(argv=None):
     p.add_argument("--close", action="store_true")
     a = p.parse_args(argv)
     if a.close:
-        print(guard("carriers", lambda: "\n".join(carriers(a.root))))
+        print(guard("carriers", lambda: (lambda r: r[1] or "\n".join(r[0]))(carriers(a.root))))
     try:
         opened, last = journal_text(a.root)
     except Exception as exc:  # the snapshot is read by the next session: whatever the journal does, the file is written

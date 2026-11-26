@@ -5,12 +5,13 @@ session_start.py [--root D]   D defaults to this repository. Input: the event JS
 (startup|resume|clear|compact); empty, broken or unknown -> as startup.
 Blocks: (1) forge/BOOT.md on startup|clear|compact; (2) the re-read line, always; (3) the carriers checklist on compact;
 (4) the previous session's end on startup. Any error -> one line `reminder failed: <error>; read forge/BOOT.md by hand`.
-Cap 6144 UTF-8 bytes: the open list is cut first, then the checklist, each with a `[cut: <what>]` marker; BOOT never.
+Cap 6144 emitted bytes: the open list is cut first, then the checklist, each with a `[cut: <what>]` marker; a valid
+UTF-8 BOOT never; a non-UTF-8 BOOT last, to the cap, then the line `forge/BOOT.md not UTF-8: cut at <n> bytes, fix the file`.
 The hook is inert until the Lead registers it in .claude/settings.json (the net is not the guarantee: the gates are).
 """
 import glob
-import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -22,17 +23,26 @@ OPEN_MAX = 10
 BOOT_SOURCES = ("startup", "clear", "compact")
 
 
-def boot_block(root, eval_arm):
-    """Return (text, present). In an eval arm an absent BOOT prints nothing (B1's `without` arm, F3)."""
+def boot_block(root, eval_arm, show):
+    """Return (text, present, bad). Presence is read on every source (t-2010 B2-1/B2-2); the text only when `show`.
+    In an eval arm an absent BOOT prints nothing (B1's `without` arm, F3). bad: the replacement text of a non-UTF-8 BOOT."""
     p = os.path.join(root, "forge", "BOOT.md")
     if not os.path.isfile(p):
-        return ("" if eval_arm else "forge/BOOT.md not written yet (B1)"), False
+        return ("" if eval_arm or not show else "forge/BOOT.md not written yet (B1)"), False, None
+    if not show:
+        return "", True, None
     with open(p, "rb") as fh:
         raw = fh.read()
     try:
-        return raw.decode("utf-8"), True
+        return raw.decode("utf-8"), True, None
     except UnicodeDecodeError:
-        return raw.decode("utf-8", "replace") + "\nforge/BOOT.md is not UTF-8: printed with replacement characters", True
+        return "", True, raw.decode("utf-8", "replace")
+
+
+def bad_boot(replaced, n):
+    """The non-UTF-8 BOOT text cut to n bytes at a character edge, then the one marker line (t-2010 B2-6)."""
+    kept = replaced.encode("utf-8")[:n].decode("utf-8", "ignore")
+    return kept + "\nforge/BOOT.md not UTF-8: cut at %d bytes, fix the file" % len(kept.encode("utf-8"))
 
 
 def open_text(status, tasks, bad):
@@ -43,21 +53,24 @@ def open_text(status, tasks, bad):
     return text + (" (incomplete: %d unreadable journal lines)" % len(bad) if status == "incomplete" else "")
 
 
+def snap_key(name):
+    """(stamp, suffix number): snapshot.py names a second snapshot of one second `<stamp>-2.md` (t-2010 B2-3)."""
+    m = re.match(r"^(.*?)(?:-(\d+))?\.md$", name)
+    return (m.group(1), int(m.group(2) or 1)) if m else (name, 0)
+
+
 def newest_snapshot(root):
-    names = sorted(glob.glob(os.path.join(root, "logs", "journal", "snapshots", "*.md")))
-    return "logs/journal/snapshots/" + os.path.basename(names[-1]) if names else "none yet"
+    names = sorted((os.path.basename(n) for n in glob.glob(os.path.join(root, "logs", "journal", "snapshots", "*.md"))),
+                   key=snap_key)
+    return "logs/journal/snapshots/" + names[-1] if names else "none yet"
 
 
 def checklist(root):
-    p = os.path.join(root, "forge", "carriers.json")
-    if not os.path.isfile(p):
-        return "carriers checklist: forge/carriers.json not written yet (B7)"
-    try:
-        with open(p, encoding="utf-8") as fh:
-            rows = ["- %s -> %s" % (r["what goes there"], r["carrier"]) for r in json.load(fh)]
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        return "carriers checklist unreadable: %s" % exc
-    return "\n".join(["carriers checklist:"] + rows)
+    """The rows come from snapshot.carriers(), the one reader (t-2010 B2-4): one wording for absent and malformed."""
+    sys.path.insert(0, os.path.join(HERE, "..", "tools"))
+    import snapshot  # noqa: E402 -- lazily, like journal in compose
+    rows, error = snapshot.carriers(root)
+    return "carriers checklist: " + error if error else "\n".join(["carriers checklist:"] + ["- " + r for r in rows])
 
 
 def previous(entries, found):
@@ -77,13 +90,28 @@ def render(p, cut_open, cut_list):
     return "\n".join(x for x in (p["boot"], line, check, p["prev"]) if x)
 
 
+def emitted(text):
+    """The bytes that leave the hook: the text and the one `\\n` emit() adds (t-2010 B2-5)."""
+    return len(text.encode("utf-8")) + 1
+
+
 def fit(p):
-    """The whole text, then without the open list, then without the checklist too; BOOT is never cut."""
+    """The whole text, then without the open list, then without the checklist too. A valid UTF-8 BOOT is never cut;
+    a non-UTF-8 one (p["bad"]) is cut last, to the cap, with a marker line (t-2010 B2-6)."""
+    if p.get("bad") is not None:
+        p = dict(p, boot=bad_boot(p["bad"], CAP))
     for cut_open, cut_list in ((False, False), (True, False), (True, True)):
         text = render(p, cut_open, cut_list)
-        if len(text.encode("utf-8")) <= CAP:
-            break
-    return text
+        if emitted(text) <= CAP:
+            return text
+    if p.get("bad") is None:
+        return text
+    n = CAP
+    while True:
+        text = render(dict(p, boot=bad_boot(p["bad"], n)), True, True)
+        if emitted(text) <= CAP or n <= 0:
+            return text
+        n -= max(1, emitted(text) - CAP)
 
 
 def compose(root, source, eval_arm):
@@ -91,11 +119,23 @@ def compose(root, source, eval_arm):
     import journal  # noqa: E402 -- lazily: a broken journal.py is a fallback line, not a crash at import
     loaded = journal.load(root)
     status, tasks, bad = journal.open_tasks(root, loaded)
-    boot, present = boot_block(root, eval_arm) if source in BOOT_SOURCES else ("", False)
-    return fit({"boot": boot, "field": "re-read: forge/BOOT.md | " if present or not eval_arm else "",
+    boot, present, badtext = boot_block(root, eval_arm, source in BOOT_SOURCES)
+    field = "re-read: forge/BOOT.md | " if present else "" if eval_arm else "re-read: forge/BOOT.md (not written yet, B1) | "
+    return fit({"boot": boot, "bad": badtext, "field": field,
                 "snap": newest_snapshot(root), "open": open_text(status, tasks, bad),
                 "check": checklist(root) if source == "compact" else "",
                 "prev": previous(loaded[0], loaded[2]) if source == "startup" else ""})
+
+
+def emit(text):
+    """Bytes with `\\n` to stdout: Windows' text layer would turn each `\\n` into `\\r\\n` and break the cap count."""
+    sys.stdout.flush()
+    data = (text + "\n").encode("utf-8")
+    try:
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+    except AttributeError:
+        print(text)
 
 
 def body(value, note, root):
@@ -103,7 +143,7 @@ def body(value, note, root):
     if source not in ("startup", "resume", "clear", "compact"):
         source = "startup"
     try:
-        print(compose(root, source, bool(os.environ.get("FORGE_EVAL_ARM"))))
+        emit(compose(root, source, bool(os.environ.get("FORGE_EVAL_ARM"))))
     except Exception as exc:  # noqa: BLE001 -- the hook never blocks or delays work (K1)
         print("reminder failed: %s; read forge/BOOT.md by hand" % exc)
     return 0

@@ -486,8 +486,9 @@ def test_session_start_blocks(tmp_path, source, boot, carr, prev, arm):
     jl(root, ("t1", "dispatch"), ("", "session_end"))
     code, out = start(root, source, arm)
     assert code == 0 and ("not written yet (B1)" in out) == (boot and not arm) and ("re-read: forge/BOOT.md" in out) == (not arm)
+    assert ("(not written yet, B1)" in out) == (not arm) and (not arm or "BOOT" not in out)  # B2-1: presence on every source
     assert "snapshot: logs/journal/snapshots/a.md | open: t1" in out
-    assert ("forge/carriers.json not written yet (B7)" in out) == bool(carr) and ("previous session: closed" in out) == bool(prev)
+    assert ("forge/carriers.json absent (B7)" in out) == bool(carr) and ("previous session: closed" in out) == bool(prev)
     put(root + "/forge/BOOT.md", "BOOTTEXT")
     out = start(root, source, arm)[1]
     assert ("BOOTTEXT" in out) == bool(boot) and ("re-read: forge/BOOT.md" in out)
@@ -496,15 +497,16 @@ def test_session_start_blocks(tmp_path, source, boot, carr, prev, arm):
 @pytest.mark.parametrize("evs,want", [
     ([("a", "dispatch"), ("b", "dispatch"), ("a", "accept")], "open: b"), ([("a", "dispatch"), ("a", "reject")], "open: none"),
     ([("a", "dispatch"), ("a", "return"), ("a", "dispatch")], "open: a"), ([("t%d" % i, "dispatch") for i in range(12)], "t9 and 2 more"),
-    ([], "open: none"), (None, "open: unknown -- no journal")])
+    ([], "open: none"), (None, "open: unknown -- no journal"), (None, "previous session: unknown -- no journal"),
+    ([], "snapshot: none yet"), ([("a", "dispatch")], "previous session: no session_end after 2026-11-26T10:00 -- read")])
 def test_session_start_open(tmp_path, want, evs):
     root = mkroot(tmp_path, ci=False)
     if evs is not None:
         jl(root, *evs)
-    assert want in start(root, "resume")[1]
+    assert want in start(root, "startup")[1]
     if evs:
         put(root + "/logs/journal/s.jsonl", open(root + "/logs/journal/s.jsonl").read() + "{bad\n")
-        assert "(incomplete: 1 unreadable journal lines)" in start(root, "resume")[1]
+        assert "(incomplete: 1 unreadable journal lines)" in start(root, "startup")[1]
 
 
 def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
@@ -515,6 +517,21 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     out = start(root, "compact")[1]
     assert len(out.encode()) <= 6144 and "[cut: open list]" in out and "[cut: checklist]" in out and "B" * 4096 in out
     put(root + "/forge/carriers.json", "nope")
-    assert "carriers checklist unreadable:" in start(root, "compact")[1]
+    assert "carriers checklist: forge/carriers.json malformed:" in start(root, "compact")[1]
+    for n in ("x.md", "x-2.md", "x-10.md"):  # B2-3: by (stamp, suffix number), not by name
+        put(root + "/logs/journal/snapshots/" + n, "")
+    assert "snapshot: logs/journal/snapshots/x-10.md |" in start(root, "resume")[1]
+    with open(root + "/forge/BOOT.md", "wb") as fh:
+        fh.write(b"\xff" * 4096)
+    code, out = start(root, "clear")
+    assert code == 0 and len(out.encode()) <= 6144 and out.rstrip("\n").count("\n") >= 1  # B2-6, edges line
+    assert "forge/BOOT.md not UTF-8: cut at " in out and out.rstrip().split("\n")[0].startswith("�")
+    put(root + "/forge/BOOT.md", "B")
+    jl(root, ("t", "dispatch"))
+    pad = 6144 - len(start(root, "resume")[1])  # B2-5: a text AT the cap is emitted whole, one byte more cuts the list
+    jl(root, ("t" * (pad + 1), "dispatch"))
+    at = start(root, "resume")[1]
+    jl(root, ("t" * (pad + 2), "dispatch"))
+    assert len(at.encode()) == 6144 and "[cut" not in at and "[cut: open list]" in start(root, "resume")[1]
     monkeypatch.setattr(sst, "compose", lambda *a: 1 / 0)
     assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
