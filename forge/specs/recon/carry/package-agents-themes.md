@@ -2,7 +2,7 @@
 
 Every not-found and partly row of `package-agents.md` stands in exactly one theme. Each theme ends with the Architect's verdict of 2026-11-26 at theme level: the channel and the home. A row inherits its theme's verdict at the ledger's migration (B15) unless the card that carries the theme says otherwise for that row.
 
-Frame of the verdicts: craft is carried as page lines told at entry (advice, checked by no code); a closed word list the record needs is carried as data; nothing here adds a required field or a gate row -- that budget is the owner's. Dropped at theme level, for the owner's list: the per-item digest line and the handoff forms between roles (T1), numeric scoring by eight dimensions (T5), the fixed tool list per role (T6), the contradiction matrix as a form (T22), the fixed halt wording (T28), the pasted numbers file of the retro (T29); what each of them was for is carried by another means named in its verdict.
+Frame of the verdicts: craft is carried as page lines told at entry (advice, checked by no code); a closed word list the record needs is carried as data; nothing here adds a required field or a gate row -- that budget is the owner's. Dropped at theme level, for the owner's list: the per-item digest line as a form (T1), numeric scoring by eight dimensions (T5), the contradiction matrix as a form (T22), the fixed halt wording (T28), the pasted numbers file of the retro (T29); what each of them was for is carried by another means named in its verdict. Corrected 2026-11-26 after the owner's word that a stage with its own clean context, goal and instructions IS a role: the tool list per role is carried by A12 (T6) and left this list; the handoff between roles is carried by the story record (T1).
 
 Cards to write from these verdicts (a designer, after A26's fix round by verdict t-1949): A31 stage-1 craft (T4, T10, T22, T25, T27, T30); A32 check-design craft (T2, T3, T7, T11, T12, T21); A33 test, run and red craft (T8, T9, T13, T18, T20, T23, T26); A34 the critic's craft (T5, T14, T28); A35 bug, report and frame (T1, T6, T15, T16, T17, T19, T24, T29). Form: A26's carry lines with the critic's fidelity fix -- a source section is cited whole, never compressed to its name; each line names the PA rows it carries.
 
@@ -12,7 +12,7 @@ Cards to write from these verdicts (a designer, after A26's fix round by verdict
 - covered since by part 6: no
 - rows not-found: PA-37, PA-44, PA-46, PA-47, PA-84, PA-142, PA-179, PA-215, PA-224, PA-256, PA-297, PA-331, PA-372, PA-418, PA-442
 - rows partly: PA-7, PA-40, PA-45, PA-58, PA-150, PA-233
-- verdict: carried-differently -- one performer walks the stages and the story record (C3-1) is the handoff, so the per-item digest line and the handoff forms have no receiver and are dropped as forms; the tried table lives as A26's tried list and How checked (A21); notes for the next window are A18 and B7; the credential and claimed-file rules become lines of the stand and test-code pages
+- verdict: carried-differently -- each stage is a fresh launch with its own goal, pages and tools (a role in all but name; corrected 2026-11-26 after the owner's word), and what it hands to the next stage is the story record (C3-1), whole and never cut down to a summary; so the handoff between roles is carried by the record, and only the old per-item digest line is dropped as a form (a record row per item replaces it); the tried table lives as A26's tried list and How checked (A21); notes for the next window are A18 and B7; the credential and claimed-file rules become lines of the stand and test-code pages
 - decider: architect 2026-11-26
 
 ## T2 Edge and class techniques for case design
@@ -57,7 +57,7 @@ Cards to write from these verdicts (a designer, after A26's fix round by verdict
 - covered since by part 6: no
 - rows not-found: PA-3, PA-55, PA-92, PA-147, PA-188, PA-231, PA-261, PA-304, PA-350, PA-379, PA-415
 - rows partly: PA-91
-- verdict: carried-differently -- A12 gives tools per launch; one line is added to A12: a launch's tool set never holds a tool that launches another agent; the fixed tool list per role is dropped (there are no roles; A12 decides per launch)
+- verdict: carry -- a stage launch is the role here, and A12 holds its fixed tool list as data: the `tools` column per launch kind and stage in `launches.yaml` (P14); nothing is dropped (corrected 2026-11-26 after the owner's word: the earlier line "there are no roles" named the wrong subject); one line is added to A12: a launch's tool set never holds a tool that launches another agent
 - decider: architect 2026-11-26
 
 ## T7 Risk-based plan: hypotheses, seams and dispositions
