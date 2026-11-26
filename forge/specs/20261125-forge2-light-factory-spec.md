@@ -337,7 +337,7 @@ Status: F1-F4 open for the owner; F5, F6, F7, F13 taken by the Lead by the recom
 
 **F8** (finite fix rounds): (a) one critic call per gate (per group at G4), two rounds; a round = fresh performer with the findings and their sections, then the critic re-checks those only; rest to the report; (b) three. Rec (a). C4-2.
 
-**F9** (budgets): `CLAUDE.md` 12 KB, `forge/COORDINATOR.md` 20 KB (now 85 KB in 5 files), factory code 6,000 lines, gate rules 45 (section 3: 40), start load at first run; or tighter; or none. Rec these. C1-1, C1-2.
+**F9** (budgets): `CLAUDE.md` 12 KB, `forge/COORDINATOR.md` 20 KB (now 85 KB in 5 files), factory code 6,000 lines, gate rules 45 (section 3: 39), start load at first run; or tighter; or none. Rec these. C1-1, C1-2.
 
 **F10** (runtime): (a) Python 3 + pure-Python PyYAML; (b) JSON, stdlib; (c) other. Rec (a); host precondition F31. C1-3, C3-1.
 
