@@ -609,7 +609,7 @@ def test_budget_wall_cut_and_unreadable_transcript(tmp_path, age, ctx):
 def test_budget_unknown_role_is_strictest_row(tmp_path, role):
     root, tp = fx(tmp_path, 260000, role)
     got = call(root, tp)
-    assert got[0] == 0 and got[1].count("strictest worker row") == 1 and "role:unknown tokens 260000 of 250000" in str(events(root))
+    assert got[0] == 0 and got[1].count("strictest row") == 1 and "role:unknown tokens 260000 of 250000" in str(events(root))
     assert "strictest" not in call(root, tp)[1]
 
 

@@ -8,10 +8,10 @@ dispatch.py [--root D] check <file | ->                 one line `missing: <name
 Exit: 0 ok, 1 something missing or repeated or an owns path not absolute / outside the root, 2 unknown role, a newline
 in a value or a file that cannot be read. Lines inside fences or after > are no header lines.
 A called tool: it gates nothing. The caps line reads forge/caps.json (card B5), a JSON array of rows with role,
-tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent, malformed or without the role's row -> `caps: missing`.
+tokens_warn, tokens_stop, wall_warn_s, wall_stop_s; absent or malformed -> `caps: missing`; an unknown role -> the strictest worker row and a note (reader: hooks/budget.py).
 """
 import argparse
-import json
+import importlib.util
 import os
 import re
 import sys
@@ -26,14 +26,16 @@ KEY = re.compile(r"^[A-Za-z0-9_-]+:(\s|$)")  # a drive path (C:/x) has a slash a
 
 
 def caps_line(root, role):
-    miss = "caps: missing -- forge/caps.json (B5)"
+    """The caps line is budget.py's (card B5, t-2027 F10): the hook and the header print one text from one reader. The hook is
+    loaded by path (its dependency on hio.py rides along), so dispatch.py never imports the hook at import time."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks", "budget.py")
     try:
-        with open(os.path.join(root, "forge", "caps.json"), encoding="utf-8") as fh:
-            row = next((r for r in json.load(fh) if r.get("role") == role), None)
-        return ("caps: tokens %d/%d, wall %d/%d s -- at the cap: hand back done and not done"
-                % (row["tokens_warn"], row["tokens_stop"], row["wall_warn_s"], row["wall_stop_s"])) if row else miss
-    except (OSError, ValueError, AttributeError, KeyError, TypeError):
-        return miss
+        spec = importlib.util.spec_from_file_location("forge_hooks_budget", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.caps_line(root, role)
+    except (OSError, ImportError, AttributeError):
+        return "caps: missing -- forge/caps.json (B5)"
 
 
 def inside(root, path):

@@ -226,7 +226,7 @@ def pick_row(st, rows, worker, info):
         return "main", rows["main"]
     role = st["role"] if st["role"] in rows and st["role"] != "main" else "unknown"
     if role == "unknown":
-        once(st, "role", "role: absent or unknown in the dispatch; the strictest worker row applies", info)
+        once(st, "role", "role unknown -- strictest row", info)
     return role, rows.get(role) or strictest(rows)
 
 
@@ -242,6 +242,19 @@ def verdict(payload, st, role, cuts):
 def caps_text(row):
     return "caps: tokens %s/%s, wall %s/%s s -- at the cap: hand back done and not done" % tuple(
         "none" if row[f] is None else row[f] for f in FIELDS)
+
+
+MISS = "caps: missing -- forge/caps.json (B5)"
+
+
+def caps_line(root, role):
+    """The ONE caps line of a dispatch header (dispatch.py imports it; t-2027 F10): the role's row, the strictest worker row
+    with the note `role unknown -- strictest row` for an absent or unknown role, MISS when caps.json is absent or malformed."""
+    rows = load_rows(root)
+    if rows is None:
+        return MISS
+    known = role in rows and role != "main"
+    return caps_text(rows[role] if known else strictest(rows)) + ("" if known else "; role unknown -- strictest row")
 
 
 def evaluate(payload, root):

@@ -161,6 +161,8 @@ BASE = ["new", "--role", "builder", "--task", "t-9", "--given", "a.md", "--non-g
      ["caps: tokens 1/2, wall 3/4 s -- at the cap: hand back done and not done"]),
     ("{bad", "ok", 0, ["caps: missing"]),
     ([{"role": "scout"}], "ok", 0, ["caps: missing"]),
+    ([{"role": "scout", "tokens_warn": 5, "tokens_stop": 9, "wall_warn_s": None, "wall_stop_s": None}], "ok", 0,
+     ["caps: tokens 5/9, wall none/none s -- at the cap: hand back done and not done; role unknown -- strictest row"]),
     (None, "rel", 1, ["owns path not absolute or not inside the root: forge/tools/x.py"]),
     (None, "outside", 1, ["owns path not absolute or not inside the root"]),
     (None, "spaced", 0, ["`%s/forge/a b/c.py`"]),
