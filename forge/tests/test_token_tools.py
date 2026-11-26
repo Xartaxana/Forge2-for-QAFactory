@@ -283,7 +283,7 @@ def jl(**kw):
 
 
 def retro_fixture(root, git=True):
-    """s1 is the session under test (window 10:00:00..10:00:17); s0 is an earlier file; ts are the hand-set minute marks."""
+    """s1 is the session under test (window 10:00:00..10:00:19); s0 is an earlier file; ts are the hand-set minute marks."""
     rows = [("dispatch", "t-1", "role:builder go"), ("dispatch", "t-2", "role:builder go"), ("dispatch", "t-3", "role:lead go"),
             ("reject", "t-1", ""), ("reject", "t-1", ""), ("return", "t-2", ""), ("accept", "t-3", ""),
             ("cut", "t-1", "role:builder cut"), ("cut", "t-1", "role:builder cut"), ("cap_warning", "t-1", "role:lead cap"),
@@ -344,6 +344,7 @@ def test_retro_counts(tmp_path, mode):
     ("nogit", "s1", 0, ["refuse (git hooks): none journaled", "refuse: budget=1 foreign_write=2"]),
     ("zero", "s1", 0, ["nothing: <why>", "dispatch: 0"]),
     ("many", "s1", 0, ["retried tasks: 30", "  [cut: %d of 30 detail lines]" % (30 - (38 - 13) + 1), "accept: 0"]),
+    ("nowin", "s1", 0, ["counts: incomplete", "unparsable line 1 in s1.jsonl", "missing: unknown"]),  # t-2024 N3
     ("base", "s2", 2, ["no journal lines of session s2"]),
     ("base", "../x", 2, ["refused"]),
     ("base", "git-hooks", 2, ["refused"]),
@@ -355,6 +356,9 @@ def test_retro_edges(tmp_path, mode, session, code, words):
         put(tmp_path, "logs/journal/s1.jsonl", (jl(ts="2026-11-20T10:00:00Z", event="accept", task="t-1") + "{oops\n").encode())
     if mode == "zero":
         put(tmp_path, "logs/journal/s1.jsonl", jl(ts="2026-11-20T10:00:00Z", event="session_end").encode())
+    if mode == "nowin":
+        retro_fixture(tmp_path)
+        put(tmp_path, "logs/journal/s1.jsonl", b"{oops\n")
     if mode == "many":
         put(tmp_path, "logs/journal/s1.jsonl", "".join(jl(ts="2026-11-20T10:%02d:00Z" % (i % 30), event="reject", task="t-%d" % (i % 30))
                                                       for i in range(60)).encode())
@@ -389,18 +393,24 @@ def test_retro_check_sum_missing(tmp_path):
 
 
 # expected from: t-2021 B2 and the card's edge list: a retro nobody edited stays green whatever the journals gain later;
-# a value with a newline, space or "=" is one token
-@pytest.mark.parametrize("mode", ["gitline", "gitbad", "later", "values"])
+# a value with a newline, space or "=" is one token; t-2024 N1 G, S, T: a line killed mid-write after the window end,
+# in a file whose last earlier line is inside the window, is dated by the next valid line (or none) and stays outside
+@pytest.mark.parametrize("mode", ["gitline", "gitbad", "later", "values", "G", "S", "T"])
 def test_retro_untouched(tmp_path, mode):
     retro_fixture(tmp_path, git=False)
     if mode == "values":
         put(tmp_path, "logs/journal/s1.jsonl", "".join(jl(ts="2026-11-20T10:00:0%dZ" % i, event=e, task=t, note=n) for i, (e, t, n) in enumerate([
             ("reject", "t 1\nZ=1", ""), ("reject", "t 1\nZ=1", ""), ("refuse", "", "fw\nx: door"), ("dispatch", "", "role:a=b")])).encode())
+    late, killed = jl(ts="2026-11-21T10:00:00Z", event="refuse", note="pre-push: z"), '{"ts": "2026-11-21T09:00:00Z", "ev'
+    par = ("p0", jl(ts="2026-11-20T10:00:03Z", event="accept", task="t-7"))  # a parallel session, inside s1's window
+    pre = {"G": ("git-hooks", jl(ts="2026-11-20T10:00:05Z", event="refuse", note="pre-commit: x")), "S": par, "T": par}.get(
+        mode, ("s8", ""))
+    put(tmp_path, "logs/journal/%s.jsonl" % pre[0], pre[1].encode())
     f = tmp_path / "logs" / "retro" / "s1.md"
     assert run("retro.py", ["write", "s1"], tmp_path)[0] == 0
-    late = jl(ts="2026-11-21T10:00:00Z", event="refuse", note="pre-push: z")
     rel, data = {"gitline": ("git-hooks", late), "gitbad": ("git-hooks", "{oops\n" + late), "later": ("s9", "{oops\n"),
-                 "values": ("s8", "")}[mode]
+                 "values": ("s8", ""), "G": (pre[0], pre[1] + killed + "\n" + late), "S": (pre[0], pre[1] + killed + "\n" + late),
+                 "T": (pre[0], pre[1] + killed)}[mode]
     put(tmp_path, "logs/journal/%s.jsonl" % rel, data.encode())
     assert run("retro.py", ["check", str(f)], tmp_path)[0] == 0
     if mode == "values":
@@ -413,11 +423,15 @@ def test_retro_untouched(tmp_path, mode):
     ("as1", ["counts: incomplete", "unparsable line 2 in as1.jsonl"]),
     ("s0", ["counts: incomplete", "unparsable line 1 in s0.jsonl", "ask_owner repeats: 1"]),
     ("later", ["missing: s0"]),
+    ("gitdir", ["counts: incomplete", "  unreadable file git-hooks.jsonl"]),  # t-2024 N2: no lines read is not "none"
 ])
 def test_retro_bad_scope(tmp_path, mode, words):
-    retro_fixture(tmp_path)
-    if mode == "as1":
-        put(tmp_path, "logs/journal/as1.jsonl", (jl(ts="2026-11-19T08:00:00Z", event="accept") + "{x\n").encode())
+    retro_fixture(tmp_path, git=mode != "gitdir")
+    if mode == "gitdir":
+        put(tmp_path, "logs/journal/git-hooks.jsonl", None)  # a folder: open() fails on every OS, load names it
+    if mode == "as1":  # the bad line is dated by the next valid line, before s1's window end (t-2024 N1)
+        put(tmp_path, "logs/journal/as1.jsonl", (jl(ts="2026-11-19T08:00:00Z", event="accept") + "{x\n" +
+                                                 jl(ts="2026-11-19T08:00:01Z", event="accept")).encode())
     if mode == "s0":
         put(tmp_path, "logs/journal/s0.jsonl", ('{"ts":"2026-11-19T09:00:00Z","event":"ask_owner","note":"q:beta old"\n' +
                                                jl(ts="2026-11-19T09:00:01Z", event="accept")).encode())
@@ -426,6 +440,15 @@ def test_retro_bad_scope(tmp_path, mode, words):
     got, out = run("retro.py", ["write", "s1"], tmp_path)
     assert got == 0 and all(w in out for w in words) and "in s1.jsonl" not in out
     assert mode != "later" or "missing: s0" in out.splitlines()  # the later s2 is not an earlier session
+
+
+# expected from: t-2024 N2 (an unreadable own file marks the block and is named); unit-fed load's problem list: an own
+# file load cannot open yields no lines, so write refuses the session and only check's recount meets it
+def test_retro_unreadable_own():
+    sys.path.insert(0, T)
+    import retro
+    block = retro.counts_block(([], ["unreadable file s1.jsonl", "unreadable file s5.jsonl"], True), "s1")[0]
+    assert block[0] == "counts: incomplete" and block[-1] == "  unreadable file s1.jsonl" and "s5" not in "".join(block)
 
 
 # expected from: t-2021 F3 (a session with no window is named), the card's refusals and the weekly sum's lists

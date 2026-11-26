@@ -106,14 +106,26 @@ def render(c, retried, bad, git_absent, status):
 
 
 def dated_bad(entries):
-    """Return (ts, file, line no) of each unparsable line; one with no earlier valid line takes the next valid one's ts."""
+    """Return (ts, file, line no) of each unparsable line, dated by the NEXT valid line of its file, "" when none.
+    The journal is append-only, so that ts is no earlier than the bad line's write: a line written after a window's end
+    never lands inside it. The previous line's ts (load's dating) is only a lower bound (t-2024 N1)."""
     out, nxt = [], {}
     for ts, f, n, _raw, o in sorted(entries, key=lambda e: (e[1], -e[2])):  # per file, last line first
         if o:
             nxt[f] = ts
         else:
-            out.append((ts or nxt.get(f, ""), f, n))
+            out.append((nxt.get(f, ""), f, n))
     return out
+
+
+def problems(loaded, own, win):
+    """Named problems that mark the block: an own bad line whatever its date; a git-hooks bad line dated inside the
+    window; another file's dated up to the window end (an earlier slug feeds repeats, t-2021 F1); an unreadable own or
+    git-hooks file (t-2024 N2: no lines read is not "none journaled")."""
+    entries, bad, _ = loaded
+    mine = ["unparsable line %d in %s" % (n, f) for ts, f, n in dated_bad(entries)
+            if f == own or (ts and ts <= win[1] and (f != GIT or win[0] <= ts))]
+    return sorted(mine + [b for b in bad if b in ("unreadable file " + own, "unreadable file " + GIT)])
 
 
 def counts_block(loaded, session):
@@ -122,9 +134,7 @@ def counts_block(loaded, session):
     if not found:
         return ["counts: unknown -- no journal"], [], ("", ""), Counter()
     c, retried, win = tally(entries, session)
-    own = session + ".jsonl"
-    mine = sorted("unparsable line %d in %s" % (n, f) for ts, f, n in dated_bad(entries)
-                  if f == own or (f == GIT and win[0] and win[0] <= ts <= win[1]) or (f != GIT and ts and ts <= win[1]))
+    mine = problems(loaded, session + ".jsonl", win)
     git_absent = not (win[1] and any(e[1] == GIT and e[0] and e[0] <= win[1] for e in entries))
     lines = render(c, retried, mine, git_absent, "incomplete" if mine else "ok")
     return lines, [label for label, key in NAMES if total(c, key) > 0], win, c
@@ -149,7 +159,7 @@ def missing_list(root, entries, before=None):
 
 
 def missing_line(names):
-    return "missing: " + (", ".join(names) if names else "none")
+    return "missing: " + ("unknown" if names is None else ", ".join(names) or "none")
 
 
 def reasons_section(text):
@@ -208,7 +218,7 @@ def cmd_write(root, session):
         print("refused: no journal lines of session %s" % session)
         return 2
     block, names, win, _ = counts_block(loaded, session)
-    miss = missing_list(root, loaded[0], before=win[0])
+    miss = missing_list(root, loaded[0], before=win[0]) if win[0] else None  # no window: "earlier" is unknown (t-2024 N3)
     path = retro_path(root, session)
     old = read(path) if os.path.exists(path) else None
     text = fresh_file(session, win, block, names, miss) if old is None else refreshed(old, win, block, names, miss)
