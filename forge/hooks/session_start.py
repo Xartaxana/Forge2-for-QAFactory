@@ -6,7 +6,7 @@ session_start.py [--root D]   D defaults to this repository. Input: the event JS
 Blocks: (1) forge/BOOT.md on startup|clear|compact; (2) the re-read line, always; (3) the carriers checklist on compact;
 (4) the previous session's end on startup. Any error -> one line `reminder failed: <error>; read forge/BOOT.md by hand`.
 Cap 6144 emitted bytes: the open list is cut first, then the checklist, each with a `[cut: <what>]` marker; a valid
-UTF-8 BOOT never; a non-UTF-8 BOOT last, to the cap, then the line `forge/BOOT.md not UTF-8: cut at <n> bytes, fix the file`.
+UTF-8 BOOT never; a non-UTF-8 BOOT last, to the cap, then a marker line: `shown with replacement characters` or `cut after file byte <k> of <total>`.
 The hook is inert until the Lead registers it in .claude/settings.json (the net is not the guarantee: the gates are).
 """
 import glob
@@ -25,7 +25,7 @@ BOOT_SOURCES = ("startup", "clear", "compact")
 
 def boot_block(root, eval_arm, show):
     """Return (text, present, bad). Presence is read on every source (t-2010 B2-1/B2-2); the text only when `show`.
-    In an eval arm an absent BOOT prints nothing (B1's `without` arm, F3). bad: the replacement text of a non-UTF-8 BOOT."""
+    In an eval arm an absent BOOT prints nothing (B1's `without` arm, F3). bad: the raw bytes of a non-UTF-8 BOOT."""
     p = os.path.join(root, "forge", "BOOT.md")
     if not os.path.isfile(p):
         return ("" if eval_arm or not show else "forge/BOOT.md not written yet (B1)"), False, None
@@ -36,13 +36,35 @@ def boot_block(root, eval_arm, show):
     try:
         return raw.decode("utf-8"), True, None
     except UnicodeDecodeError:
-        return "", True, raw.decode("utf-8", "replace")
+        return "", True, raw
 
 
-def bad_boot(replaced, n):
-    """The non-UTF-8 BOOT text cut to n bytes at a character edge, then the one marker line (t-2010 B2-6)."""
-    kept = replaced.encode("utf-8")[:n].decode("utf-8", "ignore")
-    return kept + "\nforge/BOOT.md not UTF-8: cut at %d bytes, fix the file" % len(kept.encode("utf-8"))
+def span(raw, i):
+    """(text, byte length) of the character at raw[i]: a valid one as is, a bad byte run as one U+FFFD."""
+    chunk = raw[i:i + 4]
+    try:
+        ch = chunk.decode("utf-8")[0]
+    except UnicodeDecodeError as exc:
+        if exc.start == 0:
+            return chr(0xFFFD), max(1, exc.end)
+        ch = chunk[:exc.start].decode("utf-8")[0]
+    return ch, len(ch.encode("utf-8"))
+
+
+def bad_boot(raw, n):
+    """The non-UTF-8 BOOT shown with replacement characters, cut to n text bytes at a character edge, then one marker line
+    saying which: nothing cut, or cut after file byte k of the total (k = file bytes whose text was printed; t-2016 B2-N1)."""
+    kept, used, k = [], 0, 0
+    while k < len(raw):
+        ch, size = span(raw, k)
+        if used + len(ch.encode("utf-8")) > n:
+            break
+        kept.append(ch)
+        used += len(ch.encode("utf-8"))
+        k += size
+    if k >= len(raw):
+        return "".join(kept) + "\nforge/BOOT.md not UTF-8: shown with replacement characters, fix the file"
+    return "".join(kept) + "\nforge/BOOT.md not UTF-8: cut after file byte %d of %d, fix the file" % (k, len(raw))
 
 
 def open_text(status, tasks, bad):

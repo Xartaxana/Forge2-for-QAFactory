@@ -6,6 +6,7 @@ import importlib.machinery
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -525,7 +526,12 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
         fh.write(b"\xff" * 4096)
     code, out = start(root, "clear")
     assert code == 0 and len(out.encode()) <= 6144 and out.rstrip("\n").count("\n") >= 1  # B2-6, edges line
-    assert "forge/BOOT.md not UTF-8: cut at " in out and out.rstrip().split("\n")[0].startswith("�")
+    m = re.search(r"cut after file byte (\d+) of 4096, fix the file", out)  # k = file bytes whose text was printed
+    assert m and int(m.group(1)) == out.count("�") < 4096 and out.rstrip().split("\n")[0].startswith("�")
+    with open(root + "/forge/BOOT.md", "wb") as fh:
+        fh.write(b"ab\xffcd")
+    out = start(root, "clear")[1]
+    assert "ab�cd\nforge/BOOT.md not UTF-8: shown with replacement characters, fix the file" in out and "cut" not in out
     put(root + "/forge/BOOT.md", "B")
     jl(root, ("t", "dispatch"))
     pad = 6144 - len(start(root, "resume")[1])  # B2-5: a text AT the cap is emitted whole, one byte more cuts the list
