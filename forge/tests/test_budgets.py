@@ -11,6 +11,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools"))
+import ratchets  # noqa: E402
 import size_ratchet as sz  # noqa: E402
 import universality as uni  # noqa: E402
 
@@ -64,19 +65,23 @@ def repo(tmp_path_factory):
     cmd = ["git", "-C", g, "-c", "user.name=t", "-c", "user.email=t@t"]
     sh = lambda *a: subprocess.run(cmd + list(a), capture_output=True).stdout.decode().strip()
     sh("init", "-q")
-    shas = []
+    fc = B["factory_code"]
     for msg, rows in (("empty", None), ("budgets", B), ("raise", ceil(factory_code=4)),
                       ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=4)),
-                      ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21))):
+                      ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21)),
+                      ("removed", {k: v for k, v in B.items() if k != "factory_code"}),
+                      ("unit", dict(B, factory_code=dict(fc, unit="bytes"))),
+                      ("paths", dict(B, factory_code=dict(fc, paths=["nothing/*.py"]))),
+                      ("quoted\n\n  > ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=5))):
         if rows is not None:
             put(g, budg(rows))
-        sh("add", "-A")
-        sh("commit", "-q", "--allow-empty", "--no-verify", "-m", msg)
-        shas.append(sh("rev-parse", "HEAD"))
+            msg == "budgets" and sh("add", "-A")  # tracked from here on: later commits use -a (fewer processes)
+        sh("commit", "-q", "-a", "--allow-empty", "--no-verify", "-m", msg)
+    shas = sh("rev-list", "--reverse", "HEAD").split()
     return g, shas, lambda i: sh("checkout", "-q", shas[i])
 
 
-# expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit)
+# expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit); t-1991 B2, F5, M1 (F8 rows: test_universality)
 @pytest.mark.parametrize("head, base, env, code, has, hasnt", [
     (2, 1, 0, 1, "new: forge/budgets.json::factory_code", None),
     (2, 1, 1, 1, "new: forge/budgets.json::factory_code", None),
@@ -86,6 +91,11 @@ def repo(tmp_path_factory):
     (4, 0, 0, 0, "born", "new:"),
     (4, None, 0, 0, "raises not judged: no base", "new:"),
     (4, "nope", 0, 2, "not a commit", None),
+    (3, 2, 0, 0, "ceiling 4", "new:"),
+    (5, 4, 0, 1, "row removed", None),
+    (6, 4, 0, 1, "scan narrowed", None),
+    (7, 4, 0, 1, "scan narrowed", None),
+    (8, 4, 0, 1, "cannot resolve W-1", "needs"),
 ])
 def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
     g, shas, checkout = repo
@@ -108,6 +118,8 @@ def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
     ({"forge/budgets.json": "{not json"}, 2, ["cannot judge"]),
     ({"forge/budgets.json": json.dumps({"rows": {"x": {"unit": "bytes", "paths": ["a"], "ceiling": -1}}})}, 2, ["ceiling"]),
     ({"forge/budgets.json": json.dumps({"rows": {"crap_limit": None}})}, 2, ["unit"]),
+    ({"forge/budgets.json": json.dumps({"rows": {"stage_start_load": {"unit": "bytes"}}})}, 2, ["C4-6 not built"]),
+    ({"forge/hooks/git/pre-push": "a\nb\n", "forge/tools/t.py": "x\n"}, 0, ["product: 3 lines"]),
 ])
 def test_size(tmp_path, files, code, has):
     put(tmp_path, dict(budg(B), **files))
@@ -124,12 +136,14 @@ def test_files_absent(tmp_path):
     ({"factory/tools/x.py": "# runs PyTest\nr = 'pytestish'\n", "factory/data/d.yaml": "r: pytest\n"}, [], 1,
      "factory/tools/x.py:1", "x.py:2"),
     ({"factory/hooks/h": "a = 'pytest'\n"}, [], 1, "factory/hooks/h:1", "d.yaml"),
+    ({"factory/tools/j.py": "def run_pytest(): pass\n"}, [], 1, "j.py:1", None),
+    ({"factory/tools/j.py": "x = 'pytest3'\n"}, [], 1, "j.py:1", None),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y")], 0, "", "y.py:"),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y", reason="")], 1, "reason", None),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y"), row("z")], 1, "stale: factory/tools/z.py::pytest", "y.py:"),
     ({"factory/tools/y.py": "a = 1\n"}, [row("y")], 2, "found nothing", None),
     ({"factory/tools/y.py": "a = 1\n"}, [row("y"), row("y")], 2, "duplicate", None),
-    ({"factory/notes.md": "ok\nzh ж\n"}, [], 1, "factory/notes.md:2", None),
+    ({"factory/notes.md": "ok\nzh \u0436\n"}, [], 1, "factory/notes.md:2", None),
     ({"factory/bad.txt": b"\xff\xfe\x00x"}, [], 2, "factory/bad.txt", None),
 ])
 def test_universality(tmp_path, files, allow, code, has, hasnt):
@@ -162,3 +176,49 @@ def test_update(tmp_path):
     put(tmp_path, {"factory/tools/z.py": "a = 'pytest'\n"})
     c, o = run(uni, tmp_path, "--update")
     assert c == 1 and "refused" in o
+
+
+def test_resolved_raise(repo, monkeypatch):
+    g, shas, checkout = repo
+    checkout(3)
+    monkeypatch.setattr(ratchets, "resolve", lambda i, kinds=("word",): None)
+    assert run(sz, g, "--base", shas[1])[0] == 0
+
+
+def two_commits(g, first, second):
+    cmd = ["git", "-C", g, "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run(cmd + ["init", "-q"], capture_output=True)
+    for doc in (first, second):
+        put(g, {"forge/universality-names.json": json.dumps(doc)})
+        subprocess.run(cmd + ["add", "-A"], capture_output=True)
+        subprocess.run(cmd + ["commit", "-q", "--allow-empty", "--no-verify", "-m", "m"], capture_output=True)
+    return subprocess.run(cmd + ["rev-parse", "HEAD~1"], capture_output=True).stdout.decode().strip()
+
+
+# expected from: t-1991 M2 and the brief section 4 (allow row added, name removed, root removed are raises; no change is green)
+@pytest.mark.parametrize("old, new, code, has", [
+    ({}, {"allow": [row("y")]}, 1, "allow row added needs"),
+    ({"names": {"runner": ["pytest", "jest"]}}, {}, 1, "name removed needs"),
+    ({"basis": dict(uni.basis(), roots=uni.basis()["roots"] + ["x"])}, {}, 1, "root removed needs"),
+    ({"allow": [row("y")]}, {"allow": [row("y")]}, 0, ""),
+])
+def test_universality_raises(tmp_path, old, new, code, has):
+    doc = json.loads(names()["forge/universality-names.json"])
+    put(tmp_path, {"factory/tools/y.py": "a = 'pytest'\n"})
+    base = two_commits(str(tmp_path), dict(doc, **old), dict(doc, **new))
+    c, o = run(uni, tmp_path, "--base", base)
+    assert c == code and has in o, o
+
+
+# expected from: t-1991 F1, F4; the brief section 4 (a resolved record opens the road; the dead scanner is exit 2)
+def test_doors(tmp_path, monkeypatch):
+    put(tmp_path, dict(names([row("y")], dict(uni.basis(), python="9.9")), **{"factory/tools/y.py": "a = 'pytest'\n"}))
+    assert run(uni, tmp_path, "--base", "nope")[0] == 2
+    put(tmp_path, names([row("z")]))
+    allow = lambda: json.load(open(tmp_path / "forge/universality-names.json"))["allow"]
+    assert run(uni, tmp_path, "--update", "--record", "W-1")[0] == 1 and allow() == [row("z")]
+    monkeypatch.setattr(ratchets, "resolve", lambda i, kinds=("word",): None)
+    run(uni, tmp_path, "--update", "--record", "W-1")
+    assert allow() == []
+    with pytest.raises(ratchets.Refuse, match="none of the 2"):
+        ratchets.judge_list([(("f", "t"), "")], [], str, 0, 2)

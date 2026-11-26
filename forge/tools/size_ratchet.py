@@ -6,7 +6,6 @@ Units: bytes, nonblank_lines, rows (of a JSON {"rows": [...]}), limit (read by a
 A path with no file is `absent: 0`. `stage_start_load: null` is `not set` (F248): listed and counted, outside the exit.
 The figure line `tests: <t> lines, product: <p> lines (ratio <t/p>)` is never a verdict (B20 (f)).
 """
-import glob
 import os
 import sys
 
@@ -15,7 +14,7 @@ import ratchets
 REL = "forge/budgets.json"
 UNITS = ("bytes", "nonblank_lines", "rows", "limit")
 TESTS = ("forge/tests/**/*.py", "factory/tests/**/*.py")
-PRODUCT = tuple(d + "/**/*.py" for d in ("forge/tools", "forge/hooks", "factory/tools", "factory/hooks", "measure/tools"))
+PRODUCT = tuple(d + "/**/*.py" for d in ("forge/tools", "forge/hooks", "factory/tools", "factory/hooks", "measure/tools")) + ("forge/hooks/git/*",)
 
 
 def check_rows(data):
@@ -23,8 +22,10 @@ def check_rows(data):
     if not isinstance(rows, dict):
         raise ratchets.Refuse('%s: must hold {"rows": {...}}' % REL)
     for key, row in rows.items():
-        if key == "stage_start_load" and (row is None or isinstance(row, dict)):
+        if key == "stage_start_load" and row is None:
             continue
+        if key == "stage_start_load":  # F3: an unknown form is never a pass; L5 (C4-6) defines the object
+            raise ratchets.Refuse("%s: stage_start_load object: C4-6 not built" % REL)
         ok = isinstance(row, dict) and row.get("unit") in UNITS
         ok = ok and type(row.get("ceiling")) is int and row["ceiling"] >= 0
         paths = row.get("paths") if ok else None
@@ -33,18 +34,8 @@ def check_rows(data):
     return rows
 
 
-def files_of(root, patterns):
-    found = set()
-    for pat in patterns:
-        for rel in glob.glob(pat, root_dir=root, recursive=True):
-            if os.path.isfile(os.path.join(root, rel)):
-                found.add(rel.replace("\\", "/"))
-    return sorted(found)
-
-
 def nonblank(root, rel):
-    with open(os.path.join(root, rel), "rb") as fh:
-        return sum(1 for ln in fh.read().decode("utf-8", "replace").split("\n") if ln.strip())
+    return sum(1 for ln in ratchets.text_file(root, rel).split("\n") if ln.strip())
 
 
 def count_rows(root, rel):
@@ -56,7 +47,7 @@ def count_rows(root, rel):
 
 def measure(root, row):
     """The row's value, or None when no file of its paths exists."""
-    files = files_of(root, row["paths"])
+    files = ratchets.files_of(root, row["paths"])
     if not files:
         return None
     if row["unit"] == "bytes":
@@ -82,17 +73,23 @@ def judge_row(root, key, row, out):
 
 
 def raised(old, rows):
+    """B2: a key at the base gone at HEAD, a changed unit or paths, a grown ceiling: each needs the line (errs red on any change)."""
     keys = {}
-    for key, row in rows.items():
-        before = old.get(key)
-        if isinstance(row, dict) and isinstance(before, dict) and row["ceiling"] > before["ceiling"]:
-            keys[key] = "ceiling %d -> %d" % (before["ceiling"], row["ceiling"])
-    return keys
+    for key, before in old.items():
+        row = rows.get(key)
+        if key not in rows:
+            keys[key] = "row removed"
+        elif isinstance(row, dict) and isinstance(before, dict):
+            if (row["unit"], row.get("paths")) != (before["unit"], before.get("paths")):
+                keys[key] = "scan narrowed"
+            elif row["ceiling"] > before["ceiling"]:
+                keys[key] = "ceiling %d -> %d" % (before["ceiling"], row["ceiling"])
+    return {k: (what, ("word",)) for k, what in keys.items()}
 
 
 def figure(root):
-    t = sum(nonblank(root, f) for f in files_of(root, TESTS))
-    p = sum(nonblank(root, f) for f in files_of(root, PRODUCT))
+    t = sum(nonblank(root, f) for f in ratchets.files_of(root, TESTS))
+    p = sum(nonblank(root, f) for f in ratchets.files_of(root, PRODUCT))
     return "tests: %d lines, product: %d lines (ratio %s)" % (t, p, "%.2f" % (t / p) if p else "n/a")
 
 

@@ -5,6 +5,7 @@ Exit: 0 green, 1 red, 2 cannot judge (Refuse), 3 part not judged here (red on Ac
 Finding line: `new: <identity> <detail>`, the identity one token (whitespace written %20); a stale row prints `stale: <id>`.
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -13,8 +14,9 @@ import sys
 
 TOOL_VERSION = "1"
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-# B20 (d): the old `budget-raise:` keyword is not read. The line may sit anywhere in a message, a fence or a quote included.
-RAISE_RE = re.compile(r"^ratchet-raise: (\S+) (\S+) -- (\S+)[ \t\r]*$", re.M)
+# B20 (d): the old `budget-raise:` keyword is not read. The line may sit anywhere in a message; a quote (`>`) or an indent
+# (a fence inside a quote, t-1991 F5) before it is skipped, so such a line counts.
+RAISE_RE = re.compile(r"^[ \t>]*ratchet-raise: (\S+) (\S+) -- (\S+)[ \t\r]*$", re.M)
 
 
 class Refuse(Exception):
@@ -108,17 +110,107 @@ def resolve(rid, kinds=("word",)):
 
 
 def judge_raises(root, base, rel, keys, out):
-    """keys: {key: what was raised}. Each needs `ratchet-raise: <file> <key> -- <id>` in --base..HEAD, and the id resolving."""
+    """keys: {key: (what, kinds)}. Each needs `ratchet-raise: <file> <key> -- <id>` in --base..HEAD, the id resolving to a kind."""
     if not keys:
         return 0
     log = text_of(git(root, "log", "--format=%B", "%s..HEAD" % base))
     lines, code = RAISE_RE.findall(log), 0
-    for key, what in keys.items():
+    for key, (what, kinds) in keys.items():
         ids = [i for f, k, i in lines if k == key and (rel == f or rel.endswith("/" + f))]
-        errs = [resolve(i) for i in ids]
-        if ids and not all(errs):
+        errs = [resolve(i, kinds) for i in ids]  # F1: None is a record that resolves
+        if None in errs:
             continue
         msg = errs[0] if ids else "%s needs `ratchet-raise: %s %s -- <W-n | D-n>`" % (what, os.path.basename(rel), key)
         out(finding("%s::%s" % (rel, key), msg))
         code = 1
     return code
+
+
+def files_of(root, patterns):
+    """The ONE file-set reader: files under root matching the globs, '/'-separated, sorted, never __pycache__ (t-1991 Q6)."""
+    found = set()
+    for pat in patterns:
+        for rel in glob.glob(pat, root_dir=root, recursive=True, include_hidden=True):
+            rel = rel.replace("\\", "/")
+            if os.path.isfile(os.path.join(root, rel)) and "__pycache__" not in rel.split("/"):
+                found.add(rel)
+    return sorted(found)
+
+
+def text_file(root, rel):
+    """The ONE text reader: strict UTF-8; a file that is not UTF-8 is exit 2 naming it."""
+    with open(os.path.join(root, rel), "rb") as fh:
+        raw = fh.read()
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise Refuse("%s: not UTF-8" % rel)
+
+
+def load_list(path, what, ident, field="allow", must_exist=False):
+    """(data, rows) of a list file keyed by ident(row), which raises on a row without its id/file. No file is an empty list
+    (unless must_exist); not JSON, no basis, a malformed or duplicate row is exit 2. A row without a reason is judge_list's."""
+    if not os.path.isfile(path) and not must_exist:
+        return {}, []
+    data = read_json(path, what)
+    rows = data.get(field) if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise Refuse("%s: must be one JSON object with a list %s" % (what, field))
+    if not isinstance(data.get("basis"), dict):
+        raise Refuse("%s: basis missing" % what)
+    seen = set()
+    for row in rows:
+        key = row_key(ident, row, "%s: a %s row" % (what, field))
+        if key in seen:
+            raise Refuse("%s: duplicate %s row %s" % (what, field, key))
+        seen.add(key)
+    return data, rows
+
+
+def row_key(ident, row, what):
+    try:
+        return ident(row)
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise Refuse("%s needs its id or file" % what)
+
+
+def check_basis(old, now, door):
+    """None when the basis matches; the file's Python minor when only that differs (exit 3); a Refuse for any other drift."""
+    for key in now:
+        if key not in old:
+            raise Refuse("basis %s missing; %s" % (key, door))
+        if key != "python" and old[key] != now[key]:
+            raise Refuse("basis %s %s -> %s; %s" % (key, old[key], now[key], door))
+    return None if old.get("python") == now.get("python") else old["python"]
+
+
+def judge_list(sites, rows, key, files_read, scope_files, out=print):
+    """sites: [(identity, detail)], rows keyed by key(row). Returns (sites no row allows, stale keys, keys of rows without a
+    reason). A dead scanner (no site while rows exist; no file read while the scope holds files) is judged before stale."""
+    if rows and not sites:
+        raise Refuse("scanner found nothing (%d rows)" % len(rows))
+    if scope_files and not files_read:
+        raise Refuse("scanner read none of the %d files in scope" % scope_files)
+    keys = {key(r) for r in rows}
+    text = lambda k: re.sub(r"\s", "%20", "::".join(k) if isinstance(k, tuple) else k)
+    stale = sorted(keys - {identity for identity, _ in sites})
+    bare = [key(r) for r in rows if not str(r.get("reason", "")).strip()]
+    for k in stale:
+        out("stale: %s" % text(k))
+    for k in bare:
+        out(finding(text(k), "row has no reason"))
+    return [s for s in sites if s[0] not in keys], stale, bare
+
+
+def shrink(path, data, field, key, stale, out, empty_ok):
+    """The --update / --record road: drop the stale rows; the list is never emptied unless empty_ok (a resolved record)."""
+    keep = [r for r in data[field] if key(r) not in stale]
+    if data[field] and not keep and not empty_ok:
+        out("refused: --update would empty %s; door: --record <W-n | D-n> and a `ratchet-raise: %s clear -- <id>` line"
+            % (field, os.path.basename(path)))
+        return False
+    data[field] = keep
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(data, indent=2) + "\n")
+    out("updated: %d stale %s rows removed" % (len(stale), field))
+    return True
