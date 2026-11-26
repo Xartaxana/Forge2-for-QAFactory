@@ -73,6 +73,7 @@ def put(root, rel, data):
     ("accept", "n", "t-1", "", 2, "session"),
     ("defect_found", "builder: the witness missed a branch", "t-1", "s1", 0, ""),  # t-2071 F3, dispatch t-2077 E3
     ("defect_found", "builder: x", None, "s1", 2, "task"),
+    ("defect_found", "x", "t-1", "s1", 2, "<agent>: <reason>"),  # t-2081 F9: the note form is refused for defect_found
     ("calibrated", "weekly reading through 2026-11-26", None, "s1", 0, ""),
     ("accept", "n", "t-1", "s1", 2, "--by"),  # t-2071 F4: an accept naming no acceptor is refused, never read as lead
 ])
@@ -93,6 +94,7 @@ def test_journal_write(tmp_path, event, note, task, session, code, word):
     ([("dispatch", "t-1")], "", 0, ["t-1"]),
     ([("dispatch", "t-1"), ("accept", "t-1")], "", 0, ["none"]),
     ([("dispatch", "t-1"), ("dispatch", "t-2"), ("return", "t-1")], "", 0, ["t-2"]),
+    ([("dispatch", "t-1"), ("defect_found", "t-1")], "", 0, ["t-1"]),  # t-2081 M3: defect_found never closes a task
     ([("dispatch", "t-1")], "{broken\n", 1, ["unparsable line 2 in o.jsonl", "incomplete"]),
 ])
 def test_journal_open_and_read(tmp_path, rows, tail, code, words):
