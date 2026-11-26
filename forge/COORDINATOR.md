@@ -17,7 +17,9 @@ Read at every session start by the Lead and the Architect. Worker rules are in `
 - A task with a UI result: the verification run includes DRIVING the UI, and the witness is a before/after screenshot or recording; a purely textual witness is insufficient. (case: old rule 1019)
 - Accepting workers happens in a BATCH at a stage boundary (accepting everything stays mandatory), and one question to a person carries a list instead of a round of clarifications. (case: old rule 1093)
 - A fix round runs in a FRESH worker carrying only the diff and the verdict; a re-review carries only the fix diff and the verdict. After a critic verdict `fit_with_fixes` on CODE the Lead checks the fix round itself only inside the border: the fix diff does exactly what the verdict's `fixes` prescribe and adds no new logic (no new function, branch, state or write path). The base is the reviewed head: the Lead COMMITS the reviewed state before each critic dispatch and writes the bare token `reviewed:<sha>` (from `git rev-parse HEAD`) as the first token after the model label in the critic call's `description`; with no such commit the fix round is `nobase`. A counter measures the fix diff against that base: border 0 means no counted kind of change. Inside the border the Lead walks the fix diff by the critic's standing questions Q1-Q12, one line per question plus one per fix (`fixed: <where>`, or `not fixed` -> another fix round), and the accepted notes carry `fixes checked by Lead: <verdict path>, border 0`. Outside the border (any count above zero, no `reviewed:` token or a cut one, a base that is not an ancestor of HEAD, a `blocker` verdict, a fix that cannot be matched to its verdict line, or an acceptor not strictly above the builder's tier) the critic re-review carries only the fix diff and the verdict, and its dispatch names the case `re-review: logic or nobase or blocker or unmatched or tier`. (tool: none yet) (case: old rules 1096, 1101, 1102)
-carry: FR-1019, FR-1093, FR-1096, FR-1101, FR-1102
+- A critic verdict whose verdict lines are missing or unreadable is returned, never accepted from its prose (fail-closed). (tool: none yet)
+- A node is accepted on its own witness; a defect found later in accepted work is recorded against that task with the original tier and what broke (the false-accept stream), never by reopening it; a calibration run is recorded too, with the last mechanism commit it reviewed. (tool: none yet)
+carry: FR-1019, FR-1093, FR-1096, FR-1101, FR-1102, FO-51, FR-1042, FR-1131
 rows: fr:A7, fr:B1, fr:B2, fr:A10, fr:A19, fr:B5
 
 ## Tiers and roles
@@ -27,7 +29,12 @@ rows: fr:A7, fr:B1, fr:B2, fr:A10, fr:A19, fr:B5
 - Role is not tier: the coordinator ROLE is routing, not execution; any model leading the dialogue carries it and that does not make the session a Lead; the Lead is the full coordinator whose rank is lead or above, and only it changes mechanisms, the decision log, statuses and gates. (case: old rule 1135)
 - The Architect's start checklist, read at its session start, is the frozen `C:/QAFactory/forge-repo/PROCESS/ARCHITECT_START.md` until a forge 2 checklist exists. (case: old rule 1009)
 - STAND-IN (owner's word 17.11.2026): a model ranked above a function's binding may stand in for that function while the bound model is unavailable; the dispatch names the outage in its notes. (case: old rule 1056)
-carry: FR-253, FR-1004, FR-1006, FR-1009, FR-1056, FR-1135
+- A role runs on its bound model (its role file's `model:` line) and the journal records each dispatch's model, reconciled at calibration; a tier requirement (a critic not weaker than the builder) closes by measuring the worker's actual model, not by declaration, and a mismatch is resolved (relaunch, an honest note, or escalation) before the result counts as that tier's word. (tool: none yet)
+- A refusal, outage or switch of the Lead's model to one ranked below lead drops the session to builder rank with a `lead_degraded` line naming reason and scope, one step (tool: none yet): builder diffs finished meanwhile wait unaccepted, queued for the Lead, critic and designer are not dispatched (STAND-IN when the wait hurts), recon and builder work under accepted specs go on.
+- While degraded: coordination and authorized tasks yes; statuses and gates no; a new decision is queued for the full Lead; acceptance by the tier-above rule.
+- Return at the task or session boundary: `lead_restored` with acceptance of the degraded window (journal and diffs) in its note, an empty window noted; clearing the queue does not replace it; a window open at a session end is the journal's last line.
+- A session's tier is the rank of its ACTUAL model: before its first Lead action (dispatch, acceptance, mechanism commit, status change) it checks its own model (start print, switch command) against the Lead binding; below lead with no open window, `lead_degraded` comes first; a model matching no binding or known family never reads as Lead; a session below lead (mid-tier mode) runs the same acceptance rules, and degradation is an unplanned entry into it.
+carry: FR-253, FR-1004, FR-1006, FR-1009, FR-1056, FR-1135, FR-1060, FR-1061, FR-1141, FR-1142, FR-1143, FR-1144, FR-1134, FR-1140
 
 ## Critic gate
 - Unclear bugs go to a critic BEFORE the Lead starts debugging them itself. (case: old rule 1027)
@@ -41,11 +48,12 @@ carry: FR-1027, FR-1032, FR-1035, FR-2034, FR-2062
 - Two failed attempts on one tier, or an explicit "this is beyond my level" signal from a worker, move the work one tier up, journaled as an `escalated` event whose note starts with `<agent>: ` (the role the work moves to); the task stays open and the higher tier's dispatch continues it; no silent retry on the same tier. Builder rejects are counted per task by `journal.py rejects <task>` (tool: B18, not built). A critic verdict with fixes that the Lead accepts counts as a rejection, and its fix round is attempt n+1 of the same task. (case: FH-1038, the old forge's tier rule after two rejects; old rule 1047, returned by the owner 26.11.2026)
 - A task that turns out to be decomposable is returned to the Lead by the worker's `decomposable: <split>` hand-back and journaled as a `decomposable` event, the split in the note. (case: old rule 1045, returned by the owner 26.11.2026)
 - A second reject at the Lead's tier whose verdict names no blocker and whose fixes add no product logic (test rows, wording) does not wait for the Architect: the Lead dispatches one last round with those fixes only, checks it itself, and writes the work-list record `--for architect` as a note naming the verdict. A finding that appears after that round goes to the work list, not to another round. A blocker, or a fix that adds logic, goes up as before. (case: C1-5 t-1986 and C1-2 t-1995, 26.11.2026)
+- At any tier a reject of a code `fit_with_fixes` whose fixes ask nothing outside the Acceptance border is converging, its note beginning `converging`: two rejects on one task at one tier force escalation unless the second is converging, and the third forces it; a converging reject whose fix round shows border above 0 or `nobase` is void, the next line on the task notes `converging void: <why>`, and it counts as ordinary.
 - Questions go up, work goes on. To the Architect, as a work-list record `--for architect` (B11): a second reject at the Lead's tier (fr:A13), a conflict between two rules or between a card and a plan decision, a process trade-off, the shape of a new idea. The record names what waits and what does not. The Lead never stops for it: it takes the next work the question does not block; only the named card waits. An Architect session answers every open record with a decision or `left: <why>`; the answer is committed and the record closed with that commit. The Architect is never a subagent: the owner switches the session. (case: W-83; the old forge's architect queue)
 - After two rejects with `failure_class: spec` in the reject note on one task the spec was wrong, not the work: the card goes back to the designer for a re-spec, not to another fix round. A card has a TOTAL ceiling of four fix rounds across all reject classes (the last-round exception above included); after the fourth the card goes to the Architect or the owner. (case: owner's question 26.11.2026, why a fifth round when the ceiling is 2, W-189)
 - When escalating to the Architect the Lead tells the owner, in Russian, that calling the Architect is better, with the question in one line. (case: old rule 1054)
 - A new owner decision opens a new node of the graph and is not poured into a running task. (case: old rule 2025)
-carry: FR-1045, FR-1047, FR-1049, FR-1054, FR-2025
+carry: FR-1045, FR-1047, FR-1049, FR-1054, FR-2025, FR-1051
 rows: fr:A13
 
 ## Delegation and roles
@@ -92,6 +100,9 @@ rows: fr:A8, fr:D4
 
 ## Journal, sessions and retro
 - What code can do, code does: journal lines, dispatch headers, merges. The journal is append-only, written by `journal.py`; a fix is a new line. (case: W-99, fr:A15)
+- The journal records done facts, not intentions: a `dispatch` line is written after the launch returns and carries a handle of the launch that exists only after it (tool: none yet), an `escalated` line after its dispatch, same turn; a tool line saying a journal line was NOT written is repaired the same turn.
+- A repeat `dispatch` on an open task is legal only as a critic entry, a retry after a reject, or a replacement of a dead worker naming its handle; on a closed task it is forbidden. (tool: none yet)
+- An `accept` line names its acceptor by `--by`, read as a rank against the executor's; an unknown acceptor fails the tier-above rule and no note legalizes it. (tool: none yet)
 - Knowledge lives in repo files, not in a machine's memory: what a session learns about the work (an owner's word, a rule, a lesson) goes into a file the next session reads; personal memory holds only machine paths, tokens and local processes. (case: owner 30.10.2026, docs/PROJECT_FULL.md of the old forge, section Teamwork, item 10; B-forge-8)
 - A batch closes by finishing the work, not by carrying it over; a carry-over is confirmed by a person. (case: W-98, fr:A26)
 - The next session recovers from files alone; a retro is written while the reasons are in context. (case: owner 17.11.2026, 24.11.2026, fr:A28, fp:A26)
@@ -101,7 +112,7 @@ rows: fr:A8, fr:D4
 - A task id is read by its IDENTITY `<id>@<label>`, and another clone's journal lines are form-checked at the merge. (tool: none yet) (case: old rule 1116)
 - `ts` is ISO 8601 UTC with a trailing `Z` (`YYYY-MM-DDTHH:MM:SSZ`), the one form `forge/tools/journal.py` writes; the journal is read in `ts` order, so a line in any other form (the old forge's local time with no zone included) is a defect. (tool: none yet for a line not written by journal.py) (case: old rule 1118, the old forge's form was local time with no zone)
 - A calibration overdue by more than 7 days shows as a Last Calibration line in the boot report. (tool: none yet) (case: old rule 1133)
-carry: FR-1116, FR-1118, FR-1133
+carry: FR-1116, FR-1118, FR-1133, FR-1112, FR-1113, FR-1126, FR-1128
 rows: fr:A15, fr:A26, fr:A28, fp:A26, fr:A24
 
 ## Measuring runs

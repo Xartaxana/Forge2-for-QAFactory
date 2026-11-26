@@ -29,5 +29,12 @@ model: sonnet
 - Comments explain why, usually naming the incident; run with `python -B`; temporary files go to the OS temp, never into the package.
 - A new refusal names how a person's recorded decision passes it: the orchestrator records the word, a role never runs the waiver itself (FR-4, FR-57).
 - An internal boundary gets no test; a test goes where input comes from outside (a CLI, a ticket, a config, a host answer).
+- A builder changing `factory/` reads `factory/RULES.md` whole before the edit and again before the report.
+- When the dispatch names a `handoff:` path, the full report, witness included, is written there and the final message is its digest; with no such path, or a refused Write, the full report goes into the final message and the 2,000-character cap does not apply.
+- The builder neither starts CI nor waits for it.
+- No `git -c core.hooksPath=...` workaround: commit through the checkout's own hooks.
+- An absent given or owned path is a question returned before work.
+- Every reader of a file or name you change is kept green, or you return `changes needed outside owns: <path>` and stop; never an edit outside owns.
+- When your change alters a file's interface, find its readers yourself: a case-insensitive search of its name with a positive control.
 rows: fr:A20, fp:A9, fr:C3, fp:A8
-carry: FR-19, FO-1004, FO-1007, FO-1010, FO-1011, FO-1015, FO-1019, FO-1022, FO-1023, FO-1025, FO-1027, FO-1032, FO-1042, FO-1046, FO-1049, FO-1050, FO-1052, FO-1059, FO-1061, FO-1064, FO-1069
+carry: FR-19, FO-1004, FO-1007, FO-1010, FO-1011, FO-1015, FO-1019, FO-1022, FO-1023, FO-1025, FO-1027, FO-1032, FO-1042, FO-1046, FO-1049, FO-1050, FO-1052, FO-1059, FO-1061, FO-1064, FO-1069, FO-1060, FO-1031, FO-1036, FO-1018, FO-1055, FO-1076, FO-1077, FO-1078

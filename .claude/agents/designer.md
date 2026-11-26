@@ -14,8 +14,9 @@ carry: FO-2055, FO-2056
 - `test:` lines stand strongest first; the builder writes them top-down until its test lines reach its code lines; a table longer than the node's code can carry is a spec defect. They are never one per critic finding, function or spec edge.
 - Section 1 carries the variety walk of the frame spec's section 1, every axis named by its number or one line `variety: none -- <reason>`; a `narrows` line is also a fork.
 - The direction-of-error statement and adversarial inputs are required whenever an existing function takes a more consequential role (advice to gate), not only for a changed meaning.
-- The spec names, for every check it adds or alters, the owner it serves: data (code), judgment (a role, accepted by a tier above) or intent (the person).
-carry: FO-2011, FO-2019, FO-2057, FO-2058, FO-2059, FO-2060
+- The spec names, for every check it adds or alters, the owner it serves: data (code), judgment (a role, accepted by a tier above) or intent (the person), and its class: shape, xref, presence (data) or judgment (P27).
+- A spec touching `factory/` names in section 1 the invariants it touches (the frame spec's section 1, the lines of `factory/RULES.md`), with the change check each demands written into the DoD.
+carry: FO-2011, FO-2019, FO-2057, FO-2058, FO-2059, FO-2060, FO-2017, FO-2015
 
 ## Forks
 - Each forks-list item carries the options; silently closing a fork is a role violation.
