@@ -29,8 +29,8 @@ def world(tmp_path, records, files=None):
     files = dict(files or {})
     if records is not None:
         files[words.REG] = records if isinstance(records, bytes) else words.render(records).encode("utf-8")
-    files[words.PLAN] = "### 3. Section\n1. a\n2. b\n"
-    for rel, text in files.items():
+    files.setdefault(words.PLAN, "### 3. Section\n1. a\n2. b\n")
+    for rel, text in [(k, v) for k, v in files.items() if v is not None]:  # None: the file is absent
         p = os.path.join(root, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "wb") as fh:
@@ -74,6 +74,13 @@ CHECK = [  # (records, files, exit, fragments in the output, expected from)
     (b'{"schema": "words/2",\n"records": [\n x]}', {}, 2, ["owner-words.yaml:3: broken syntax"], "card B3 edge: broken YAML names the line"),
     (b'{"schema": "words/2",\n"records": []}\n\xff', {}, 2, ["owner-words.yaml:3: not UTF-8"], "card B3 edge: non-UTF-8 names the line"),
     (b"[]", {}, 2, ["not a words/2 registry"], "card B3 edge: schema"),
+    (b'{"schema": "words/1", "records": []}\n', {}, 2, ["not a words/2 registry"], "t-2010 M3: a wrong schema on a dict"),
+    ([FORGE], {"CLAUDE.md": "(case: W-1, see FH-D-12)"}, 0, ["1 citations"], "t-2010 B3-1: FH-D-12 is no citation"),
+    ([FORGE], {"CLAUDE.md": "(case: W-1; old D-0056)"}, 0, ["1 citations"], "t-2010 B3-1: D-0056 is no citation"),
+    ([FORGE], {"CLAUDE.md": "(case: W-1; D-12)"}, 1, ["decision cited as owner's word"], "t-2010 B3-1: a real D- still red"),
+    ([FORGE], {"CLAUDE.md": b"\xff W-9 rule"}, 1, ["CLAUDE.md:1: W-9 no such record"], "t-2010 B3-3: non-UTF-8 judged"),
+    ([FORGE], {"forge/BOOT.md": BOOT_OK, words.PLAN: None}, 2, ["cannot judge: forge/BOOT.md:5: plan copy"],
+     "t-2010 B3-4; B1 edge: plan copy absent"),
     ([rec(1, scope="x")], {}, 1, ["W-1: scope 'x' is not one of"], "card B3: check reads the shape of every record"),
 ]
 
@@ -120,6 +127,19 @@ def test_add(tmp_path, mut, frag, source):
         assert code == 0 and after.startswith(before[:-4]) and after.count(b"\n") == before.count(b"\n") + 1
     else:
         assert code == 2 and frag in out and after == before, out
+
+
+def test_add_refusals(tmp_path):
+    """expected from: t-2010 B3-2 (a non-canonical file is refused, bytes unchanged) and B3-5 (a missing input is exit 2)."""
+    root = world(tmp_path, [rec(1)])
+    path = os.path.join(root, words.REG)
+    hand = words.render([rec(1)]).encode("utf-8").replace(b'{"schema"', b'{"note": "x", "schema"')
+    with open(path, "wb") as fh:
+        fh.write(hand)
+    code, out = run(root, "add", "-", stdin=json.dumps(rec(2)).encode("ascii"))
+    assert code == 2 and "not canonical" in out and "words.render" in out and open(path, "rb").read() == hand
+    code, out = run(root, "add", os.path.join(root, "nope.json"))
+    assert code == 2 and out.startswith("refused: cannot read ") and "nope.json" in out
 
 
 def test_add_input_and_resolve(tmp_path):

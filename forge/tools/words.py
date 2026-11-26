@@ -58,7 +58,7 @@ def read_registry(root):
     except ValueError as e:
         return None, "%s:%s: broken syntax (%s)" % (REG, getattr(e, "lineno", 1), e)
     recs = data.get("records") if isinstance(data, dict) else None
-    if not isinstance(recs, list) or data.get("schema") != SCHEMA or not all(isinstance(r, dict) for r in recs):
+    if not isinstance(recs, list) or data.get("schema") != SCHEMA or not all(isinstance(r, dict) for r in recs):  # M3
         return None, "%s:1: not a %s registry" % (REG, SCHEMA)
     return recs, None
 
@@ -198,7 +198,7 @@ def line_findings(rel, n, line, records):
     for rid in ids:
         r, li = cite_findings(rel, n, rid, records)
         red, listed = red + r, listed + li
-    red += ["%s:%d: decision cited as owner's word: %s" % (rel, n, g) for g in CASE_W_RE.findall(line) if "D-" in g]
+    red += ["%s:%d: decision cited as owner's word: %s" % (rel, n, g) for g in CASE_W_RE.findall(line) if any(m.group(1) == "D" for m in CITE_RE.finditer(g))]
     return red, listed, len(ids)
 
 
@@ -207,13 +207,17 @@ def citation_findings(root, records):
     for rel in rule_files(root):
         try:
             with open(os.path.join(root, rel), "rb") as fh:
-                text = fh.read().decode("utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue  # a binary or unreadable file holds no rule text
+                text = fh.read().decode("utf-8", "replace")  # ids are ASCII: a non-UTF-8 file is still judged (B3-3)
+        except OSError:
+            continue  # an unreadable file holds no rule text
         for n, line in enumerate(text.split("\n"), 1):
             r, li, c = line_findings(rel, n, line, records)
             red, listed, count = red + r, listed + li, count + c
     return red, listed, count
+
+
+class PlanAbsent(Exception):
+    """A BOOT class-2 line met no plan copy: check cannot judge (exit 2), it is not a red."""
 
 
 def boot_line(root, s):
@@ -241,6 +245,8 @@ def boot_findings(root):
     red, seen = [], [0, 0]
     for n, s in enumerate((x.strip() for x in lines), 1):
         c = boot_line(root, s) if s and not s.startswith("#") else "ok"
+        if c == "plan copy unreadable":
+            raise PlanAbsent("%s:%d: plan copy %s unreadable" % (BOOT, n, PLAN))  # B3-4: a key is never judged on no data
         if c.startswith("exempt:"):
             seen[int(c[7:])] += 1
         elif c != "ok":
@@ -265,7 +271,11 @@ def check(root):
     if err:
         print("cannot judge: " + err)
         return 2
-    (r1, l1), (r2, l2, count), (r3, l3) = registry_findings(records), citation_findings(root, records), boot_findings(root)
+    try:
+        (r1, l1), (r2, l2, count), (r3, l3) = registry_findings(records), citation_findings(root, records), boot_findings(root)
+    except PlanAbsent as e:
+        print("cannot judge: " + str(e))
+        return 2
     print("%d citations" % count)
     for tag, rows in (("red", r1 + r2 + r3), ("listed", l1 + l2 + l3)):
         for row in rows:
@@ -297,13 +307,22 @@ def parse_record(raw):
     return (rec, None) if isinstance(rec, dict) else (None, "input is not one JSON object")
 
 
+def raw_registry(path):
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
 def append(root, rec):
     records, err = read_registry(root)
+    path = os.path.join(root, REG)
+    if not err and raw_registry(path) != render(records).encode("utf-8", "surrogatepass"):
+        # B3-2: a re-render of a hand-edited file would drop its extra keys and collapse duplicates unseen
+        err = "%s is not canonical (hand-edited); a record is only appended to a canonical file: " \
+              "rewrite it with words.render(records) or restore it from git, then add again" % REG
     probs = [err] if err else problems(rec, by_id(records))
     if probs:
         print("\n".join("refused: " + p for p in probs))
         return 2
-    path = os.path.join(root, REG)
     try:
         blob = render(records + [{k: rec[k] for k in ORDER if k in rec}]).encode("utf-8")
     except UnicodeEncodeError:
@@ -314,16 +333,6 @@ def append(root, rec):
     os.replace(path + ".tmp", path)
     print("added %s" % rec["id"])
     return 0
-
-
-def release(fd):
-    if journal.msvcrt:  # Windows frees a lock left at close only after a delay: unlock first, as the journal does
-        try:
-            os.lseek(fd, 0, 0)
-            journal.msvcrt.locking(fd, journal.msvcrt.LK_UNLCK, 1)
-        except OSError:
-            pass
-    os.close(fd)
 
 
 def add(root, raw):
@@ -343,7 +352,7 @@ def add(root, raw):
     try:
         return append(root, rec)
     finally:
-        release(fd)
+        journal.release_lock(fd)
 
 
 def lookup(root, rid, full):
@@ -375,8 +384,13 @@ def main(argv=None):
     if a.cmd == "check":
         return check(a.root)
     if a.cmd == "add":
-        with (sys.stdin.buffer if a.file == "-" else open(a.file, "rb")) as fh:
-            return add(a.root, fh.read())
+        try:
+            with (sys.stdin.buffer if a.file == "-" else open(a.file, "rb")) as fh:
+                raw = fh.read()
+        except OSError as e:
+            print("refused: cannot read %s: %s" % (a.file, e.strerror or e))
+            return 2
+        return add(a.root, raw)
     return lookup(a.root, a.id, a.cmd == "show")
 
 
