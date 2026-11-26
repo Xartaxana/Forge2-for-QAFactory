@@ -53,5 +53,5 @@ carry: FS-32
 - A section is at most about 40 lines; one table is not a defect. (tool: none yet -- the byte ceilings bound files, not sections)
 - A subheading goes only at a paragraph boundary, never between a condition and its consequence.
 - CLAUDE.md imports nothing (no `@` import): an import loads into every worker, and its target lies outside the rules_worker row, so the `size` job would not see it. (tool: none yet)
-- A retelling of a rule outside its home, a section over 50 lines and a boot heading with no contents line are defects found by the weekly calibration until code checks pointers and contents (the `refs` job, B13, not built). (tool: none yet -- forge/calibration.md holds no row for them)
+- A retelling of a rule outside its home, a section over 50 lines and a boot heading with no contents line are defects found by the weekly calibration until code checks pointers and contents (the `refs` job, B13, not built). (tool: none yet -- forge/calibration.md row 33(h) is the weekly reading)
 carry: FS-37, FS-38, FS-39, FS-45, FS-48
