@@ -1,0 +1,9 @@
+{
+  "schema": "rule-cuts/1",
+  "files": ["CLAUDE.md", "forge/COORDINATOR.md", "forge/BOOT.md", ".claude/agents/*.md", ".claude/skills/*/SKILL.md",
+            "factory/RULES.md", "forge/PRINCIPLES.md", "forge/TESTING.md"],
+  "keep": 0.6,
+  "prefix": 4,
+  "gist_min": 3,
+  "not_confirming": ["W-188"]
+}
