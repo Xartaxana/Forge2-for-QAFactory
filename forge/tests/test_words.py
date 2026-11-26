@@ -15,6 +15,7 @@ import words  # noqa: E402
 
 BOOT_OK = ("decided by the owner: forge/owner-words.yaml\nphase 1: build -- 2026-11-26\n# Heading\n"
            "## Sub\na plan line (plan 3.2)\n")
+P31 = "".join("- P%d: t\n" % i for i in range(1, 32))  # plan record S7: P1-P31, one line each
 
 
 def rec(i, **kw):
@@ -30,6 +31,7 @@ def world(tmp_path, records, files=None):
     if records is not None:
         files[words.REG] = records if isinstance(records, bytes) else words.render(records).encode("utf-8")
     files.setdefault(words.PLAN, "### 3. Section\n1. a\n2. b\n")
+    files.setdefault(words.PRINCIPLES, P31)
     for rel, text in [(k, v) for k, v in files.items() if v is not None]:  # None: the file is absent
         p = os.path.join(root, rel)
         os.makedirs(os.path.dirname(p), exist_ok=True)
@@ -97,6 +99,14 @@ CHECK = [  # (records, files, exit, fragments in the output, expected from)
     ([FORGE], {"forge/BOOT.md": BOOT_OK, words.PLAN: None}, 2, ["cannot judge: forge/BOOT.md:5: plan copy"],
      "t-2010 B3-4; B1 edge: plan copy absent"),
     ([rec(1, scope="x")], {}, 1, ["W-1: scope 'x' is not one of"], "card B3: check reads the shape of every record"),
+    ([FORGE], {"CLAUDE.md": "(case: P20)", ".claude/agents/scout.md": "P1, P31", "factory/a.md": "P99"}, 0,
+     ["3 principle citations"], "plan S7, t-2054 edges: P<n> resolves; unchecked files and missing ones skipped"),
+    ([FORGE], {"forge/COORDINATOR.md": "a\nb (P32, P0)"}, 1, ["forge/COORDINATOR.md:2: P32 no such principle",
+     "forge/COORDINATOR.md:2: P0 no such principle"], "t-2054 edge: P<n> outside 1-31 red with file:line and number"),
+    ([FORGE], {words.PRINCIPLES: None, "CLAUDE.md": "P20"}, 1, ["red: forge/PRINCIPLES.md: absent"],
+     "t-2054 edge: forge/PRINCIPLES.md absent -> red naming the file"),
+    ([FORGE], {words.PRINCIPLES: P31 + "- P7: again\n"}, 1, ["forge/PRINCIPLES.md:32: P7 stands twice"],
+     "t-2054 edge: a `- P<n>:` line twice -> red"),
 ]
 
 

@@ -2,7 +2,9 @@
 """Owner-words registry: forge/owner-words.yaml, schema words/2, written in JSON syntax (valid YAML) and read with json:
 no PyYAML, as factory/data/secret-patterns.yaml. Card B3 (amended by B13, B14, B20).
 
-words.py [--root D] check               every W-/D- citation in the rule files exists and is live; BOOT line classes
+words.py [--root D] check               every W-/D- citation in the rule files exists and is live; BOOT line classes;
+                                        every P<n> in CLAUDE.md, forge/COORDINATOR.md, forge/BOOT.md, .claude/agents/*.md
+                                        resolves to one `- P<n>:` line of forge/PRINCIPLES.md (plan record S7)
 words.py [--root D] show <id>           print the record
 words.py [--root D] resolve <id>        print `<id> <kind> live|superseded by <id>`; exit 0 only for a live record (B20)
 words.py [--root D] add <file|->        the ONE writer: a record as UTF-8 JSON, append-only, every bad field named (B14)
@@ -28,6 +30,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 REG = "forge/owner-words.yaml"
 PLAN = "forge/specs/20261125-forge2-light-factory-plan.md"
 BOOT = "forge/BOOT.md"
+PRINCIPLES = "forge/PRINCIPLES.md"
+P_FILES = ("CLAUDE.md", "forge/COORDINATOR.md", BOOT)  # plus .claude/agents/*.md; a missing file is skipped
+P_CITE_RE = re.compile(r"\bP\d{1,2}\b")
+P_LINE_RE = re.compile(r"- (P\d{1,2}):")
 SCHEMA = "words/2"
 KINDS = ("word", "decision")
 SCOPES = ("factory", "forge", "both", "unknown")
@@ -154,10 +160,8 @@ def problems(rec, known):
 def plan_key_ok(root, key):
     """B13: does the plan key `<h>` or `<h>.<n>` resolve in the plan copy: exactly one `###` heading numbered h and, for
     h.n, exactly one item `n. ` under it. None when the plan copy is unreadable (a key is never judged on no data)."""
-    try:
-        with open(os.path.join(root, PLAN), "rb") as fh:
-            lines = fh.read().decode("utf-8", "replace").split("\n")
-    except OSError:
+    lines = text_lines(root, PLAN)
+    if lines is None:
         return None
     m = re.fullmatch(r"(\d+[^\W\d_]?)(?:\.(\d+))?", key)
     heads = [i for i, s in enumerate(lines) if m and re.match(r"### %s\.? " % re.escape(m.group(1)), s)]
@@ -165,6 +169,15 @@ def plan_key_ok(root, key):
         return len(heads) == 1
     end = next((j for j in range(heads[0] + 1, len(lines)) if lines[j].startswith("#")), len(lines))
     return sum(1 for s in lines[heads[0] + 1:end] if re.match(r"\s*%s\. " % m.group(2), s)) == 1
+
+
+def text_lines(root, rel):
+    """The lines of one file, or None when it cannot be read; keys are ASCII, so a non-UTF-8 file is still judged."""
+    try:
+        with open(os.path.join(root, rel), "rb") as fh:
+            return fh.read().decode("utf-8", "replace").split("\n")
+    except OSError:
+        return None
 
 
 def rule_files(root):
@@ -206,12 +219,8 @@ def line_findings(rel, n, line, records):
 def citation_findings(root, records):
     red, listed, count = [], [], 0
     for rel in rule_files(root):
-        try:
-            with open(os.path.join(root, rel), "rb") as fh:
-                text = fh.read().decode("utf-8", "replace")  # ids are ASCII: a non-UTF-8 file is still judged (B3-3)
-        except OSError:
-            continue  # an unreadable file holds no rule text
-        for n, line in enumerate(text.split("\n"), 1):
+        # ids are ASCII: a non-UTF-8 file is still judged (B3-3); an unreadable file holds no rule text
+        for n, line in enumerate(text_lines(root, rel) or [], 1):
             r, li, c = line_findings(rel, n, line, records)
             red, listed, count = red + r, listed + li, count + c
     return red, listed, count
@@ -241,10 +250,8 @@ def boot_line(root, s):
 
 def boot_findings(root):
     """(red, listed) for forge/BOOT.md: absent -> `BOOT not written yet`, no line checked."""
-    try:
-        with open(os.path.join(root, BOOT), "rb") as fh:
-            lines = fh.read().decode("utf-8", "replace").split("\n")
-    except OSError:
+    lines = text_lines(root, BOOT)
+    if lines is None:
         return [], ["BOOT not written yet"]
     red, seen = [], [0, 0]
     for n, s in enumerate((x.strip() for x in lines), 1):
@@ -257,6 +264,36 @@ def boot_findings(root):
             red.append("%s:%d: %s" % (BOOT, n, c))
     red += ["%s: exempt line %d must stand exactly once, found %d" % (BOOT, i + 1, k) for i, k in enumerate(seen) if k != 1]
     return red, []
+
+
+def principle_keys(root):
+    """(keys, red) of forge/PRINCIPLES.md: keys None when the file is absent; a `- P<n>:` line standing twice is red."""
+    lines = text_lines(root, PRINCIPLES)
+    if lines is None:
+        return None, ["%s: absent: no P<n> citation can resolve (plan record S7)" % PRINCIPLES]
+    first, red = {}, []
+    for n, line in enumerate(lines, 1):
+        m = P_LINE_RE.match(line)
+        if m and m.group(1) in first:
+            red.append("%s:%d: %s stands twice (first at line %d)" % (PRINCIPLES, n, m.group(1), first[m.group(1)]))
+        elif m:
+            first[m.group(1)] = n
+    return set(first), red
+
+
+def principle_findings(root):
+    """(red, count): every P<n> of the checked files names a line of forge/PRINCIPLES.md; P05 is not P5 (keys are literal)."""
+    keys, red = principle_keys(root)
+    agents = os.path.join(root, ".claude", "agents")
+    names = sorted(n for n in os.listdir(agents) if n.endswith(".md")) if os.path.isdir(agents) else []
+    count = 0
+    for rel in list(P_FILES) + [".claude/agents/" + n for n in names]:
+        for n, line in enumerate(text_lines(root, rel) or [], 1):
+            for key in P_CITE_RE.findall(line):
+                count += 1
+                if keys is not None and key not in keys:
+                    red.append("%s:%d: %s no such principle in %s" % (rel, n, key, PRINCIPLES))
+    return red, count
 
 
 def registry_findings(records):
@@ -280,11 +317,12 @@ def check(root):
     except PlanAbsent as e:
         print("cannot judge: " + str(e))
         return 2
-    print("%d citations" % count)
-    for tag, rows in (("red", r1 + r2 + r3), ("listed", l1 + l2 + l3)):
+    r4, pcount = principle_findings(root)
+    print("%d citations\n%d principle citations" % (count, pcount))
+    for tag, rows in (("red", r1 + r2 + r3 + r4), ("listed", l1 + l2 + l3)):
         for row in rows:
             print("%s: %s" % (tag, row))
-    return 1 if r1 + r2 + r3 else 0
+    return 1 if r1 + r2 + r3 + r4 else 0
 
 
 def linked_worktree(root):
