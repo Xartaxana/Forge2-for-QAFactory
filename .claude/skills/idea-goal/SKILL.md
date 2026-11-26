@@ -25,10 +25,10 @@ showing. Steps 5-8 only READ the document. After step 4 the skill is reopened on
 |---|---|---|---|
 | 1. Understand the idea | Architect or Lead | questions about intent to the owner, at once; the idea section | applied: opened here |
 | 2. Recon | scouts, dispatched by the Architect or Lead | a digest with its trail; for other factories the owner named: a scout's map, then the Lead's own second pass | applied |
-| 3. Mismatch questions | Architect or Lead | questions to the owner BEFORE any design; her dated answers | applied |
+| 3. Mismatch questions | Architect or Lead | after reading the scouts' digests, the frame invariants in `forge/specs/`, forge/PRINCIPLES.md and factory/RULES.md: questions to the owner BEFORE any design; her dated answers | applied |
 | 4. Short top-level plan | Architect or Lead | this document, shown to the owner; her yes recorded in it | applied: finished here |
 | 5. Spec | designer, this file as the brief plus `facts:` | the spec draft in `forge/specs/`; forks come back, never decided | no |
-| 6. Critic on the plan | critic | the verdict in `forge/specs/reviews/` | no |
+| 6. Critic on the plan | critic | the verdict in `forge/specs/reviews/`, its keys naming the frame invariants, the principles (P-n) and the factory rules (FR-n) the plan touches | no |
 | 7. Cut into streams | Lead | one dispatch per builder | no |
 | 8. Code, then critic of code | builders, critic; the Lead accepts | the diff with its witness, the verdicts | no |
 

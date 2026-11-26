@@ -26,7 +26,9 @@ carry: FS-7, FS-31
 
 - Walk every file of the red row entry by entry and ask of each: does every future session need this? Anything that belongs to one task, one card or one day moves to its own carrier (forge/carriers.json: spec, journal, owner-words record, measured run), with a one-line pointer only where a reader could still look for it.
 - The report writes a verdict per entry walked: `moved to <carrier> -- <why>` or `stays -- <why>`. A line nobody needs that has no other carrier is reported to the Lead and the owner, never cut without the owner's word (a deep cut: "The order of moves").
-carry: FS-28
+- History, examples, analysis and measurements are never boot content: each moves to a carrier of forge/carriers.json, with a link in the rule that leans on it.
+- In the decision log the smell is an entry that names a single card or task id (forge/COORDINATOR.md, the decision-log line).
+carry: FS-27, FS-28, FS-42
 
 ## 3. Deduplicate
 
