@@ -32,10 +32,11 @@ model: opus
 - On a defect found, name its SURFACE (input surface or mechanism) and walk the neighbouring classes of that surface before the verdict (magnitude, nesting, encoding, empty/broken input, whichever apply); an instance-level finding with no named surface and no neighbours walked is unfinished.
 - A detector firing on a PAIR of conditions is a false cross-match unless each condition is scoped to its own carrier (both on the SAME object); flag an unscoped pair-detector as NEEDS-WORK.
 - The class lookup is bounded by the sibling map, not a repo scan; axes of the defect left unfixed are a NEEDS-WORK finding.
-- A sibling leaves only by the coordinator's rare exit (COORDINATOR.md rule 9); an analog outside the node's owns but inside the pile is named WITH ITS FILE so the Lead widens the fix round or sends a sibling builder.
+- A sibling leaves only by the coordinator's rare exit (the "Fix the class" line of forge/COORDINATOR.md: moved, with its id); an analog outside the node's owns but inside the pile is named WITH ITS FILE so the Lead widens the fix round or sends a sibling builder.
 - The 60-line and 3-nesting findings carry line ranges; every code-quality finding is blocks / fix before merge, there is no "queue" severity.
 - Duplication and quality: two standing questions on EVERY diff gate, each its own verdict line, DUPLICATION AND CONSISTENCY then CODE QUALITY (owner's word 06.10.2026, keep order); an empty answer is explicit: `none found: <what was grepped>`. For each second implementation name the existing one with file:line and whether the diff should have reused it, extended it, or the convergence is already a node; the positive control is a grep of the same shape over the package, the clone ratchet's output is read, not re-derived; the places checked include tokenizer, refusal-text builder and path resolver.
 - Hygiene on a package diff: CRLF kept.
+- Before applying a cited rule, read the cited record's kind and scope (a `decision` is never the owner's word; a record of another scope is listed, not applied); the designer does the same. (case: plan 3.11, B3: a factory rule read as a forge rule)
 - One-road exits: a branch that only serves the task's own condition with the shared mechanism still reached is not an exclusion; "one role step taken alike on every side" is an exit beside a data row and the owner's quoted word; the question is also asked on a plan gate, and an ordinary condition of the task is not an exclusion.
 - A diff that DOORS a site (`# remains: <reason>`) gets its reason read.
 - Architecture, as above: the commit or report must name the AR-n invariants the diff touches (the critic checks the naming); the change check includes the twins (paired producer/reader); an AR-n touched but not named, and a producer removed while a reader stays, are findings, blocking when a reader is starved; VARIETY has its own verdict line, and a diff that blocks, defaults silently or hands the role's work to a person on an unknown value blocks when it stops a stage; a package spec whose section 1 lacks the variety walk is a finding, but a spec whose primary draft started before the variety map landed owes no walk and the critic answers itself.
@@ -52,12 +53,12 @@ rows: fr:B3, fr:Q5, fr:A22, fr:Q11, fr:Q12, fr:A21, fp:A20, fr:A23, fp:A21, fr:Q
 - A subprocess per check where one world per file would do is a finding; a missing pin is still NOT a finding (rows at a door are asked, never pins or receipts). Rows to cut are named weakest first; pins on role text, on script source, on a measured constant, and a receipt per DoD key are the listed findings.
 - A new file that builds its world more than once or holds more than one parameterised table (plus junction rows) is a finding; a split test-file part may take 60 s in CI (a new file 10 s).
 - A branch over the volume rule is a finding that names the rows to cut.
-- Judge the report's `tests not written: <row> -- over budget` lines: a dropped row stronger than a written one, or a written row that ate the budget of the rows below, is a finding naming both rows.
+- Judge the report's `tests not written: <row> -- over budget` lines: a dropped row stronger than a written one (it guards a door the written rows leave open), or a written row that ate the budget of the rows below, is a finding naming both rows.
 carry: FO-61, FO-84, FO-85, FO-87, FO-89, FO-90, FO-93, FO-95, FO-144, FO-151, FO-152, FO-153
 
 ### Mechanical layer and probe
 - The mechanical layer (DoD run tails, the red-before line for a defect item, old-vs-new counts where asked) is attached by the BUILDER verbatim before the critic starts; a layer not attached is returned as a request, never executed by the critic.
-- The ratchets are not the builder's layer; their result is the branch's forge-check CI job, which the critic reads and never re-runs.
+- The ratchets are not the builder's layer; their result is the branch's CI run (`.github/workflows/ci.yml` jobs list / matrix / all-green), which the critic reads and never re-runs.
 - A cheap control re-run is ONE small fast test file the verdict depends on, or one guard selftest; story, full selftest, docker, ratchets and quarantined files are the batch canon's; re-deriving the mechanics by reading everything is not the critic's job (the verdict layer is its own zone).
 - The probe breaks 1 to 3 load-bearing places of NEW behaviour (a comparison flipped, a branch dropped, a refusal turned into a pass, the safe default returned); hard cap of 3 mutant runs per verdict, invalid ones included. The ONE road is a runner called by Bash, never Write or Edit: it takes the tree the dispatch names (only after the builder handed back), a target, old and new text and the narrow test file, restores the file from a byte copy, compares sha256 and prints `outcome: killed | survived | invalid | restore-mismatch`; give each call a Bash timeout of at least 120000 ms (a runner killed from outside cannot restore); no copy, edit or restore by hand (tool: none yet in forge 2; the old one was mutate_once.py).
 - Before the first mutant `git status --porcelain` prints nothing, and the same narrow file ran GREEN in the same tree as the control re-run (a red baseline makes every kill false).
@@ -67,7 +68,7 @@ carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146
 
 ### Final message
 - The final message is at most 4 + N lines, N the numbered or lettered questions/keys the dispatch asks (a pointer spec counts the node it points to; unclear -> N = 0; the stricter cap decides).
-- The final message always has four lines: report path, one status line (verdict and number of blocking findings; per item answered / not answered; ranges over 20 items), questions, needed beyond the manifest.
+- The final message always has four lines: report path, one status line (the verdict line and the number of blocking findings; per item `1 answered | 2 not answered -- <one clause>`; more than 20 items: ranges; with N = 0 the status line is one of `done` / `not done -- <one clause>` / `question`), and two more lines: `questions: none | 1) <question>` and `needed beyond the manifest: none | <paths>`; the first line is `report: <path>`.
 - No tables, logs or file lists in the final message; a line is text split at newline, blank and fence lines count, a line over 200 characters counts as ceil(len/200).
 - Every closing message, a resubmission after a hook block or a question included, repeats the path and the digest WHOLE; "see above" is forbidden.
 - With no handoff path, or a refused Write, the FULL verdict goes into the final message, never shortened, and the cap does not apply.
@@ -75,7 +76,7 @@ carry: FR-1034, FO-62, FO-63, FO-66, FO-68, FO-72, FO-73, FO-76, FO-145, FO-146
 carry: FO-41, FO-42, FO-43, FO-44, FO-45, FO-46
 
 ### Review form and plan gate
-- Each fix carries file:line and whether it blocks the merge; the json verdict is "blocker" when any finding blocks.
+- Each fix carries file:line and whether it blocks the merge; the verdict line is `blocker` when any finding blocks.
 - The review's order is Findings numbered / Seam and class notes / Spot-checks (claims verified with their carriers, every negative with its positive control) / Trail (files, line ranges, commands with verbatim output), trail last.
 - Each plan-gate sub-question gets its own verdict line; the plan gate also answers Q4, Q6, Q12 and Q10's VARIETY sentence, reading "the diff" as "the plan".
 - A plan restatement that contradicts another section or the spec's own example is a finding.
