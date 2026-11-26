@@ -31,6 +31,7 @@ sys.path.insert(0, HERE)
 import arm  # noqa: E402  (compare and the run row's form live with the launcher)
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "forge", "tools"))
 import journal  # noqa: E402  (live reads the journal only through journal.load, S11-7)
+from retro import ROLE  # noqa: E402  (the dispatch note's role:<role>: one pattern, not a second copy, t-2096 Q6)
 
 ROOT = os.path.dirname(os.path.dirname(HERE))
 ARM = os.path.join(HERE, "arm.py")
@@ -846,7 +847,6 @@ WINDOW = 27  # Q6: builder accepts of the live window, by count never by clock
 INTERIM_FROM = 10
 FULL_LIMIT, INTERIM_LIMIT = (Fraction(1), Fraction("0.39")), (Fraction("1.34"), Fraction("0.52"))  # (M1, M2): 1.5x and 2x of the baseline
 BASELINE = "M1 0.67 / M2 0.26 (old forge logs/journal/dev1.jsonl, 25.11 02:30 to 26.11 17:16: 25 rejects on 27 accepts, 18 capability, 7 spec)"
-ROLE_NOTE = re.compile(r"role:(\S+)")  # the dispatch note's leading role:<role>, as forge/tools/retro.py ROLE reads it
 
 
 def load_sets(root):
@@ -856,8 +856,12 @@ def load_sets(root):
         raise Refuse("%s: no roles" % SETS_FILE)
     for role, row in sorted(roles.items()):
         units = row.get("units") if isinstance(row, dict) else None
-        if not SET_RE.fullmatch(role) or not isinstance(units, list) or not units or not all(is_path(u) for u in units):
+        if not SET_RE.fullmatch(role):
+            raise Refuse("%s: role name %s not [a-z0-9_-]+" % (SETS_FILE, role))
+        if not isinstance(units, list) or not units or not all(is_path(u) for u in units):
             raise Refuse("%s: role %s has no units (a non-empty list of paths)" % (SETS_FILE, role))
+        if "exams" in row and not isinstance(row["exams"], list):
+            raise Refuse("%s: role %s exams must be a list" % (SETS_FILE, role))
     return roles
 
 
@@ -920,16 +924,35 @@ def exam_sha(row):
     return last, (last.get("sha") if isinstance(last, dict) else None)
 
 
+def counts_by_sha(root, roles, known):
+    """One walk per exam sha: roles sharing a sha are counted together (the card's cost line: one git walk per calibration)."""
+    by_sha = {}
+    for role in known:
+        by_sha.setdefault(exam_sha(roles[role])[1], {})[role] = roles[role]["units"]
+    counts = {}
+    for sha, units in by_sha.items():
+        counts.update(edits_since(root, units, sha))
+    return counts
+
+
+def absent_unit(root, row):
+    """F2: a unit that resolves to nothing at HEAD (file or heading absent) is an unknown, never `not due`."""
+    return next((u for u in row["units"] if unit_text(root, "HEAD", u) is None), None)
+
+
 def due(a):
     roles = load_sets(a.root)
-    live = {r: row["units"] for r, row in roles.items() if exam_sha(row)[0] is not None and sha_known(a.root, exam_sha(row)[1])}
-    counts = {r: edits_since(a.root, {r: u}, exam_sha(roles[r])[1])[r] for r, u in live.items()}
+    known = [r for r, row in roles.items() if exam_sha(row)[0] is not None and sha_known(a.root, exam_sha(row)[1])]
+    counts = counts_by_sha(a.root, roles, known)
     for role, row in sorted(roles.items()):
         last, sha = exam_sha(row)
         model = role_model(a.root, role)
-        if last is None:
+        gone = absent_unit(a.root, row)
+        if gone is not None:
+            line = "due: %s unit absent: %s" % (role, gone)
+        elif last is None:
             line = "due: %s never examined" % role
-        elif role not in live:
+        elif role not in known:
             line = "due: %s exam sha unknown" % role
         elif model is not None and model != row.get("bound"):
             line = "due: %s model changed" % role
@@ -942,20 +965,26 @@ def due(a):
 
 
 def window_events(entries):
-    """(builder accepts, {cause word or ?: builder rejects}, unreadable) of the first WINDOW builder accepts; the role of
-    an accept or reject is that of its task's last dispatch note (events after the last window accept are not counted)."""
+    """(builder accepts, {cause word or ?: builder rejects}, unreadable) of the first WINDOW builder accepts. A close
+    belongs to its task's latest dispatch whose role is not critic: forge 2 sends the critic under the builder's task id
+    as input to the close (t-2096 F1). A task with only critic dispatches is a critic task; a close with no dispatch before
+    it, no task, or a role-less note is unreadable (events after the last window accept are not counted)."""
     role_of, accepts, rejects, unreadable = {}, 0, {}, 0
     for _ts, _f, _n, _raw, obj in entries:
         if obj is None or accepts >= WINDOW:
             continue
-        ev, m = obj.get("event"), ROLE_NOTE.match(str(obj.get("note", "")))
-        if ev == "dispatch":
-            role_of[obj.get("task", "")] = m.group(1) if m else None
-        elif ev in ("accept", "reject") and role_of.get(obj.get("task", "")) is None:
+        ev, task, m = obj.get("event"), obj.get("task"), ROLE.match(str(obj.get("note", "")))
+        task, role = task if isinstance(task, str) else "", (m.group(1) or None) if m else None
+        if ev == "dispatch" and task:
+            if role != "critic":
+                role_of[task] = role
+            else:
+                role_of.setdefault(task, "critic")
+        elif ev in ("accept", "reject") and not role_of.get(task):
             unreadable += 1
-        elif ev == "accept" and role_of[obj["task"]] == "builder":
+        elif ev == "accept" and role_of[task] == "builder":
             accepts += 1
-        elif ev == "reject" and role_of[obj["task"]] == "builder":
+        elif ev == "reject" and role_of[task] == "builder":
             cause = obj.get("cause")
             word = cause if isinstance(cause, str) and cause.strip() else "?"
             rejects[word] = rejects.get(word, 0) + 1
@@ -988,9 +1017,15 @@ def report_live(accepts, rejects, unreadable):
         print("role unreadable: %d" % unreadable)
     if accepts >= INTERIM_FROM:
         m1, m2 = FULL_LIMIT if full else INTERIM_LIMIT
-        worse = Fraction(cap, accepts) > m1 or Fraction(spec, accepts) > m2
-        print("verdict: %s (%s; worse above M1 %s or M2 %s)" % ("worse" if worse else "within", "full" if full else "interim",
-                                                              float(m1), float(m2)))
+        unknown = rejects.get("?", 0) + unreadable  # t-2096 F3: an unknown never reads as within
+        if Fraction(cap, accepts) > m1 or Fraction(spec, accepts) > m2:
+            word = "worse"
+        elif Fraction(cap + unknown, accepts) > m1 or Fraction(spec + unknown, accepts) > m2:
+            print("verdict: unknown (%d rejects without cause or role could make it worse)" % unknown)
+            return
+        else:
+            word = "within"
+        print("verdict: %s (%s; worse above M1 %s or M2 %s)" % (word, "full" if full else "interim", float(m1), float(m2)))
 
 
 def main(argv):

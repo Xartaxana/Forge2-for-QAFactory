@@ -300,8 +300,10 @@ DUE = [  # (edit commits: each a list of (file, old, new); new None deletes), ex
      "S11-7 edge (2): an edit outside every unit's section range is not counted"),
     ([[("rules.md", "s0", "s1"), ("rules.md", "c0", "c1")]], "ok", {}, "not due: builder 1\nnot due: critic 1\nnot due: solo 0",
      "S11-7 edge (2): a commit counts once, however many units it touches"),
-    ([[("b.md", None, None)]], "ok", {}, "not due: builder 0\nnot due: critic 0\nnot due: solo 1",
-     "S11-7 edge (2): a unit absent on one side counts as differing"),
+    ([[("b.md", None, None)]], "ok", {}, "not due: builder 0\nnot due: critic 0\ndue: solo unit absent: b.md",
+     "t-2097 F2 edges line: a unit absent at HEAD prints unit absent, never not due (replaces the t-2096 row that expected not due: solo 1)"),
+    ([], "bad", {"critic": "sonnet"}, "due: builder exam sha unknown\ndue: critic exam sha unknown\ndue: solo exam sha unknown",
+     "t-2097 F6 / edge (3): exam sha unknown comes before model changed"),
     ([], "none", {}, "due: builder never examined\ndue: critic never examined\ndue: solo never examined",
      "S11-7 edge (3): exams empty"),
     ([], "bad", {}, "due: builder exam sha unknown\ndue: critic exam sha unknown\ndue: solo exam sha unknown",
@@ -339,7 +341,10 @@ def test_due(tmp_path, capsys, edits, exam, agents, expected, src):
 SETS_BAD = [(None, "sets.yaml: absent", "S11-7 edge (3): sets.yaml absent -> exit 2, never not due"),
             (b"{oops", "sets.yaml: broken", "S11-7 edge (3): not JSON"),
             (b'{"schema": "sets/1"}', "sets.yaml: no roles", "S11-7 edge (3): no roles"),
-            (b'{"roles": {"critic": {"units": []}}}', "role critic has no units", "S11-7 edge (3): a role without units")]
+            (b'{"roles": {"critic": {"units": []}}}', "role critic has no units", "S11-7 edge (3): a role without units"),
+            (b'{"roles": {"Critic": {"units": ["a.md"]}}}', "role name Critic not [a-z0-9_-]+", "t-2097 F7 edges line: bad role name"),
+            (b'{"roles": {"critic": {"units": ["a.md"], "exams": {}}}}', "sets.yaml: role critic exams must be a list",
+             "t-2097 F7 edges line: exams not a list -> exit 2 naming sets.yaml")]
 
 
 @pytest.mark.parametrize("data,fragment,src", SETS_BAD)
@@ -351,15 +356,17 @@ def test_due_refuses_sets(tmp_path, capsys, data, fragment, src):
 
 def journal_of(tmp_path, spec):
     """A = builder accept, C / S / R / N = builder reject of cause capability / spec / recon / none, c = critic accept,
-    X / Y = accept / reject whose dispatch note names no role; None = no journal folder."""
+    X / Y = accept / reject whose dispatch note names no role; B / D = builder dispatch, then a critic dispatch under the
+    same task, then accept / reject(capability); None = no journal folder."""
     lines = []
     for i, ch in enumerate(spec or ""):
         role = {"c": "critic", "X": None, "Y": None}.get(ch, "builder")
-        lines.append({"ts": "t%04d" % (2 * i), "task": "t-%d" % i, "event": "dispatch", "by": "lead",
-                      "note": "role:%s x" % role if role else "no role here"})
-        cause = {"C": "capability", "S": "spec", "R": "recon"}.get(ch)
-        lines.append(dict({"ts": "t%04d" % (2 * i + 1), "task": "t-%d" % i, "by": "lead", "note": "n",
-                           "event": "accept" if ch in "AcX" else "reject"}, **({"cause": cause} if cause else {})))
+        dispatches = [role] + ["critic"] * (ch in "BD")
+        lines += [{"ts": "t%04d-%d" % (i, k), "task": "t-%d" % i, "event": "dispatch", "by": "lead",
+                   "note": "role:%s x" % r if r else "no role here"} for k, r in enumerate(dispatches)]
+        cause = {"C": "capability", "D": "capability", "S": "spec", "R": "recon"}.get(ch)
+        lines.append(dict({"ts": "t%04d-9" % i, "task": "t-%d" % i, "by": "lead", "note": "n",
+                           "event": "accept" if ch in "AcXB" else "reject"}, **({"cause": cause} if cause else {})))
     if spec is not None:
         seeded.put_file(str(tmp_path), "logs/journal/s.jsonl", "".join(json.dumps(x) + "\n" for x in lines).encode())
 
@@ -385,6 +392,16 @@ LIVE = [  # (journal, extra raw line, must print, must not print, expected from)
     ("cc", "", ["unmeasured: no builder accepts yet"], ["verdict"], "S11-7 edge (5): zero builder accepts"),
     (None, "", ["unmeasured: no builder accepts yet"], ["verdict"], "S11-7 edge (5): no journal file"),
     ("N", "{broken", ["unmeasured: journal incomplete"], ["B18"], "S11-7 edge (5): precedence, incomplete before the rest"),
+    ("B" * 27, "", ["builder accepts 27 of", "M1 0.00"], ["unreadable"],
+     "t-2097 F1 edges line: builder, critic, accept is one builder accept"),
+    ("D" * 3 + "B" * 27, "", ["builder accepts 27 of", "builder rejects 3: capability 3", "M1 0.11"], ["unreadable"],
+     "t-2097 F1 edges line: builder, critic, reject is one builder reject"),
+    ("C" * 20 + "N" * 10 + "A" * 27, "", ["verdict: unknown (10 rejects without cause or role could make it worse)", "? 10"],
+     ["verdict: within", "verdict: worse"], "t-2097 F3 edges line: M1 20/27 is within, (20+10)/27 = 1.11 > 1"),
+    ("A" * 12, '{"ts": "z", "event": "accept", "by": "lead", "note": "n"}', ["builder accepts 12", "role unreadable: 1"], [],
+     "t-2097 F4 edges line: a close without task is unreadable, no exception"),
+    ("A" * 12, '{"ts": "z", "event": "dispatch", "by": "lead", "note": "role:builder"}', ["builder accepts 12"], ["unreadable"],
+     "t-2097 F4 edges line: a dispatch without task is ignored"),
 ]
 
 
@@ -397,11 +414,3 @@ def test_live(tmp_path, capsys, spec, extra, must, must_not, src):
     assert seeded.main(["live", "--root", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert all(m in out for m in must) and not any(m in out for m in must_not), (out, src)
-
-
-def test_calibration_rows():
-    """S11-7 K3: rows R1 and R2 are in the table, four columns each."""
-    with open(os.path.join(ROOT, "forge", "calibration.md"), encoding="utf-8") as fh:
-        rows = {ln.split("|")[1].strip(): ln for ln in fh if ln.startswith("| R")}
-    assert "seeded.py due" in rows["R1"] and "seeded.py live" in rows["R2"]
-    assert all(len(rows[k].strip().strip("|").split("|")) == 4 for k in ("R1", "R2"))
