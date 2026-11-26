@@ -86,6 +86,25 @@ def skip_heredocs(cmd, i, hd):
     return i
 
 
+def in_quote(cmd, i, q, buf, cont):
+    """One character inside quote q: (buf, q) after it. Quotes are removed from the word; an odd run escapes a closing
+    double quote (t-1985 N7: ps: backtick, never backslash)."""
+    c = cmd[i]
+    if c != q:
+        return buf + c, q
+    if q == '"' and escaped(cmd, i, cont):
+        return buf[:-1] + c, q
+    return buf, None
+
+
+def op_at(cmd, i):
+    """The operator that starts at cmd[i] (a character of ;|&()<>): the longest of the two- and three-character forms."""
+    for two in (">>", ">|", ">&", "&>>", "&>", "&&", "||", "<<<", "<<-", "<<"):
+        if cmd.startswith(two, i):
+            return two
+    return cmd[i]
+
+
 def tokens(cmd, ps=False):
     """Words ("w", text) and operators ("op", text): ; && || | & ( ) > >> >| >& < and a newline (as ;). Quotes are removed,
     a backslash outside them stays (Windows paths), a heredoc body is skipped, an fd prefix of a redirect is dropped. An
@@ -107,12 +126,7 @@ def tokens(cmd, ps=False):
     while i < len(cmd):
         c = cmd[i]
         if q:
-            if c != q:
-                buf += c
-            elif q == '"' and escaped(cmd, i, cont):  # t-1985 N7: an odd run escapes it; ps: backtick, never backslash
-                buf = buf[:-1] + c
-            else:
-                q = None
+            buf, q = in_quote(cmd, i, q, buf, cont)
         elif c in "'\"" and not escaped(cmd, i, cont):  # an escaped quote outside quotes is a literal (Bash it\'s)
             q, have = c, True
         elif c == cont and eol(cmd, i + 1) and escaped(cmd, i, cont):
@@ -129,11 +143,7 @@ def tokens(cmd, ps=False):
             if c == ">" and have and buf.isdigit():
                 buf, have = "", False
             flush()
-            op = c
-            for two in (">>", ">|", ">&", "&>>", "&>", "&&", "||", "<<<", "<<-", "<<"):
-                if cmd.startswith(two, i):
-                    op = two
-                    break
+            op = op_at(cmd, i)
             i += len(op) - 1
             out.append(("op", ">" if op in ("&>", "&>>", ">|") else op))
             want = op in ("<<", "<<-")
@@ -227,14 +237,10 @@ def ps_paths(head, args):
     return [p for x in (named or pos[:1]) for p in x.split(",")]
 
 
-def git_writes(args, cwd, env=None):
-    """The trees a git command writes, or [] for a read command. The ONE target-tree resolver, in git's order (t-1984 N2,
-    measured): the -C chain first, each -C against the tree the previous one gave; then --git-dir/--work-tree (= or space
-    form; an option beats its GIT_DIR=/GIT_WORK_TREE= prefix assignment) resolve against the tree the chain gave. BOTH places
-    git writes are judged: the work tree (else the chain's tree) and the git-dir (else the chain's tree, where git finds it;
-    measured: `git -C A --work-tree=B commit` moves A's HEAD). Clone writes its destination and a given work tree; the
-    paths of init <dir>, worktree add <path> and --separate-git-dir (clone, init) are judged too (t-1985 N8, N9)."""
-    tree, i, env = norm(cwd) if cwd else cwd, 0, env or {}
+def git_chain(args, cwd, env):
+    """The leading options of a git command: (tree after the -C chain, {--git-dir, --work-tree: raw value}, index of the
+    subcommand)."""
+    tree, i = norm(cwd) if cwd else cwd, 0
     raw = {"--git-dir": env.get("GIT_DIR"), "--work-tree": env.get("GIT_WORK_TREE")}
     while i < len(args) and args[i].startswith("-"):
         name, _, val = args[i].partition("=")
@@ -245,31 +251,69 @@ def git_writes(args, cwd, env=None):
         elif name in raw:
             raw[name] = val
         i += 1
+    return tree, raw, i
+
+
+def clone_targets(rest, tree, named, wt):
+    """What `git clone` writes: its destination, a --separate-git-dir and a given work tree."""
+    p = positional(rest, ("-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j",
+                          "--separate-git-dir"))
+    dest = p[1:2] or [re.sub(r"(\.git)?/*$", "", x).rsplit("/", 1)[-1].rsplit(":", 1)[-1] for x in p[:1]]
+    return sorted({norm(x, tree) for x in dest} | {norm(x, tree) for x in named if usable(x)} | ({wt} if wt else set()))
+
+
+def more_named(sub, rest):
+    """The path an init <dir> or a worktree add <path> names (t-1985 N8, N9)."""
+    if sub == "init":
+        return positional(rest, ("-b", "--initial-branch", "--template", "--separate-git-dir", "--object-format"))[:1]
+    if sub == "worktree" and rest[:1] == ["add"]:
+        return positional(rest[1:], ("-b", "-B", "--reason"))[:1]
+    return []
+
+
+def git_reads(sub, rest):
+    """True for a git subcommand that writes no tree."""
+    return sub in GIT_READ or (sub == "config" and any(a.startswith("--get") for a in rest)) or (
+        sub == "worktree" and rest[:1] == ["list"]) or (sub == "remote" and "-v" in rest)
+
+
+def git_writes(args, cwd, env=None):
+    """The trees a git command writes, or [] for a read command. The ONE target-tree resolver, in git's order (t-1984 N2,
+    measured): the -C chain first, each -C against the tree the previous one gave; then --git-dir/--work-tree (= or space
+    form; an option beats its GIT_DIR=/GIT_WORK_TREE= prefix assignment) resolve against the tree the chain gave. BOTH places
+    git writes are judged: the work tree (else the chain's tree) and the git-dir (else the chain's tree, where git finds it;
+    measured: `git -C A --work-tree=B commit` moves A's HEAD). Clone writes its destination and a given work tree; the
+    paths of init <dir>, worktree add <path> and --separate-git-dir (clone, init) are judged too (t-1985 N8, N9)."""
+    tree, raw, i = git_chain(args, cwd, env or {})
     gd, wt = [norm(raw[k], tree) if usable(raw[k]) else None for k in ("--git-dir", "--work-tree")]
     if i >= len(args):
         return []
     sub, rest = args[i], args[i + 1:]
     named = [long_opt(rest, "--separate-git-dir")] if sub in ("clone", "init") else []  # t-1985 N9: named write targets
     if sub == "clone":  # it ignores GIT_DIR but writes a work tree (t-1985 N8, measured)
-        p = positional(rest, ("-b", "--branch", "--depth", "-o", "--origin", "--reference", "-c", "--config", "-j",
-                              "--separate-git-dir"))
-        dest = p[1:2] or [re.sub(r"(\.git)?/*$", "", x).rsplit("/", 1)[-1].rsplit(":", 1)[-1] for x in p[:1]]
-        return sorted({norm(x, tree) for x in dest} | {norm(x, tree) for x in named if usable(x)} | ({wt} if wt else set()))
-    if sub == "init":
-        named += positional(rest, ("-b", "--initial-branch", "--template", "--separate-git-dir", "--object-format"))[:1]
-    elif sub == "worktree" and rest[:1] == ["add"]:
-        named += positional(rest[1:], ("-b", "-B", "--reason"))[:1]
-    read = sub in GIT_READ or (sub == "config" and any(a.startswith("--get") for a in rest)) or (
-        sub == "worktree" and rest[:1] == ["list"]) or (sub == "remote" and "-v" in rest)
-    return [] if read else sorted({wt or tree, gd or tree} | {norm(x, tree) for x in named if usable(x)})
+        return clone_targets(rest, tree, named, wt)
+    named += more_named(sub, rest)
+    return [] if git_reads(sub, rest) else sorted({wt or tree, gd or tree} | {norm(x, tree) for x in named if usable(x)})
+
+
+def value_options(head):
+    """The options of a write command that take a value (their value is no path)."""
+    if head in ("cp", "install", "mv", "rsync", "mkdir"):
+        return ("-m", "-o", "-g", "-S", "-t")
+    return ("-s", "-r", "--size", "--reference") if head == "truncate" else ()
+
+
+def inplace_paths(args):
+    """sed/perl in place: the files after the script (the first positional, unless -e/-f gave it)."""
+    script = any(a in ("-e", "-f", "--expression", "--file") for a in args)
+    return positional(args, ("-e", "-f", "--expression", "--file"))[0 if script else 1:]
 
 
 def writes(head, args, ps):
     """The literal path words the command head writes (relative ones are resolved by the caller)."""
     if ps and head in PS_FIRST + PS_COPY + PS_MOVE:
         return ps_paths(head, args)
-    p = positional(args, ("-m", "-o", "-g", "-S", "-t") if head in ("cp", "install", "mv", "rsync", "mkdir") else (
-        ("-s", "-r", "--size", "--reference") if head == "truncate" else ()))
+    p = positional(args, value_options(head))
     if head in EVERY:
         return p
     if head in ("chmod", "chown", "chgrp"):
@@ -280,8 +324,7 @@ def writes(head, args, ps):
     if head == "mv":
         return p + ([dest_opt(args)] if dest_opt(args) else [])
     if head in ("sed", "perl") and any(re.match(r"-[A-Za-z]*i", a) or a == "--in-place" for a in args):
-        script = any(a in ("-e", "-f", "--expression", "--file") for a in args)
-        return positional(args, ("-e", "-f", "--expression", "--file"))[0 if script else 1:]
+        return inplace_paths(args)
     if head == "dd":
         return [a[3:] for a in args if a.startswith("of=")]
     return []

@@ -43,10 +43,27 @@ def toplevel(cwd="."):
     return git(cwd, "rev-parse", "--show-toplevel").decode("utf-8", "replace").strip()
 
 
+def bad(why, row=None):
+    raise Cannot("%s%s: %s; %s" % (TABLE, " row " + row if row else "", why, DOOR))
+
+
+def check_row(r, seen):
+    """One table row: its shape, a unique id, a known kind, a compiling pattern (r gets `rx`); else Cannot."""
+    rid = r.get("id") if isinstance(r, dict) else None
+    if not isinstance(r, dict) or set(r) != KEYS or not all(isinstance(r[k], str) and r[k] for k in KEYS):
+        bad("a row needs exactly the non-empty text fields id, kind, pattern, what", rid if isinstance(rid, str) else None)
+    if r["id"] in seen or r["kind"] not in KINDS:
+        bad("duplicate id or kind outside path_glob|token_regex", r["id"])
+    seen.add(r["id"])
+    if r["kind"] == "token_regex":
+        try:
+            r["rx"] = re.compile(r["pattern"])
+        except re.error as exc:
+            bad("pattern does not compile: %s" % exc, r["id"])
+
+
 def load_table(root):
     """Return the rows (dicts, token rows with a compiled `rx`); anything else is Cannot naming the file, the row, the door."""
-    def bad(why, row=None):
-        raise Cannot("%s%s: %s; %s" % (TABLE, " row " + row if row else "", why, DOOR))
     p = os.path.join(root, *TABLE.split("/"))
     if not os.path.isfile(p):
         bad("absent")
@@ -60,17 +77,7 @@ def load_table(root):
         bad('not {"schema": "secret-patterns/1", "rows": [non-empty list]}')
     seen = set()
     for r in rows:
-        rid = r.get("id") if isinstance(r, dict) else None
-        if not isinstance(r, dict) or set(r) != KEYS or not all(isinstance(r[k], str) and r[k] for k in KEYS):
-            bad("a row needs exactly the non-empty text fields id, kind, pattern, what", rid if isinstance(rid, str) else None)
-        if r["id"] in seen or r["kind"] not in KINDS:
-            bad("duplicate id or kind outside path_glob|token_regex", r["id"])
-        seen.add(r["id"])
-        if r["kind"] == "token_regex":
-            try:
-                r["rx"] = re.compile(r["pattern"])
-            except re.error as exc:
-                bad("pattern does not compile: %s" % exc, r["id"])
+        check_row(r, seen)
     return rows
 
 
