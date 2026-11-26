@@ -1,0 +1,7 @@
+[
+  {"carrier": "forge/owner-words.yaml", "what goes there": "the owner's words and decisions"},
+  {"carrier": "the plan or spec files in forge/specs/", "what goes there": "plan changes"},
+  {"carrier": "the journal, written through forge/tools/journal.py", "what goes there": "task state and open dispatches"},
+  {"carrier": "forge/BOOT.md", "what goes there": "the state line"},
+  {"carrier": "measure/runs/** with the command that produced them", "what goes there": "measured numbers"}
+]

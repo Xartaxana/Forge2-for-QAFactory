@@ -250,6 +250,7 @@ def test_trim(tmp_path, n, args, stdin, code, first, count, lastline):
     (True, None, True, "journal", ["forge/carriers.json absent (B7)", "t-2", "git status"]),
     (True, [{"carrier": "BOOT.md", "what goes there": "state"}], True, None, ["state -> BOOT.md"]),
     (True, "{bad", True, None, ["carriers.json malformed"]),
+    (True, "real", True, None, []),  # K2 (B7): the repository's own forge/carriers.json, every row printed
     (True, None, False, "many", ["no journal lines", "[cut: 200 of 205 lines shown]"]),
     (False, None, False, "odd", ["unreadable file x.jsonl", "incomplete"]),
 ])
@@ -262,6 +263,11 @@ def test_snapshot(tmp_path, git, carriers, close, extra, words):
         put(tmp_path, "%d.txt" % i, b"")  # top-level: one status line each in every untracked mode
     if extra == "odd":
         put(tmp_path, "logs/journal/x.jsonl", None)
+    if carriers == "real":
+        with open(os.path.join(os.path.dirname(T), "carriers.json"), encoding="utf-8") as fh:
+            rows = json.load(fh)
+        assert rows and all(set(r) == {"carrier", "what goes there"} for r in rows)
+        carriers, words = rows, ["%s -> %s" % (r["what goes there"], r["carrier"]) for r in rows]
     if carriers is not None:
         (tmp_path / "forge").mkdir()
         (tmp_path / "forge" / "carriers.json").write_text(carriers if isinstance(carriers, str) else json.dumps(carriers))
