@@ -29,7 +29,7 @@ carry: FS-145, FS-146
 
 ## 2b. Critic-trail candidates
 
-- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits, the input to the cumulative critic-integration judgment (old R13-g); the listing only reads git and the journal. The candidates are read by the weekly reading of acceptances with no critic input (forge/COORDINATOR.md, Acceptance); the count is read by that same weekly reading (forge/COORDINATOR.md, Acceptance). (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
+- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits by topic; the listing only reads git and the journal. The candidates are read by the weekly reading of acceptances with no critic input, and the count by that same reading, which sums the small commits of a topic against the critic threshold (forge/COORDINATOR.md, Acceptance; forge/calibration.md row 2). (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
 carry: FS-149
 
 ## 3. What only this chat knows
