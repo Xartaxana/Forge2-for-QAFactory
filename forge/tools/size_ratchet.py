@@ -4,7 +4,8 @@
 size_ratchet.py [--root D] [--base R]    exit 0 green, 1 a value above its ceiling or an unrecorded raise, 2 cannot judge
 Units: bytes, nonblank_lines, rows (of a JSON {"rows": [...]}), limit (read by another tool; only its raise is judged here).
 A path with no file is `absent: 0`. `stage_start_load: null` is `not set` (F248): listed and counted, outside the exit.
-The figure line `tests: <t> lines, product: <p> lines (ratio <t/p>)` is never a verdict (B20 (f)).
+The figure line `tests: <t> lines, product: <p> lines (ratio <t/p>)` is never a verdict (B20 (f)): a file it cannot read
+makes the line n/a naming the file (t-1992 N1); a measured nonblank_lines row still reads strictly (exit 2).
 """
 import os
 import sys
@@ -88,8 +89,11 @@ def raised(old, rows):
 
 
 def figure(root):
-    t = sum(nonblank(root, f) for f in ratchets.files_of(root, TESTS))
-    p = sum(nonblank(root, f) for f in ratchets.files_of(root, PRODUCT))
+    try:  # N17: never a verdict, so an unreadable test or hook file (a binary blob) is n/a, not exit 2 (t-1992 N1)
+        t = sum(nonblank(root, f) for f in ratchets.files_of(root, TESTS))
+        p = sum(nonblank(root, f) for f in ratchets.files_of(root, PRODUCT))
+    except ratchets.Refuse as exc:
+        return "tests: n/a lines, product: n/a lines (ratio n/a: %s)" % exc
     return "tests: %d lines, product: %d lines (ratio %s)" % (t, p, "%.2f" % (t / p) if p else "n/a")
 
 

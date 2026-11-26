@@ -149,9 +149,10 @@ def text_file(root, rel):
 
 def load_list(path, what, ident, field="allow", must_exist=False):
     """(data, rows) of a list file keyed by ident(row), which raises on a row without its id/file. No file is an empty list
-    (unless must_exist); not JSON, no basis, a malformed or duplicate row is exit 2. A row without a reason is judge_list's."""
+    (unless must_exist): data {"basis": None, field: []}, which check_basis passes and shrink never writes (t-1992 N2: node
+    B's baselines start absent). Not JSON, no basis, a malformed or duplicate row is exit 2; a reasonless row is judge_list's."""
     if not os.path.isfile(path) and not must_exist:
-        return {}, []
+        return {"basis": None, field: []}, []
     data = read_json(path, what)
     rows = data.get(field) if isinstance(data, dict) else None
     if not isinstance(rows, list):
@@ -175,7 +176,10 @@ def row_key(ident, row, what):
 
 
 def check_basis(old, now, door):
-    """None when the basis matches; the file's Python minor when only that differs (exit 3); a Refuse for any other drift."""
+    """None when the basis matches or the file is not born yet (old None: no drift); the file's Python minor when only that
+    differs (exit 3); a Refuse for any other drift."""
+    if old is None:
+        return None
     for key in now:
         if key not in old:
             raise Refuse("basis %s missing; %s" % (key, door))
@@ -202,15 +206,39 @@ def judge_list(sites, rows, key, files_read, scope_files, out=print):
     return [s for s in sites if s[0] not in keys], stale, bare
 
 
-def shrink(path, data, field, key, stale, out, empty_ok):
-    """The --update / --record road: drop the stale rows; the list is never emptied unless empty_ok (a resolved record)."""
+def cleared(old_rows, new_rows):
+    """N13's `clear` key: rows at the base, none at HEAD. An empty list switches off judge_list's first dead-scanner branch
+    (N16), so emptying is a raise however it was done (t-1992 N4: by hand it passed unseen)."""
+    return bool(old_rows) and not new_rows
+
+
+def shrink(path, data, field, key, stale, out=print):
+    """Drop the stale rows and write the file: True. No stale row: nothing written, False (a file not born stays unborn)."""
     keep = [r for r in data[field] if key(r) not in stale]
-    if data[field] and not keep and not empty_ok:
-        out("refused: --update would empty %s; door: --record <W-n | D-n> and a `ratchet-raise: %s clear -- <id>` line"
-            % (field, os.path.basename(path)))
+    if len(keep) == len(data[field]):
         return False
     data[field] = keep
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(json.dumps(data, indent=2) + "\n")
     out("updated: %d stale %s rows removed" % (len(stale), field))
     return True
+
+
+def update(root, path, data, field, key, stale, record, kinds, scope, out=print):
+    """The ONE --update / --record road of every list tool (F246, t-1992 N3): 0 done, 1 refused with nothing written.
+    A record must resolve to one of kinds; only a resolved record may empty the list (N16); then shrink, then a warning
+    about uncommitted paths under the git pathspecs of scope, since the list describes the committed tree (N15)."""
+    if record:
+        err = resolve(record, kinds)
+        if err:
+            out(err)
+            return 1
+    if not record and cleared(data[field], [r for r in data[field] if key(r) not in stale]):
+        out("refused: --update would empty %s; door: --record <W-n | D-n> and a `ratchet-raise: %s clear -- <id>` line"
+            % (field, os.path.basename(path)))
+        return 1
+    shrink(path, data, field, key, stale, out)
+    dirty = [ln for ln in text_of(git(root, "status", "--porcelain", "--", *scope)).split("\n") if ln.strip()]
+    if dirty:
+        out("uncommitted changes in scope: %d paths -- the list describes the committed tree" % len(dirty))
+    return 0

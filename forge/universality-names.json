@@ -4,7 +4,7 @@
     "python": "3.12",
     "constants": {
       "kinds": ["language", "runner", "framework", "tracker", "case_manager", "harness"],
-      "match": "non-letter-bounded, case-insensitive",
+      "match": "non-letter- or camelCase-bounded, case-insensitive",
       "cyrillic": "U+0400-U+04FF"
     },
     "roots": ["factory/tools", "factory/hooks", "factory"]

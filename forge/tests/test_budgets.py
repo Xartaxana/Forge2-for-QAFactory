@@ -1,6 +1,6 @@
 # card: C1-2
 """Data-joint tests of C1-2: budgets.json and universality-names.json read by size_ratchet.py and universality.py (in-process
-on temp trees). Git fixtures only for raises: one repository of 5 commits. `expected from:` names each table's source."""
+on temp trees). Git fixtures only for raises: one module-scoped repository per tool. `expected from:` names each source."""
 import contextlib
 import io
 import json
@@ -41,7 +41,8 @@ def budg(rows):
 
 def names(allow=(), basis=None):
     return {"forge/universality-names.json": json.dumps(
-        {"basis": basis or uni.basis(), "names": {"runner": ["pytest"]}, "allow": list(allow)})}
+        {"basis": basis or uni.basis(), "names": {"runner": ["pytest"], "tracker": ["jira"], "framework": ["playwright"]},
+         "allow": list(allow)})}
 
 
 def run(mod, root, *args):
@@ -59,26 +60,34 @@ def ceil(**kw):
     return {k: dict(v, ceiling=kw.get(k, v["ceiling"])) if v else v for k, v in B.items()}
 
 
-@pytest.fixture(scope="module")
-def repo(tmp_path_factory):
+def world(tmp_path_factory, steps):
+    """One repository for a module: steps are (message, files or None); (root, shas, checkout(i)). t-1992 N6."""
     g = str(tmp_path_factory.mktemp("g"))
     cmd = ["git", "-C", g, "-c", "user.name=t", "-c", "user.email=t@t"]
     sh = lambda *a: subprocess.run(cmd + list(a), capture_output=True).stdout.decode().strip()
     sh("init", "-q")
-    fc = B["factory_code"]
-    for msg, rows in (("empty", None), ("budgets", B), ("raise", ceil(factory_code=4)),
-                      ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=4)),
-                      ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21)),
-                      ("removed", {k: v for k, v in B.items() if k != "factory_code"}),
-                      ("unit", dict(B, factory_code=dict(fc, unit="bytes"))),
-                      ("paths", dict(B, factory_code=dict(fc, paths=["nothing/*.py"]))),
-                      ("quoted\n\n  > ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=5))):
-        if rows is not None:
-            put(g, budg(rows))
-            msg == "budgets" and sh("add", "-A")  # tracked from here on: later commits use -a (fewer processes)
+    tracked = set()
+    for msg, files in steps:
+        put(g, files or {})
+        if set(files or ()) - tracked:  # a new path is added once; later commits use -a (fewer processes)
+            sh("add", "-A")
+            tracked |= set(files)
         sh("commit", "-q", "-a", "--allow-empty", "--no-verify", "-m", msg)
     shas = sh("rev-list", "--reverse", "HEAD").split()
     return g, shas, lambda i: sh("checkout", "-q", shas[i])
+
+
+@pytest.fixture(scope="module")
+def repo(tmp_path_factory):
+    fc = B["factory_code"]
+    return world(tmp_path_factory, [(msg, rows and budg(rows)) for msg, rows in (
+        ("empty", None), ("budgets", B), ("raise", ceil(factory_code=4)),
+        ("ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=4)),
+        ("budget-raise: crap_limit -- x", ceil(factory_code=2, crap_limit=21)),
+        ("removed", {k: v for k, v in B.items() if k != "factory_code"}),
+        ("unit", dict(B, factory_code=dict(fc, unit="bytes"))),
+        ("paths", dict(B, factory_code=dict(fc, paths=["nothing/*.py"]))),
+        ("quoted\n\n  > ratchet-raise: budgets.json factory_code -- W-1", ceil(factory_code=5)))])
 
 
 # expected from: B20 part9:127, 132, 139; C1-2 part2:100; F245; the owner's word 26.11 about 11:01 (crap_limit); t-1991 B2, F5, M1 (F8 rows: test_universality)
@@ -120,6 +129,9 @@ def test_raises(repo, monkeypatch, head, base, env, code, has, hasnt):
     ({"forge/budgets.json": json.dumps({"rows": {"crap_limit": None}})}, 2, ["unit"]),
     ({"forge/budgets.json": json.dumps({"rows": {"stage_start_load": {"unit": "bytes"}}})}, 2, ["C4-6 not built"]),
     ({"forge/hooks/git/pre-push": "a\nb\n", "forge/tools/t.py": "x\n"}, 0, ["product: 3 lines"]),
+    ({"forge/tests/old.py": b"# caf\xe9\n"}, 0, ["(ratio n/a: forge/tests/old.py: not UTF-8)"]),
+    ({"forge/hooks/git/blob": b"\x00\xff"}, 0, ["(ratio n/a: forge/hooks/git/blob: not UTF-8)"]),
+    ({"factory/tools/a.py": b"a = '\xe9'\n"}, 2, ["factory/tools/a.py: not UTF-8"]),
 ])
 def test_size(tmp_path, files, code, has):
     put(tmp_path, dict(budg(B), **files))
@@ -131,13 +143,17 @@ def test_files_absent(tmp_path):
     assert (run(sz, tmp_path)[0], run(uni, tmp_path)[0]) == (2, 2)
 
 
-# expected from: C1-2 part2:100 (case-insensitive, word-bounded, code/comments/strings; factory/data not counted); B20 part9:129, 131-132
+# expected from: C1-2 part2:100 (case-insensitive, word-bounded, code/comments/strings; factory/data not counted); B20 part9:129,
+# 131-132; t-1992 N5 and the Lead's edge (PytestRunner, JiraClient, getJiraIssue, playwrightConfig flagged, pytestish not)
 @pytest.mark.parametrize("files, allow, code, has, hasnt", [
     ({"factory/tools/x.py": "# runs PyTest\nr = 'pytestish'\n", "factory/data/d.yaml": "r: pytest\n"}, [], 1,
      "factory/tools/x.py:1", "x.py:2"),
     ({"factory/hooks/h": "a = 'pytest'\n"}, [], 1, "factory/hooks/h:1", "d.yaml"),
     ({"factory/tools/j.py": "def run_pytest(): pass\n"}, [], 1, "j.py:1", None),
     ({"factory/tools/j.py": "x = 'pytest3'\n"}, [], 1, "j.py:1", None),
+    *[({"factory/tools/c.py": src}, [], 1, "c.py:1", None)  # t-1992 N5: camelCase steps and an acronym's end
+      for src in ("class PytestRunner:", "JiraClient()", "x = getJiraIssue", "'playwrightConfig'", "JIRAClient")],
+    ({"factory/tools/c.py": "x = 'pytestish' + 'myjira'\n"}, [], 0, "", "c.py"),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y")], 0, "", "y.py:"),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y", reason="")], 1, "reason", None),
     ({"factory/tools/y.py": "a = 'pytest'\n"}, [row("y"), row("z")], 1, "stale: factory/tools/z.py::pytest", "y.py:"),
@@ -185,29 +201,42 @@ def test_resolved_raise(repo, monkeypatch):
     assert run(sz, g, "--base", shas[1])[0] == 0
 
 
-def two_commits(g, first, second):
-    cmd = ["git", "-C", g, "-c", "user.name=t", "-c", "user.email=t@t"]
-    subprocess.run(cmd + ["init", "-q"], capture_output=True)
-    for doc in (first, second):
-        put(g, {"forge/universality-names.json": json.dumps(doc)})
-        subprocess.run(cmd + ["add", "-A"], capture_output=True)
-        subprocess.run(cmd + ["commit", "-q", "--allow-empty", "--no-verify", "-m", "m"], capture_output=True)
-    return subprocess.run(cmd + ["rev-parse", "HEAD~1"], capture_output=True).stdout.decode().strip()
-
-
-# expected from: t-1991 M2 and the brief section 4 (allow row added, name removed, root removed are raises; no change is green)
-@pytest.mark.parametrize("old, new, code, has", [
-    ({}, {"allow": [row("y")]}, 1, "allow row added needs"),
-    ({"names": {"runner": ["pytest", "jest"]}}, {}, 1, "name removed needs"),
-    ({"basis": dict(uni.basis(), roots=uni.basis()["roots"] + ["x"])}, {}, 1, "root removed needs"),
-    ({"allow": [row("y")]}, {"allow": [row("y")]}, 0, ""),
-])
-def test_universality_raises(tmp_path, old, new, code, has):
+@pytest.fixture(scope="module")
+def uni_repo(tmp_path_factory):
     doc = json.loads(names()["forge/universality-names.json"])
-    put(tmp_path, {"factory/tools/y.py": "a = 'pytest'\n"})
-    base = two_commits(str(tmp_path), dict(doc, **old), dict(doc, **new))
-    c, o = run(uni, tmp_path, "--base", base)
-    assert c == code and has in o, o
+    state = lambda y, **kw: {"forge/universality-names.json": json.dumps(dict(doc, **kw)), "factory/tools/y.py": y}
+    clean, held = state("a = 1\n"), state("a = 'pytest'\n", allow=[row("y")])  # each state green but for its raises
+    wide = state("a = 1\n", names=dict(doc["names"], runner=["pytest", "jest"]),
+                 basis=dict(uni.basis(), roots=uni.basis()["roots"] + ["x"]))
+    return world(tmp_path_factory, [("m", clean), ("m", held), ("m", None), ("m", clean),
+                                    ("ratchet-raise: universality-names.json clear -- W-1", None), ("m", wide), ("m", clean)])
+
+
+# expected from: t-1991 M2, t-1992 N4 and the brief section 4 (allow row added, allow emptied, name removed, root removed are
+# raises, N13 `clear`; until B3 a raise line cannot resolve; no change is green)
+@pytest.mark.parametrize("head, base, code, has, hasnt", [
+    (1, 0, 1, "allow row added needs", None),
+    (2, 1, 0, "", "new:"),
+    (3, 2, 1, "universality-names.json::clear allow emptied needs", None),
+    (4, 2, 1, "cannot resolve W-1", "needs"),
+    (6, 5, 1, "name removed needs", None),
+    (6, 5, 1, "root removed needs", None),
+])
+def test_universality_raises(uni_repo, head, base, code, has, hasnt):
+    g, shas, checkout = uni_repo
+    checkout(head)
+    c, o = run(uni, g, "--base", shas[base])
+    assert c == code and has in o and (hasnt is None or hasnt not in o), o
+
+
+# expected from: t-1992 N2 and the brief section 4 (no list file -> empty list; a file not born has no drift, is never written)
+def test_no_list_file(tmp_path):
+    path, said = str(tmp_path / "absent.json"), []
+    data, rows = ratchets.load_list(path, "x", uni.key_of)
+    assert (data, rows) == ({"basis": None, "allow": []}, []) and ratchets.check_basis(None, uni.basis(), "d") is None
+    assert ratchets.shrink(path, data, "allow", uni.key_of, set(), said.append) is False
+    assert ratchets.update(str(tmp_path), path, data, "allow", uni.key_of, set(), None, uni.RECORD, ["f"], said.append) == 0
+    assert not os.path.exists(path) and said == []
 
 
 # expected from: t-1991 F1, F4; the brief section 4 (a resolved record opens the road; the dead scanner is exit 2)

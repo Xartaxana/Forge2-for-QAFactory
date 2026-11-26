@@ -3,11 +3,13 @@
 
 universality.py [--root D] [--base R] [--update [--record ID]] [--basis]    exit 0 green, 1 red, 2 cannot judge, 3 not judged here
 Names: every name of forge/universality-names.json in factory/tools and factory/hooks, case-insensitive, bounded by any
-non-letter (so jira_url, run_pytest and python3 are flagged; a common word that is a name errs red, its door an allow row; a
-name split by concatenation errs green), in code, comments and strings. Cyrillic U+0400-U+04FF: every file of factory/
-(factory/data is not name-scanned, but its text is).
+non-letter or a camelCase step: lower to upper, or an acronym's end, a capital before a capital and a lower letter
+(JIRAClient = JIRA + Client). So jira_url, run_pytest, python3, PytestRunner and getJiraIssue are flagged (t-1992 N5); a
+common word that is a name errs red, its door an allow row; a name split by lowercase concatenation errs green (pytestish).
+In code, comments and strings. Cyrillic U+0400-U+04FF: every file of factory/ (factory/data is not name-scanned, its text is).
 An allow row is {file, token, reason}, no line. A row that suppresses nothing is `stale:` and red; one without a reason is red.
-The list, basis, stale and reason rules, the file-set and text readers are ratchets.py's (F246); this file keeps no copy.
+The list, basis, stale and reason rules, the --update road, the file-set and text readers are ratchets.py's (F246); this
+file keeps no copy.
 """
 import json
 import os
@@ -22,12 +24,17 @@ NAME_ROOTS = ("factory/tools", "factory/hooks")
 TEXT_ROOT = "factory"
 CYRILLIC = re.compile("[\u0400-\u04FF]")
 RECORD = ("word", "decision")
-DOOR = ("door: edit basis in %s and add `ratchet-raise: universality-names.json basis -- <W-n | D-n>`; --update does not touch basis" % REL)
+DOOR = ("door: edit basis in %s; a removed root also needs `ratchet-raise: universality-names.json basis -- <W-n | D-n>`"
+        "; --update does not touch basis" % REL)  # t-1992 N7: raised() asks the line only for a removed root
+# A name's edge: a non-letter, a lower-to-upper step, or an acronym's end (t-1992 N5: camelCase carried names unflagged).
+# Case-sensitive on purpose: only the name itself is matched case-insensitively.
+EDGE = r"(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
 
 
 def basis():
     return {"tool": ratchets.TOOL_VERSION, "python": ratchets.python_minor(),
-            "constants": {"kinds": list(KINDS), "match": "non-letter-bounded, case-insensitive", "cyrillic": "U+0400-U+04FF"},
+            "constants": {"kinds": list(KINDS), "match": "non-letter- or camelCase-bounded, case-insensitive",
+                          "cyrillic": "U+0400-U+04FF"},
             "roots": list(NAME_ROOTS) + [TEXT_ROOT]}
 
 
@@ -51,7 +58,8 @@ def key_of(row):
 
 def pattern(names):
     words = sorted({w.strip() for ws in names.values() for w in ws}, key=len, reverse=True)
-    return re.compile(r"(?<![a-z])(%s)(?![a-z])" % "|".join(map(re.escape, words)), re.I)  # F8: any non-letter bounds
+    alts = "|".join(map(re.escape, words))
+    return re.compile(r"(?:(?<![A-Za-z])|%s)(?i:(%s))(?:(?![A-Za-z])|%s)" % (EDGE, alts, EDGE))  # F8, N5
 
 
 def scan(root, names):
@@ -79,7 +87,8 @@ def judge(found, allow, out):
 
 
 def raised(old, data):
-    """Raise keys against the base: allow rows added, names removed, roots removed (each: `word | decision`)."""
+    """Raise keys against the base: allow rows added, allow emptied (`clear`, N4), names removed, roots removed (each:
+    `word | decision`)."""
     try:
         seen = {key_of(r) for r in old.get("allow", [])}
     except (KeyError, TypeError, AttributeError, ValueError):
@@ -88,7 +97,9 @@ def raised(old, data):
     for row in data["allow"]:
         if key_of(row) not in seen:
             keys["%s::%s" % key_of(row)] = "allow row added"
-    words = lambda d: {w.strip() for ws in (d.get("names") or {}).values() for w in ws}
+    if ratchets.cleared(old.get("allow"), data["allow"]):
+        keys["clear"] = "allow emptied"
+    words =lambda d: {w.strip() for ws in (d.get("names") or {}).values() for w in ws}
     for word in sorted(words(old) - words(data)):
         keys[word] = "scan narrowed: name removed"
     roots = lambda d: set((d.get("basis") or {}).get("roots") or [])
@@ -98,18 +109,9 @@ def raised(old, data):
 
 
 def update(root, path, data, stale, new, record):
-    """Shrink the allow list; empty it only on a record that resolves (F1: act on resolve() returning None)."""
-    if record:
-        err = ratchets.resolve(record, RECORD)
-        if err:
-            print(err)
-            return 1
-    if not ratchets.shrink(path, data, "allow", key_of, stale, print, bool(record)):
-        return 1
-    dirty = [ln for ln in ratchets.text_of(ratchets.git(root, "status", "--porcelain", "--", TEXT_ROOT)).split("\n") if ln.strip()]
-    if dirty:
-        print("uncommitted changes in scope: %d paths -- the baseline describes the committed tree" % len(dirty))
-    return 1 if new else 0
+    """The shared road (ratchets.update, t-1992 N3) on the allow list; a site no row allows keeps the exit red."""
+    code = ratchets.update(root, path, data, "allow", key_of, stale, record, RECORD, [TEXT_ROOT], print)
+    return ratchets.verdict([code, 1 if new else 0])
 
 
 def run(argv):
