@@ -5,9 +5,13 @@ foreign_write.py [--root D]   the tool call JSON arrives on the input; D (defaul
 Judged: file_path and notebook_path of Write, Edit, MultiEdit, NotebookEdit; the command of Bash and PowerShell, where only
 LITERAL paths in a named write position count (redirects, tee, cp/install/rsync destination, mv, rm, sed -i, git outside
 its read list, the PowerShell write cmdlets...). Other tools pass. Exit 2 refuses; every case the hook cannot judge (input,
-roots file, its own error) exits 0 with one stderr line "foreign_write not checked: <why>".
-Residuals, named: a symlink, junction, `~`, a variable, a script, an alias or an indirect write errs GREEN; so does an agent
-editing the roots file or a live hook (the acceptance diff is the net).
+roots file, its own error, a bad argument) exits 0 with one stderr line "foreign_write not checked: <why>". A refusal
+journals one line; a crash and a refusal with no session id journal nothing (stderr only; B17 owns the policy).
+Cuts: none of its own (a path or command is judged whole). A shell line continuation (an unquoted backslash, in PowerShell a
+backtick, before a line end) joins the lines; inside single quotes nothing joins.
+Residuals, named: a symlink, junction, `~`, a variable, a script, an alias or an indirect write errs GREEN; so do a UNC admin
+share (//host/C$) and an 8.3 short name (they are not resolved); so does an agent editing the roots file or a live hook (the
+acceptance diff is the net).
 """
 import argparse
 import json
@@ -15,6 +19,7 @@ import os
 import posixpath
 import re
 import sys
+from collections import namedtuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -35,8 +40,11 @@ PS_VALUE = ("value", "encoding", "itemtype", "type", "stream", "filter", "includ
 
 
 def norm(p, cwd=""):
-    """Unify slashes, MSYS /c/x -> c:/x, collapse .., fold case; a relative path resolves against cwd."""
-    p = re.sub(r"^/([A-Za-z])(?=/|$)", r"\1:", p.replace("\\", "/"))
+    """Unify slashes, drop a leading //?/ or //./ (//?/UNC/ -> //), drop trailing dots and spaces of each component (Win32
+    does), MSYS /c/x -> c:/x, collapse .., fold case; a relative path resolves against cwd."""
+    p = re.sub(r"^//[?.]/(UNC/)?", lambda m: "//" if m.group(1) else "", p.replace("\\", "/"), flags=re.I)
+    p = "/".join(c if c in (".", "..") else c.rstrip(". ") for c in p.split("/"))
+    p = re.sub(r"^/([A-Za-z])(?=/|$)", r"\1:", p)
     if cwd and not re.match(r"[A-Za-z]:/|/", p):
         p = norm(cwd) + "/" + p
     return posixpath.normpath(p).lower()
@@ -47,10 +55,29 @@ def under(t, root):
     return t == root or t.startswith(root.rstrip("/") + "/")
 
 
-def tokens(cmd):
+def eol(cmd, i):
+    """The length of the line end at cmd[i]: 2 for CRLF, 1 for LF, else 0."""
+    return 2 if cmd.startswith("\r\n", i) else int(cmd.startswith("\n", i))
+
+
+def skip_heredocs(cmd, i, hd):
+    """i is the newline that ends a line with heredocs hd: return the index of the last newline of their bodies."""
+    for d, dash in hd:
+        while i + 1 < len(cmd):
+            j = cmd.find("\n", i + 1)
+            j = len(cmd) if j < 0 else j
+            line, i = cmd[i + 1:j], j
+            if line.rstrip("\r").lstrip("\t" if dash else "") == d:
+                break
+    return i
+
+
+def tokens(cmd, ps=False):
     """Words ("w", text) and operators ("op", text): ; && || | & ( ) > >> >| >& < and a newline (as ;). Quotes are removed,
-    a backslash outside them stays (Windows paths), a heredoc body is skipped, an fd prefix of a redirect is dropped."""
+    a backslash outside them stays (Windows paths), a heredoc body is skipped, an fd prefix of a redirect is dropped. An
+    unquoted backslash (ps: backtick) directly before LF or CRLF joins the lines; at the end of the command it is dropped."""
     out, buf, have, q, i, hd, want = [], "", False, None, 0, [], False
+    cont = "`" if ps else "\\"
 
     def flush():
         nonlocal buf, have, want
@@ -72,19 +99,14 @@ def tokens(cmd):
                 buf += c
         elif c in "'\"":
             q, have = c, True
+        elif c == cont and eol(cmd, i + 1):
+            i += eol(cmd, i + 1)
         elif c in " \t\r":
             flush()
         elif c == "\n":
             flush()
             out.append(("op", ";"))
-            for d, dash in hd:
-                while i + 1 < len(cmd):
-                    j = cmd.find("\n", i + 1)
-                    j = len(cmd) if j < 0 else j
-                    line, i = cmd[i + 1:j], j
-                    if line.rstrip("\r").lstrip("\t" if dash else "") == d:
-                        break
-            hd = []
+            i, hd = skip_heredocs(cmd, i, hd), []
         elif c in ";|&()<>":
             if c == ">" and have and buf.isdigit():
                 buf, have = "", False
@@ -104,7 +126,7 @@ def tokens(cmd):
     return out
 
 
-def events(cmd):
+def events(cmd, ps=False):
     """("(",), (")",) and ("seg", words, redirect targets) in command order."""
     ev, words, reds, red = [], [], [], None
 
@@ -114,7 +136,7 @@ def events(cmd):
             ev.append(("seg", words, reds))
         words, reds = [], []
 
-    for kind, t in tokens(cmd):
+    for kind, t in tokens(cmd, ps):
         if kind == "op" and t in (">", ">>", ">&"):
             red = t
         elif kind == "op" and t.startswith("<"):
@@ -181,13 +203,28 @@ def ps_paths(head, args):
     return [p for x in (named or pos[:1]) for p in x.split(",")]
 
 
-def git_writes(args, cwd):
-    """The tree a git command writes, or [] for a read command. Last -C wins; clone writes its destination."""
-    tree, i = norm(cwd) if cwd else cwd, 0
+def git_writes(args, cwd, env=None):
+    """The tree a git command writes, or [] for a read command. The ONE target-tree resolver: each -C resolves against the
+    tree the previous one gave; --git-dir/--work-tree (= or space form) and the GIT_DIR=/GIT_WORK_TREE= prefix assignments
+    (env) name the tree: the work tree first, else a git-dir ending in .git gives its parent, else the git-dir itself.
+    Clone writes its destination."""
+    tree, i, env = norm(cwd) if cwd else cwd, 0, env or {}
+    gd, wt = [norm(env[k], tree) if usable(env.get(k)) else None for k in ("GIT_DIR", "GIT_WORK_TREE")]
     while i < len(args) and args[i].startswith("-"):
-        if args[i] == "-C" and i + 1 < len(args):
-            tree = norm(args[i + 1], cwd)
-        i += 2 if args[i] in ("-C", "-c") else 1
+        name, _, val = args[i].partition("=")
+        if args[i] in ("-C", "-c", "--git-dir", "--work-tree") and i + 1 < len(args):
+            name, val, i = args[i], args[i + 1], i + 1
+        if name in ("-C", "--git-dir", "--work-tree") and usable(val):
+            p = norm(val, tree)
+            if name == "-C":
+                tree = p
+            elif name == "--git-dir":
+                gd = p
+            else:
+                wt = p
+        i += 1
+    if wt or gd:
+        tree = wt or (posixpath.dirname(gd) if gd.endswith(".git") else gd)
     if i >= len(args):
         return []
     sub, rest = args[i], args[i + 1:]
@@ -223,30 +260,65 @@ def writes(head, args, ps):
     return []
 
 
+Cmd = namedtuple("Cmd", "head args cwd ps env")  # ONE parsed command: head word, its arguments, base dir, shell, VAR= prefixes
+
+
+def parse(words, cwd, ps):
+    """A segment's words -> Cmd, or None when only VAR= assignments are left."""
+    env = {}
+    while words and re.match(r"[A-Za-z_]\w*=", words[0]):
+        k, _, env[k] = words[0].partition("=")
+        words = words[1:]
+    if not words:
+        return None
+    head = re.sub(r"\.exe$", "", posixpath.basename(words[0].replace("\\", "/")).lower())
+    return Cmd(head, words[1:], cwd, ps, env)
+
+
+def rule_git(c):
+    """A git command: the tree the target-tree resolver gives (None: not a git command)."""
+    return git_writes(c.args, c.cwd, c.env) if c.head == "git" else None
+
+
+def rule_writes(c):
+    """Any other command: its literal write-position paths."""
+    return [norm(w, c.cwd) for w in writes(c.head, c.args, c.ps) if usable(w)]
+
+
+# Ordered rule functions over ONE parsed command: the first that returns a list (not None) judges it. B11 adds its rules
+# in front of these.
+RULES = (rule_git, rule_writes)
+
+
+def judge_cmd(c):
+    for rule in RULES:
+        got = rule(c)
+        if got is not None:
+            return got
+    return []
+
+
+def new_cwd(c):
+    """The base after a `cd`: an unusable or `-` argument leaves it."""
+    a = positional(c.args)
+    return norm(a[-1], c.cwd) if a and usable(a[-1]) and a[-1] != "-" else c.cwd
+
+
 def targets(cmd, cwd, ps):
     """Every normalised write target of a shell command; `cd` moves the base, a parenthesis scopes it."""
     out, stack = [], []
-    for ev in events(cmd):
+    for ev in events(cmd, ps):
         if ev[0] == "(":
             stack.append(cwd)
         elif ev[0] == ")":
             cwd = stack.pop() if stack else cwd
         else:
-            _, words, reds = ev
-            while words and re.match(r"[A-Za-z_]\w*=", words[0]):
-                words = words[1:]
-            out += [norm(r, cwd) for r in reds if usable(r)]
-            if not words:
-                continue
-            head = re.sub(r"\.exe$", "", posixpath.basename(words[0].replace("\\", "/")).lower())
-            if head in ("cd", "set-location", "sl", "pushd"):
-                a = positional(words[1:])
-                if a and usable(a[-1]) and a[-1] != "-":
-                    cwd = norm(a[-1], cwd)
-            elif head == "git":
-                out += git_writes(words[1:], cwd)
-            else:
-                out += [norm(w, cwd) for w in writes(head, words[1:], ps) if usable(w)]
+            c = parse(ev[1], cwd, ps)
+            out += [norm(r, cwd) for r in ev[2] if usable(r)]
+            if c and c.head in ("cd", "set-location", "sl", "pushd"):
+                cwd = new_cwd(c)
+            elif c:
+                out += judge_cmd(c)
     return out
 
 
@@ -308,8 +380,18 @@ def body(payload, note, root):
     return 2
 
 
-if __name__ == "__main__":
+def run(v, n, argv):
+    """The guarded body: a bad argument exits 0 with the visible line (exit 2 would block EVERY tool call)."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=os.path.dirname(os.path.dirname(HERE)))
-    a = ap.parse_args()
-    sys.exit(HIO.guard(lambda v, n: body(v, n, a.root), "pass", "json"))
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code:
+            print("foreign_write not checked: bad arguments (usage: --root D)", file=sys.stderr)
+        return 0
+    return body(v, n, a.root)
+
+
+if __name__ == "__main__":
+    sys.exit(HIO.guard(lambda v, n: run(v, n, sys.argv[1:]), "pass", "json"))

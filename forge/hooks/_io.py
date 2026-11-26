@@ -6,18 +6,17 @@ loads it by path through hio.py. B17 adds write_output, run_steps and the policy
 """
 import json
 import os
-import re
 import subprocess
 import sys
 import threading
 
-SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 
-
-def genv():
-    """The environment of every git subprocess: no GIT_* variable (an inherited GIT_DIR or GIT_INDEX_FILE would aim a
-    fixture at the real repository)."""
-    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+def genv(keep=()):
+    """The environment of a subprocess: no GIT_* variable except the names in keep (an inherited GIT_DIR or GIT_INDEX_FILE
+    would aim a fixture or ci.py at the wrong repository). Only secret_scan's reads of the repository git is committing keep
+    GIT_INDEX_FILE, GIT_DIR, GIT_WORK_TREE: `git commit -a` and `git commit <path>` point the first at a temporary index
+    (t-1983 F1)."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_") or k in keep}
 
 
 def _pull(fd, deadline_s, limit):
@@ -105,12 +104,13 @@ def refuse_git(root, hook, text, door):
 
 
 def journal(root, event, by, session, note):
-    """Append one line through journal.py's CLI, the one writer. Never raises and never guesses a session: a failure is
-    one stderr line and the caller's verdict stays as it was. Returns True when the line is written."""
+    """Append one line through journal.py's CLI, the one writer. Never raises and never guesses a session (journal.py itself
+    refuses an invalid id): a failure is one stderr line, cut at 200 characters of journal.py's answer, and the caller's
+    verdict stays as it was. Returns True when the line is written."""
     why = None
     jp = os.path.join(root, "forge", "tools", "journal.py")
-    if not isinstance(session, str) or not SESSION_RE.fullmatch(session):
-        why = "no valid session id"
+    if not isinstance(session, str) or not session:
+        why = "no session id"
     elif not os.path.isfile(jp):
         why = "%s absent" % jp
     else:

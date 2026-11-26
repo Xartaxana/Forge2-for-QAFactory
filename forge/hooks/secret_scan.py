@@ -21,6 +21,7 @@ TABLE = "factory/data/secret-patterns.yaml"
 DOOR = "restore secret-patterns.yaml (C1-5)"
 KEYS = {"id", "kind", "pattern", "what"}
 KINDS = ("path_glob", "token_regex")
+KEEP = ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE")  # the repository git is committing (t-1983 F1); no other GIT_*
 RAW = ("--raw", "-z", "--no-renames", "--no-abbrev", "--diff-filter=ACMRT")
 
 
@@ -30,7 +31,7 @@ class Cannot(Exception):
 
 def git(root, *args):
     try:
-        r = subprocess.run(["git", "-C", root] + list(args), capture_output=True, env=HIO.genv())
+        r = subprocess.run(["git", "-C", root] + list(args), capture_output=True, env=HIO.genv(KEEP))
     except (OSError, subprocess.SubprocessError) as exc:
         raise Cannot("git failed: %s" % exc)
     if r.returncode:

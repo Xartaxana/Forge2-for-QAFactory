@@ -3,7 +3,8 @@
 
 pre_compact.py [--root D] [--timeout-s N]   any input, an empty one included; D defaults to this repository, N to 45.
 A snapshot.py that is absent, exits non-zero or outlives N seconds (it is killed), or an error of this hook -> one
-`hook_failed` journal line `pre_compact: <why>` under the input's session (no valid session: one stderr line) and exit 0.
+`hook_failed` journal line `pre_compact: <why>` under the input's session (no session id: one stderr line) and exit 0.
+Cuts: snapshot.py's output in <why> is cut at 150 characters, <why> at 250 (the journal note stays under its 300).
 """
 import argparse
 import os
@@ -21,7 +22,8 @@ def snapshot(root, timeout_s):
     if not os.path.isfile(sp):
         return "%s absent" % sp
     try:
-        r = subprocess.run([sys.executable, "-B", sp, "--root", root], capture_output=True, timeout=timeout_s)
+        r = subprocess.run([sys.executable, "-B", sp, "--root", root], capture_output=True, env=HIO.genv(),
+                           timeout=timeout_s)
     except subprocess.TimeoutExpired:
         return "snapshot.py killed after %s s" % timeout_s
     except (OSError, subprocess.SubprocessError) as exc:
@@ -43,9 +45,19 @@ def body(payload, note, root, timeout_s):
     return 0
 
 
-if __name__ == "__main__":
+def run(v, n, argv):
+    """The guarded body: a bad argument exits 0 with one visible line (the hook never refuses, t-1982)."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", default=os.path.dirname(os.path.dirname(HERE)))
     ap.add_argument("--timeout-s", type=float, default=45)
-    a = ap.parse_args()
-    sys.exit(HIO.guard(lambda v, n: body(v, n, a.root, a.timeout_s), "pass", "json"))
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code:
+            print("pre_compact not run: bad arguments (usage: --root D --timeout-s N)", file=sys.stderr)
+        return 0
+    return body(v, n, a.root, a.timeout_s)
+
+
+if __name__ == "__main__":
+    sys.exit(HIO.guard(lambda v, n: run(v, n, sys.argv[1:]), "pass", "json"))

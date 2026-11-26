@@ -3,7 +3,9 @@
 """pre-commit (cards C1-5, B8, B9): refuses a commit whose staged paths or index blobs match a row of the one table.
 
 Judges the repository git runs it in. Crash, git absent or an unusable table -> refuse (an irreversible act fails closed).
-The matched value is never printed; the refusal is journaled into logs/journal/git-hooks.jsonl.
+The matched value is never printed; a refusal that knows its repository root is journaled into logs/journal/git-hooks.jsonl. A
+crash refusal and one with no known root (git absent) write no line, only stderr (named residual: `crash refusals of git
+hooks journaled best-effort | node: B17`). The index judged is GIT_INDEX_FILE's when git sets it (`commit -a`, `commit <path>`).
 """
 import os
 import sys

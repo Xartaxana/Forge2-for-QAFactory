@@ -100,11 +100,16 @@ def commit(r, msg, files=None, rm=()):
 
 @pytest.fixture(scope="module")
 def leaky(tmp_path_factory):
-    """c1 clean, c2 adds a token, c3 removes it: the token is gone from the tip and alive in the range."""
+    """c1 clean, c2 adds a token, c3 removes it: the token is gone from c3 and alive in the range. c4 is an evil merge."""
     r = mkrepo(tmp_path_factory.mktemp("leaky"))
     c1 = commit(r, "base", {"s/x.txt": "clean\n"})
     c2 = commit(r, "leak", {"s/k.txt": "key " + tok() + "\n"})
-    return r, c1, c2, commit(r, "unleak", rm=["s/k.txt"])
+    c3 = commit(r, "unleak", rm=["s/k.txt"])
+    git(r, "checkout", "-q", "-b", "side", c1)
+    commit(r, "side", {"side.txt": "clean\n"})
+    git(r, "checkout", "-q", "main")
+    git(r, "merge", "-q", "--no-ff", "--no-commit", "side")
+    return r, c1, c2, c3, commit(r, "evil merge", {"s/e.txt": "key " + tok() + "\n"})
 
 
 def push(r, lines, url="o"):
@@ -136,16 +141,16 @@ def test_scan_staged(leaky, files, rm, code, seen):
 
 
 def test_scan_range(leaky):
-    r, c1, c2, c3 = leaky
-    got = [hook("secret_scan.py", ["--range", a], r) for a in (c1 + ".." + c3, c1, c3)]
-    assert [g[0] for g in got] == [1, 0, 1] and c2[:12] in got[0][1] and tok() not in got[0][1]
+    r, c1, c2, c3, c4 = leaky
+    got = [hook("secret_scan.py", ["--range", a], r) for a in (c1 + ".." + c3, c1, c3, c3 + ".." + c4)]
+    assert [g[0] for g in got] == [1, 0, 1, 1] and c2[:12] in got[0][1] and tok() not in got[0][1] and c4[:12] in got[3][1]
 
 
 # expected from: B8 part4b-2:15 (pre-push scans the whole pushed range before ci.py; a new branch = every commit on no
 # remote ref; the first push = all history; a delete has nothing to scan) and B9 (every refusal journaled, no value)
 def test_pre_push_range(leaky):
-    r, c1, c2, c3 = leaky
-    line = lambda new, old=Z, ref="refs/heads/main": [(ref, new, ref, old)]  # noqa: E731
+    r, c1, c2, c3, _ = leaky
+    line =lambda new, old=Z, ref="refs/heads/main": [(ref, new, ref, old)]  # noqa: E731
     got = {n: push(r, ls) for n, ls in (("twin", line(c1)), ("k3", line(c3, c1)), ("new", line(c3, Z, "refs/heads/b")),
                                         ("first", line(c3)), ("delete", [("(delete)", Z, "refs/heads/b", c3)]))}
     assert [got[n][0] == 0 for n in got] == [True, False, False, False, True]
@@ -155,24 +160,31 @@ def test_pre_push_range(leaky):
     assert '"event": "refuse"' in log and "pre-push:" in log and tok() not in log
 
 
-def test_git_runs_pre_commit(tmp_path):
+# expected from: t-1983 F1, F6, M2 and the brief's section 8 A1 (pre-commit judges the index GIT_INDEX_FILE names, as git sets
+# it for `commit -a` and `commit <path>`; the hook is called directly, never through core.hooksPath); the root commit holds
+# the token, so `--range HEAD` finds it only with --root
+def test_pre_commit_judges_git_index_file(tmp_path):
     r = mkrepo(tmp_path / "g")
-    git(r, "config", "core.hooksPath", os.path.join(HOOKS, "git"))
-    put(r + "/k.txt", "key " + tok() + "\n")
-    git(r, "add", "k.txt")
-    put(r + ".msg", "try\n")
-    assert git(r, "commit", "-q", "-F", r + ".msg")[0] != 0 and git(r, "rev-parse", "-q", "--verify", "HEAD")[0] != 0
+    commit(r, "root", {"k.txt": "key " + tok() + "\n"})
+    assert hook("secret_scan.py", ["--range", "HEAD"], r)[0] == 1
+    idx = str(tmp_path / "idx")
+    put(r + "/n.txt", "key " + tok() + "\n")
+    for a in (["read-tree", "HEAD"], ["add", "--", "n.txt"]):
+        run(["git", "-C", r] + a, r, GIT_INDEX_FILE=idx)
+    code, out = hook("git/pre-commit", [], r, GIT_INDEX_FILE=idx)
+    assert code == 1 and "fixture-key" in out and tok() not in out and hook("git/pre-commit", [], r)[0] == 0
     assert "pre-commit:" in open(r + "/logs/journal/git-hooks.jsonl", encoding="utf-8").read()
 
 
-# expected from: the brief's section 3 Crash edge (git absent -> pre-push and pre-commit refuse; irreversible acts fail closed)
+# expected from: the brief's section 3 Crash edge (git absent -> pre-push and pre-commit refuse; irreversible acts fail closed);
+# t-1983 F7: inside a repository, so only git's absence can refuse
 @pytest.mark.parametrize("name,stdin", [("git/pre-push", ("refs/heads/m %s refs/heads/m %s\n" % ("a" * 40, Z)).encode()),
                                         ("git/pre-commit", b"")])
 def test_crash_git_absent(tmp_path, name, stdin):
     empty = tmp_path / "nobin"
     empty.mkdir()
-    code, out = hook(name, ["origin", "o"], tmp_path, stdin, PATH=str(empty))
-    assert code == 1 and "refused" in out
+    code, out = hook(name, ["origin", "o"], mkrepo(tmp_path / "r"), stdin, PATH=str(empty))
+    assert code == 1 and "refused" in out and "git failed" in out
 
 
 # expected from: card C1-5 (the one table, AR-15) and the brief's section 3 Table edge (every malformed shape ->
@@ -200,7 +212,7 @@ def test_table_real_seed_rows():
             "ant": "sk-" + "ant-" + "a" * 24, "slack": "xo" + "xb-" + "1234567890ab", "pem": "-----BEGIN " + "PRIVATE KEY-----",
             "jwt": "ey" + "J" + "a" * 12 + ".ey" + "J" + "b" * 12 + ".", "name": "aws_secret_" + "access_key",
             "assign": 'api_' + 'key = "' + "a" * 20 + '"'}
-    paths = {".env.example": 1, "d/id_rsa": 1, "credentials.json": 1, "k.pem": 1, "secrets.py": 0, "x/envelope.txt": 0}
+    paths = {".env.example": 1, "d/id_rsa": 1, "credentials.json": 1, "credentials.conf": 1, "k.pem": 1, "secrets.py": 0, "x/envelope.txt": 0}
     for text in blob.values():
         ss.git, old = (lambda *a, t=text: t.encode()), ss.git
         try:
@@ -222,9 +234,11 @@ def steps(tmp_path, monkeypatch, remote, url="o", ents=(), msg="m", ref="refs/he
         os.remove(root + "/forge/remote.json")
     if ci:
         put(root + "/ci-exit", str(ci))
-    monkeypatch.setattr(ss, "git", lambda r, *a: msg.encode() if a[0] == "log" else (b"c" * 40 + b"\n") if a[0] == "rev-parse"
-                        else blob.encode())
-    monkeypatch.setattr(ss, "walk", lambda r, revs: (["c" * 40], [("c" * 40, p, "s" + p) for p in ents]))
+    msgs = [msg] if isinstance(msg, str) else msg  # one message per commit, the tip first
+    ids = [c * 40 for c in "cd"][:len(msgs)]
+    monkeypatch.setattr(ss, "git", lambda r, *a: msgs[ids.index(a[-1])].encode() if a[0] == "log" else (b"c" * 40 + b"\n")
+                        if a[0] == "rev-parse" else blob.encode())
+    monkeypatch.setattr(ss, "walk", lambda r, revs: (ids, [("c" * 40, p, "s" + p) for p in ents]))
     res = pp.steps(root, "origin", url, [[ref, "a" * 40, ref, "b" * 40]], True)
     return res, os.path.exists(root + "/ci-ran")
 
@@ -237,6 +251,9 @@ def ok(c):
     (dict(remote="absent"), "remote", False), (dict(remote="x"), "remote", False), (dict(remote={"origin": "o"}), "remote", False),
     (dict(remote={"measure_cleared": None}), "remote", False), (dict(remote=ok(None), url="o/", msg=OW), None, True),
     (dict(remote=ok(None), url="other"), "other", False), (dict(remote=ok(None), url="other", msg=OW), None, True),
+    (dict(remote=ok(None), url="other", msg=[OW, "m"]), None, True), (dict(remote=ok(None), url="other", msg=["m", OW]), "other", False),
+    (dict(remote=ok(None), url="https://u:PW123@h/a.git"), "other", False),
+    (dict(remote={"origin": "https://h/a", "measure_cleared": None}, url="https://u:PW123@h/a.git"), None, True),
     (dict(remote=ok(None), ents=["measure/r.txt"]), "measure", False),
     (dict(remote=ok(OW), ents=["measure/r.txt"]), None, True), (dict(remote=ok("W-1"), ents=["measure/r.txt"]), "measure", False),
     (dict(remote=ok("yes"), ents=["measure/r.txt"]), "measure", False), (dict(remote=ok(5), ents=["measure/r.txt"]), "measure", False),
@@ -252,7 +269,7 @@ def ok(c):
     (dict(remote=ok(None), ref="refs/tags/v1", ci=1), "release", False)])
 def test_pre_push_steps(tmp_path, monkeypatch, kw, door, ci_ran):
     res, ran = steps(tmp_path, monkeypatch, **kw)
-    assert (res[1] if res else None) == door and ran == ci_ran
+    assert (res[1] if res else None) == door and ran == ci_ran and "PW123" not in str(res)
     assert door != "measure" or ("F88" in res[0]) == (kw["remote"]["measure_cleared"] is None)
 
 
@@ -322,7 +339,9 @@ FILES = [("Write", {"file_path": P + "/a"}, 1), ("Edit", {"file_path": P + "/a"}
          ("Write", {"file_path": "c:/PROT/root/a"}, 1), ("Write", {"file_path": "/c/Prot/Root/a"}, 1),
          ("Write", {"file_path": "C:/work/../Prot/Root/a"}, 1), ("Write", {"file_path": P + "/sp ace/\u0434/a"}, 1),
          ("Read", {"file_path": P + "/a"}, 0), ("Write", {"file_path": "x" * 100000}, 0),
-         ("Write", {"file_path": P + "/" + "d/" * 40000 + "a"}, 1)]
+         ("Write", {"file_path": P + "/" + "d/" * 40000 + "a"}, 1), ("Write", {"file_path": "//?/C:/Prot/Root/a"}, 1),
+         ("Write", {"file_path": "\\\\.\\C:\\Prot\\Root\\a"}, 1), ("Write", {"file_path": "C:/Prot/Root./a"}, 1),
+         ("Write", {"file_path": "C:/Prot/Root /a"}, 1), ("Write", {"file_path": "C:/Prot/Root/../a"}, 0)]
 SHELL = [("echo x > \"%s/a\"" % P, 1), ("echo x >> /c/Prot/Root/a", 1), ("echo x 2>&1 | tee %s/a" % P, 1),
          ("cp C:/work/b %s/a" % P, 1), ("cp %s/a C:/work/b" % P, 0), ("cp -t %s C:/work/b" % P, 1),
          ("mv %s/a C:/work/b" % P, 1), ("rm -rf %s/d" % P, 1), ("sed -i 's/a/b/' %s/f" % P, 1), ("sed 's/a/b/' %s/f" % P, 0),
@@ -330,10 +349,14 @@ SHELL = [("echo x > \"%s/a\"" % P, 1), ("echo x >> /c/Prot/Root/a", 1), ("echo x
          ("cd %s; touch a" % P, 1), ("(cd %s && ls); touch a" % P, 0), ("echo x > $HOME/a", 0), ("cat %s/a" % P, 0),
          ("ls > /dev/null; echo hi 2>&1", 0), ("git clone https://x/y.git %s/y" % P, 1), ("dd if=a of=%s/f" % P, 1),
          ("cat > C:/work/a <<EOF\necho x > %s/zz\nEOF" % P, 0), ("echo a\ntouch %s/a" % P, 1), ("x=1 git -C C:\\Prot\\Root add .", 1),
-         ("chmod 755 %s/a" % P, 1), ("chmod 755 C:/work/a", 0)]
+         ("chmod 755 %s/a" % P, 1), ("chmod 755 C:/work/a", 0), ("cp a.txt \\\n  %s/x.txt" % P, 1), ("rm -rf \\\r\n  %s/d" % P, 1),
+         ("rm %s/d \\\n" % P, 1), ("git -C C:/ -C Prot/Root commit -m x", 1), ("git -C %s -C C:/work commit -m x" % P, 0),
+         ("git --git-dir=%s/.git --work-tree=%s commit" % (P, P), 1), ("git --git-dir %s/.git commit" % P, 1),
+         ("GIT_DIR=%s/.git git commit" % P, 1), ("GIT_WORK_TREE=%s git add ." % P, 1)]
 POWER = [("Set-Content -Path \"%s/a\" -Value x" % P, 1), ("set-content C:\\Prot\\Root\\a x", 1), ("Remove-Item %s/a -Force" % P, 1),
          ("Copy-Item %s/a C:/work/b" % P, 0), ("Copy-Item C:/work/a -Destination %s/b" % P, 1), ("\"x\" | Out-File %s/a" % P, 1),
-         ("echo x > %s/a" % P, 1), ("Get-Content %s/a" % P, 0), ("Move-Item %s/a C:/work/b" % P, 1)]
+         ("echo x > %s/a" % P, 1), ("Get-Content %s/a" % P, 0), ("Move-Item %s/a C:/work/b" % P, 1),
+         ("Set-Content `\n  -Path %s/a -Value 1" % P, 1)]
 
 
 @pytest.mark.parametrize("tool,ti,bad", FILES)
@@ -346,6 +369,11 @@ def test_foreign_write_shell(tool, cmds):
     assert [fw.judge(pay(tool, command=c), RT)[0] == "refuse" for c, _ in cmds] == [bool(b) for _, b in cmds]
     assert fw.judge(pay("Bash", cwd=P, command="git commit -m x"), RT)[0] == "refuse"
     assert fw.judge(pay("Bash", cwd=P, command="git status"), RT)[0] == "pass"
+
+
+def test_foreign_write_bad_argv():
+    code, out = hook("foreign_write.py", ["--root"], ROOT, b"{}")  # t-1983 F10: exit 2 would block every tool call
+    assert code == 0 and "not checked" in out
 
 
 @pytest.mark.parametrize("payload", [None, {}, {"tool_name": "Write"}, pay("Write", file_path=""), pay("Bash", command="  "),
@@ -406,6 +434,20 @@ def test_pre_compact_failures(tmp_path, stub, timeout, why):
     path = root + "/logs/journal/s1.jsonl"
     log = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
     assert (why in log and '"event": "hook_failed"' in log and "pre_compact:" in log) if why else not log
+
+
+@pytest.mark.parametrize("n", [250, 251])  # t-1983 F15: the why is cut at 250, a why AT it is kept whole
+def test_pre_compact_cut(monkeypatch, n):
+    got = []
+    monkeypatch.setattr(pcm, "snapshot", lambda *a: "w" * n)
+    monkeypatch.setattr(hio.io, "journal", lambda *a: got.append(a[-1]))
+    pcm.body({"session_id": "s"}, "", "r", 1)
+    assert got == ["pre_compact: " + "w" * 250]
+
+
+def test_pre_compact_bad_argv():
+    code, out = hook("pre_compact.py", ["--timeout-s", "x"], ROOT, b"{}")  # a bad argv must not exit 2
+    assert code == 0 and "not run" in out
 
 
 def test_pre_compact_writes(tmp_path):
