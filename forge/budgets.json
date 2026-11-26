@@ -2,7 +2,8 @@
   "schema": "budgets/1",
   "rows": {
     "rules_worker": {"unit": "bytes", "paths": ["CLAUDE.md", ".claude/agents/*.md"], "ceiling": 12288},
-    "rules_coordinator": {"unit": "bytes", "paths": ["forge/COORDINATOR.md"], "ceiling": 20480},
+    "rules_coordinator": {"unit": "bytes", "paths": ["forge/COORDINATOR.md", "forge/BOOT.md"], "ceiling": 20480},
+    "boot_page": {"unit": "bytes", "paths": ["forge/BOOT.md"], "ceiling": 4096},
     "factory_code": {"unit": "nonblank_lines", "paths": ["factory/tools/**/*.py", "factory/hooks/**/*.py"], "ceiling": 6000},
     "gate_rules": {"unit": "rows", "paths": ["factory/data/gate-rules.yaml"], "ceiling": 45},
     "stage_start_load": null,
