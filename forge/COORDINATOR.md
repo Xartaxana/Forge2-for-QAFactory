@@ -4,18 +4,17 @@ Read at every session start by the Lead and the Architect. Worker rules are in `
 
 ## Acceptance
 - Acceptance comes only from a tier above or with critic input; no session certifies its own work, and a worker never writes accept or reject. A builder accept with no critic input under its task was self-certification. (case: FH-6111, a worker certified its own work; FH-3055)
-- A negative claim in a report is spot-checked by the acceptor with a same-form control before it is used. (case: FH-1042, FH-5016)
-- Acceptance judges owns by `git diff --name-only main...w/<task>` against the dispatch's owns BEFORE the fast-forward; a path beyond them stands in the hand-back as needed beyond the manifest, or the work is returned. (case: FH-4045, FH-4046)
+- A negative claim in a report or a digest is always spot-checked by the acceptor with a same-form control before it is used. (case: FH-1042, FH-5016)
+- Acceptance -- the witness run (B18) and the owns check, `git diff --name-only main...w/<task>` against the dispatch's owns -- comes BEFORE the fast-forward: once the branch is in main that diff is empty; a path beyond them stands in the hand-back as needed beyond the manifest, or the work is returned. (case: FH-4045, FH-4046)
 - A hand-back missing its `similar:` or `friction:` line is returned before review. (case: P12, B6)
 - A cut worker's hand-back is taken as done and not done; the rest goes whole to a fresh worker, and its partial output is never accepted as done. (case: B5; owner 25.11.2026 20:56; its cap hook is not built)
 - A test that fails only under load is a defect of the test, fixed, never retried. (case: FH-2093, the old forge kept a queue of known-flaky tests)
-- A scout digest is accepted by its trail: the acceptor checks that the question is covered and spot-verifies one load-bearing claim, a negative claim always; a digest with no trail is rejected. (case: dev1.jsonl:252 and :274, a false negative and a stale status found by the Lead's spot check)
+- A scout digest is accepted by its trail: the acceptor checks that the question is covered and spot-verifies one load-bearing claim; a digest with no trail is rejected. (case: dev1.jsonl:252 and :274, a false negative and a stale status found by the Lead's spot check)
 - A builder hand-back is accepted by its witness, the command and its actual output; a report without one is rejected, and a retelling is no witness. (case: dev1.jsonl:3655, a build report with no witness)
 - A diff over about 100 lines, one touching a schema, money or a core, and a plan that forks get an independent critic review before acceptance; the builder's own run is the first filter, not a substitute; a skip is a written note with its reason, allowed only to an acceptor above the executor's tier. (case: dev1.jsonl:5810, a critic blocker on a builder diff)
-- A fix to a role's behaviour is proved only by a live run of that role; what a person pastes in for the role proves nothing, and until the run the item is coded but not verified. (case: the old FR-33 of the factory rules: the fixes of one run that counted were the five a live role exercised)
+- A fix to a role's behaviour is proved only by a live run of that role; what a person pastes in for the role proves nothing, and until the run the item is coded but not verified. (case: dev1.jsonl:635, critic t-240 found a role-text change closed by code with no live-proof row, fix P11-1)
 - The Lead's own acceptance is judged from outside: the weekly calibration reads the journal for acceptances with no witness or critic input, and the Architect reviews mechanism commits. (case: dev1.jsonl:339, an acceptance that missed the card witness and the lint run)
-- A verdict that raises a shrink-only ratchet row without naming it (key, old to new, reason) is returned; an unnamed raise is a blocker. (case: critic t-836 of 16.10.2026, in the title of the old SIBLING_MAP axis 18)
-rows: fr:A7, fr:B1, fr:B2, fr:A10, fr:A19, fr:B5, fr:D7, fp:A18
+rows: fr:A7, fr:B1, fr:B2, fr:A10, fr:A19, fr:B5
 
 ## Escalation and delegation
 - Two failed attempts on one tier move the work one tier up; no silent retry on the same tier. Builder rejects are counted per task by `journal.py rejects <task>` (tool: B18, not built). (case: FH-1038, the old forge's tier rule after two rejects)
@@ -26,12 +25,12 @@ rows: fr:A13
 ## Delegation and roles
 - Large specs are drafted by a designer in an independent context; the designer returns forks, never decides them; brief facts are measured by code first. (case: owner 17.11.2026, fr:A9)
 - A designer's draft is accepted against the dispatch form, edges with invariants, readers of every touched file, forks returned as questions, and at most 40,000 bytes. (case: owner 16.11.2026, 17.11.2026, fr:B4)
-- The Architect takes the owner's new ideas, process escalations and the weekly calibration (`forge/calibration.md`, C1-7, not built). (case: D-0067 of the old forge, fr:B6)
+- The Architect takes the owner's new ideas, process escalations and the weekly calibration (`forge/calibration.md`). (case: D-0067 of the old forge, fr:B6)
 - A new idea: ask the owner about intent first, then a goal document by `.claude/skills/idea-goal/SKILL.md` (eight steps; tool: B10, not built) with measured success, carried facts and reasoned exclusions, before any design. A large idea keeps its goal document and one work-list record of kind `idea` pointing to it. (case: owner 11.11.2026, fr:A25)
-- A step that code takes over from a role is compared with the role's own reference run before it is trusted; any result below the role's stops the move. (case: the old forge's S0 ticket snapshot lost the acceptance criteria, comments and parent unnoticed, PROJECT.md rule 5)
+- A step that code takes over from a role is compared with the role's own reference run before it is trusted; any result below the role's stops the move. (case: the old forge's S0 ticket snapshot lost the acceptance criteria, comments and parent unnoticed, docs/PROJECT_FULL.md of the old forge, section Package change, item 5)
 - A spec that changes the meaning of a field, condition or gate has its data premise measured on real data (one command, the result in the spec), its error direction and awkward inputs written before code, and its text read by a critic as a plan. (case: dev1.jsonl:5424, a premise measured bare and false; docs/FINDINGS.md F-2 of the old forge)
 - A claim that a delivery form or a policy pays is measured against a free-agent arm on the same tasks, with the price per accepted task. (case: docs/tasks/specs/reviews/t-354-tests-factory-vs-free.md)
-- Closing a defect walks the axes of `forge/siblings.md` that it sits on; the table starts empty and an axis enters it with a caught case. (tool: C1-7, not built) (case: dev1.jsonl:1825, a SIBLING_MAP row left untouched)
+- Closing a defect walks the axes of `forge/siblings.md` that it sits on; the table starts empty and an axis enters it with a caught case. (case: dev1.jsonl:1825, a SIBLING_MAP row left untouched)
 rows: fr:A9, fr:B4, fr:B6, fr:A25, fr:A17, fr:A18, fp:A3, fp:A19
 
 ## Parallel writers
@@ -48,11 +47,11 @@ rows: fr:A8, fr:D4
 
 ## Journal, sessions and retro
 - What code can do, code does: journal lines, dispatch headers, merges. The journal is append-only, written by `journal.py`; a fix is a new line. (case: owner 14.11.2026, fr:A15)
-- Knowledge lives in repo files, not in a machine's memory: what a session learns about the work (an owner's word, a rule, a lesson) goes into a file the next session reads; personal memory holds only machine paths, tokens and local processes. (case: owner 30.10.2026)
+- Knowledge lives in repo files, not in a machine's memory: what a session learns about the work (an owner's word, a rule, a lesson) goes into a file the next session reads; personal memory holds only machine paths, tokens and local processes. (case: owner 30.10.2026, docs/PROJECT_FULL.md of the old forge, section Teamwork, item 10; B-forge-8)
 - A batch closes by finishing the work, not by carrying it over; a carry-over is confirmed by a person. (case: owner 08.10.2026, fr:A26)
 - The next session recovers from files alone; a retro is written while the reasons are in context. (case: owner 17.11.2026, 24.11.2026, fr:A28, fp:A26)
 - On a trigger -- the person's words about a compaction, a pause or the end of the day, a manual compaction, a phase close -- the Lead answers "what of today's work will the next session not see in files?", writes each item into its carrier (owner's words and decisions to `forge/owner-words.yaml`, plan changes to plan or spec files, task state to the journal, the state line to `forge/BOOT.md`, measured numbers to `measure/runs/**` with their command), then runs `journal.py --event session_end --note "unseen: nothing"`. (tool: B7 `carriers.json`, not built) (case: plan record 25.11.2026 19:20, a conclusion that stayed in a session and was lost)
-- Before `session_end` the Lead runs `retro.py write`, answers its questions, names the file in the note, and says one short list in plain words: at most five important points and every open owner question. (tool: B9 `retro.py`, not built) (case: owner 25.11.2026 21:38, B9)
+- Before `session_end` the Lead runs `retro.py write`, writes a reason per non-zero counter and answers its questions, names the file in the note, and says one short list in plain words: at most five important points and every open owner question. (tool: B9 `retro.py`, not built) (case: owner 25.11.2026 21:38, B9)
 - An `old processes:` row marked `parent gone` is named to the owner, or stopped by pid after the Lead checks its command; a row with a live parent is left. (tool: B17, not built) (case: FH-5127, an orphaned call is the leftover; plan record 26.11.2026 01:58 section 1)
 rows: fr:A15, fr:A26, fr:A28, fp:A26, fr:A24
 
@@ -66,5 +65,5 @@ rows: fp:A11
 rows: fr:A14
 
 ## Release
-- A release copy equals the package with deletions mirrored; the release fingerprint is checked last; no plugin update under a live story; publication only on the owner's word. (case: the old RUNBOOK section 4, 30.09.2026: a split test file left in the release copy was picked up by its mask and timed out)
+- A release copy equals the package with deletions mirrored; the release fingerprint is checked last; no plugin update under a live story; publication only on the owner's word. (case: B-215 of the old plans/BACKLOG.md, 30.09.2026: a critic found that a copy over the release would keep the split-away test_story_run.py, which would time out in its selftest)
 rows: fp:A16
