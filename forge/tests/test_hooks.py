@@ -544,17 +544,17 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
 
 
-def fx(tmp_path, ctx=None, role="builder", out=1000, cut=False, caps=True):
+def fx(tmp_path, ctx=None, role="builder", out=1000, handoff=True, caps=True, lines_n=1):
     """B5 fixture: a root with caps.json, a worker transcript (dispatch lines, then one usage line of ctx tokens)."""
     root = mkroot(tmp_path / "r", ci=False)
     if caps:
         shutil.copy(os.path.join(ROOT, "forge", "caps.json"), root + "/forge/caps.json")
     tp = str(tmp_path / "t" / "sess.jsonl")
-    disp = ("role: %s\n" % role if role else "") + "handoff: %s\n" % (tmp_path / "rep.md")
+    disp = ("role: %s\n" % role if role else "") + ("handoff: %s\n" % (tmp_path / "rep.md") if handoff else "")
     lines = [{"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": disp}]}}]
     if ctx is not None:
         u = {"input_tokens": ctx - 100, "cache_creation_input_tokens": 50, "cache_read_input_tokens": 50, "output_tokens": out}
-        lines.append({"type": "assistant", "message": {"usage": u}})
+        lines += [{"type": "assistant", "message": {"id": "m1", "usage": u}}] * lines_n
     put(tp.replace(".jsonl", "") + "/subagents/agent-a1.jsonl", "".join(json.dumps(x) + "\n" for x in lines))
     return root, tp
 
@@ -600,8 +600,9 @@ def test_budget_warn_once_at_and_beyond(tmp_path, ctx, age, want):
 def test_budget_wall_cut_and_unreadable_transcript(tmp_path, age, ctx):
     root, tp = fx(tmp_path, ctx)
     got = call(root, tp.replace("sess", "gone") if ctx is None else tp, age=age)
-    assert got[0] == (2 if age > 3599 else 0) and ("tokens unmeasured" in got[1]) == (ctx is None and age < 3600) and got[1].count("unmeasured") < 2
+    assert got[0] == (2 if age > 3599 else 0) and ("tokens unmeasured" in got[1]) == (ctx is None) and got[1].count("tokens unmeasured") == (ctx is None)
     assert (call(root, tp.replace("sess", "gone"))[0] == 2 or age < 3600) and ("cut" in str(events(root))) == (age > 3599)
+    assert ctx is not None or age < 3600 or "wall 3600 of 3600 s spend unmeasured" in events(root)[0]["note"]  # F2
 
 
 @pytest.mark.parametrize("role", [None, "wizard", "main"])
@@ -616,18 +617,52 @@ def test_budget_unknown_role_is_strictest_row(tmp_path, role):
 def test_budget_main_warned_never_cut(tmp_path, ctx, had, levels):
     root, tp = fx(tmp_path, ctx)
     put(tp, json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": ctx}}}) + "\n")
-    put(root + "/logs/budget/main-s1.json", json.dumps({"t0": 1, "level": had}))
+    put(root + "/logs/budget/main-s1.json", json.dumps({"t0": 1, "level_tokens": had}))
     got = call(root, tp, agent=None)
-    assert got[0] == 0 and len([e for e in events(root) if e["note"].startswith("role:main")]) == levels and (levels == 0 or "spend %d" % ctx in got[1])
+    assert got[0] == 0 and len(events(root)) == levels and (levels == 0 or "spend %d" % ctx in got[1])
 
 
-@pytest.mark.parametrize("caps,crash,want", [(False, False, "caps missing"), (True, True, "hook_failed")])
-def test_budget_caps_missing_and_crash_pass(tmp_path, caps, crash, want):
-    root, tp = fx(tmp_path, 900000, caps=caps)
-    if crash:
-        put(root + "/forge/caps.json", '[{"role": "main"}, {"role": "builder", "tokens_warn": "x", "tokens_stop": "y"}]')
-    got = call(root, tp, "Bash", command="rm -rf /")
-    assert got[0] == 0 and want in (got[1] + str(events(root)))
+@pytest.mark.parametrize("caps", [None, "nope", '[{"role": "main", "tokens_warn": "x"}]', '[{"role": "builder"}]'])
+def test_budget_caps_missing_every_call_no_cut(tmp_path, caps):  # F6: absent, unparsable, malformed by type or by field
+    root, tp = fx(tmp_path, 900000, caps=False)
+    if caps:
+        put(root + "/forge/caps.json", caps)
+    got = [call(root, tp, "Bash", command="rm -rf /") for _ in range(2)]
+    assert [g[0] for g in got] == [0, 0] and all("caps missing" in g[1] for g in got) and not events(root)
+
+
+@pytest.mark.parametrize("agent,role", [("a1", "builder"), (None, "main")])
+def test_budget_crash_passes_and_journals_role(tmp_path, monkeypatch, agent, role):  # F3: the crash is in code, not in data
+    import budget as bd
+    root, tp = fx(tmp_path, 10)
+    put(root + "/logs/budget/a1.json", json.dumps({"t0": 1, "role": "builder"}))
+    monkeypatch.setattr(bd, "evaluate", lambda *a: 1 / 0)
+    assert bd.body({"session_id": "s1", "agent_id": agent}, "", root) == 0
+    assert [e["event"] for e in events(root)] == ["hook_failed"] and events(root)[0]["note"].startswith("role:%s budget: Zero" % role)
+
+
+def test_budget_spend_counts_a_message_once_and_main_has_no_stop(tmp_path):  # F1, F5
+    root, tp = fx(tmp_path, 260000, lines_n=3)
+    assert "tokens 260000 of 250000 spend 261000" in call(root, tp)[1]
+    root, tp = fx(tmp_path / "m", 360000)
+    put(root + "/forge/caps.json", open(root + "/forge/caps.json").read().replace('"tokens_stop": null', '"tokens_stop": 350000'))
+    put(tp, json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": 360000}}}) + "\n")
+    assert call(root, tp, agent=None)[0] == 0
+
+
+def test_budget_cut_edges(tmp_path):  # F7: no handoff line; F4: an unreadable sidecar after a cut; F9; F12
+    root, tp = fx(tmp_path, 400000, handoff=False)
+    assert call(root, tp, "Write", file_path=str(tmp_path / "rep.md"))[0] == 2 and call(root, tp, "SubagentHandback")[0] == 0
+    side = root + "/logs/budget/a1.json"
+    put(side, "{torn")
+    got = call(root, tp)
+    assert got[0] == 0 and "budget state unreadable" in got[1] and open(side).read() == "{torn"
+    root, tp = fx(tmp_path / "b", 10)
+    assert call(root, tp.replace("sess", "gone"))[0] == 0 and call(root, tp)[0] == 0  # dispatch unreadable at call 1, read at call 2
+    got = json.load(open(root + "/logs/budget/a1.json"))
+    assert (got["role"], got["handoff"]) == ("builder", str(tmp_path / "b" / "rep.md"))
+    put(tp[:-6] + "/subagents/agent-a2.jsonl", json.dumps({"type": "user", "message": {"content": "x"}}) + "\n")
+    assert ["no usage line" in call(root, tp, agent="a2")[1] for _ in range(3)] == [False, True, False]
 
 
 def test_budget_newest_line_without_usage_keeps_last_value(tmp_path):
