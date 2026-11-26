@@ -138,6 +138,10 @@ def test_add_refusals(tmp_path):
         fh.write(hand)
     code, out = run(root, "add", "-", stdin=json.dumps(rec(2)).encode("ascii"))
     assert code == 2 and "not canonical" in out and "words.render" in out and open(path, "rb").read() == hand
+    with open(path, "wb") as fh:
+        fh.write(words.render([rec(1)]).encode("utf-8").replace(b"\n", b"\r\n"))
+    code, out = run(root, "add", "-", stdin=json.dumps(rec(2)).encode("ascii"))
+    assert code == 0 and b'"id": "W-2"' in open(path, "rb").read() and b'"id": "W-1"' in open(path, "rb").read()
     code, out = run(root, "add", os.path.join(root, "nope.json"))
     assert code == 2 and out.startswith("refused: cannot read ") and "nope.json" in out
 

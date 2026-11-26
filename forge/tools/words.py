@@ -7,7 +7,8 @@ words.py [--root D] show <id>           print the record
 words.py [--root D] resolve <id>        print `<id> <kind> live|superseded by <id>`; exit 0 only for a live record (B20)
 words.py [--root D] add <file|->        the ONE writer: a record as UTF-8 JSON, append-only, every bad field named (B14)
 
-Exit: check 0 green (`listed:` lines are for the owner, never red), 1 red, 2 cannot judge (registry unreadable or absent);
+Exit: check 0 green (`listed:` lines are for the owner, never red), 1 red, 2 cannot judge (registry unreadable or absent,
+or a BOOT `plan` line with the plan copy absent);
 add 0 written, 1 registry busy, 2 refused. Importable: resolve_id(root, id) (B20), plan_key_ok(root, key) (B13: the one
 resolver of `plan <h>[.<n>]` keys). Two residuals, known: a paraphrase entered as words is not detectable by code (the
 critic compares `words` with the text at `carrier`); a citation inside forge/tests/ or forge/specs/ is not counted
@@ -315,7 +316,8 @@ def raw_registry(path):
 def append(root, rec):
     records, err = read_registry(root)
     path = os.path.join(root, REG)
-    if not err and raw_registry(path) != render(records).encode("utf-8", "surrogatepass"):
+    # CRLF is how git checks the file out under autocrlf: judged as LF, and the write below is LF (git converts back)
+    if not err and raw_registry(path).replace(b"\r\n", b"\n") != render(records).encode("utf-8", "surrogatepass"):
         # B3-2: a re-render of a hand-edited file would drop its extra keys and collapse duplicates unseen
         err = "%s is not canonical (hand-edited); a record is only appended to a canonical file: " \
               "rewrite it with words.render(records) or restore it from git, then add again" % REG
