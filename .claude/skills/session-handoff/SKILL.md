@@ -24,12 +24,12 @@ carry: FS-143
 ## 2a. Accepted work is in the committed HEAD
 
 - For every builder `accept` of this session, the entity the witness names (a test, a function, a file, read from the accept note or the hand-back) exists in the COMMITTED HEAD of main (`git show HEAD:<path>` or a grep against HEAD), not merely in a working tree; checked BEFORE pushing.
-- A divergence found is fixed the same evening: re-commit from the working tree if the diff still exists, or an honest journal line naming the original accept if it does not; never a silent re-run passed off as if nothing happened. (tool: none yet -- journal.py has no defect event)
+- A divergence found is fixed the same evening: re-commit from the working tree if the diff still exists, or a `defect_found` line against the task of the original accept if it does not (`journal.py --event defect_found`, forge/COORDINATOR.md, Acceptance); never a silent re-run passed off as if nothing happened.
 carry: FS-145, FS-146
 
 ## 2b. Critic-trail candidates
 
-- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits, the input to the cumulative critic-integration judgment (old R13-g); the listing only reads git and the journal. The candidates are read by the weekly reading of acceptances with no critic input (forge/COORDINATOR.md, Acceptance); the count has no reader in forge 2 yet. (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
+- The handoff report lists the session's commits over 100 lines (by numstat) with no critic trail in the journal as CANDIDATES, not a verdict, and the window's count of small commits, the input to the cumulative critic-integration judgment (old R13-g); the listing only reads git and the journal. The candidates are read by the weekly reading of acceptances with no critic input (forge/COORDINATOR.md, Acceptance); the count is read by that same weekly reading (forge/COORDINATOR.md, Acceptance). (tool: none yet -- the old informant tools/r3_integration_check.py has no forge 2 twin)
 carry: FS-149
 
 ## 3. What only this chat knows

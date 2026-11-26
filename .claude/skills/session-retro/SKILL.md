@@ -43,7 +43,7 @@ carry: FS-196
 ## Weekly reduction
 
 - The Architect reduces the entries at the weekly calibration (forge/calibration.md B9: `retro.py sum --since <last reading>`, `retro.py missing`): items grouped by class of the factory or the forge, not by session or file; per class one line `fix: <node>` / `already fixing: <node>` / `not fixing: <reason>`.
-- A `not fixing` class stays on record between readings, so that the next entry of the class raises its count instead of reopening the analysis. (tool: none yet -- B9 names no place where class lines persist between readings)
+- A `not fixing` class stays on record between readings, so that the next entry of the class raises its count instead of reopening the analysis. The class lines persist in the `B9 classes` list under the table of forge/calibration.md (row B9).
 - A class with one entry gets no node until it repeats, unless the entry names a defect that stopped the work.
 carry: FS-204, FS-205
 
