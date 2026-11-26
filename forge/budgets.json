@@ -5,6 +5,8 @@
     "rules_coordinator": {"unit": "bytes", "paths": ["forge/COORDINATOR.md", "forge/BOOT.md"], "ceiling": 57344},
     "boot_page": {"unit": "bytes", "paths": ["forge/BOOT.md"], "ceiling": 4096},
     "factory_code": {"unit": "nonblank_lines", "paths": ["factory/tools/**/*.py", "factory/hooks/**/*.py"], "ceiling": 6000},
+    "forge_code": {"unit": "nonblank_lines", "paths": ["forge/tools/**/*.py", "forge/hooks/**/*.py"], "ceiling": 6000},
+    "plan_spec": {"unit": "bytes", "paths": ["forge/specs/*.md"], "ceiling": 1700000},
     "gate_rules": {"unit": "rows", "paths": ["factory/data/gate-rules.yaml"], "ceiling": 45},
     "stage_start_load": null,
     "crap_limit": {"unit": "limit", "ceiling": 20}
