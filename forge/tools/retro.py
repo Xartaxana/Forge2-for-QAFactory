@@ -97,7 +97,7 @@ def tally(entries, session, win):
         m = SLUG.match(str(o.get("note", ""))) if o.get("event") == "ask_owner" else None
         if ts and win[0] <= ts <= win[1]:
             place(c, per_task, session + ".jsonl", f, o, bool(m and m.group(1) in seen))
-        if m:
+        if m and ts:  # an undated line never enters a block, not even as an earlier slug (t-2035 F9)
             seen.add(m.group(1))
     retried = {t: n for t, n in per_task.items() if n > 1}
     c["retried"] = len(retried)
@@ -317,15 +317,15 @@ def cmd_sum(root, since):
     total_c, used, bad_s, no_r, no_a = Counter(), [], [], [], []
     for s in sessions(loaded[0], loaded[1]):  # a session with no retro file is only on the missing line (t-2031 N6)
         text = read(retro_path(root, s)) if os.path.exists(retro_path(root, s)) else None
-        win = text and recorded_window(text)
-        if text and not win:
-            bad_s.append(s)  # no window line: named, never recounted in a recomputed window
+        win = recorded_window(text) if text is not None else None
+        if text is not None and not win:
+            bad_s.append(s)  # no window line (an empty file included, t-2035 N8): named, never recounted
         if not win or (win[0] and win[0][:10] < since):
             continue
         block, names, _w, c = counts_block(loaded, s, win)  # the file's recorded window, as check does
         used.append(s)
         total_c.update(c)
-        bad_s += [s] if block[0] != "counts: ok" or not win[0] else []  # no window (every line unparsable): listed
+        bad_s += [s] if block[0] != "counts: ok" else []
         r, a = gaps(text, names)
         no_r += ["%s(%s)" % (s, ",".join(r))] if r else []
         no_a += ["%s(%s)" % (s, ",".join(a))] if a else []

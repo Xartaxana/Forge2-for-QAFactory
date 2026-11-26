@@ -403,10 +403,12 @@ def test_retro_check_sum_missing(tmp_path):
 # t-2029 N5 (the Lead's ruling): check recounts in the file's window line, so B7's session_end journaled after write
 # moves nothing (gitgap, badgap); a window line edited or missing is red, and write restores a missing one (t-2031 F6);
 # t-2031: own lines after the end (the chat step) never enter (ownafter), sum recounts in the same window (N6), and a
-# windowless line with its trailing space trimmed still parses (trimmed)
+# windowless line with its trailing space trimmed still parses (trimmed); t-2035 M1: an own line killed last at write is
+# undated (never named), then dated past the end like one killed after write (ownafter); F9: an undated slug is no
+# earlier slug (undatedslug)
 @pytest.mark.parametrize("mode,code", [("gitline", 0), ("gitbad", 0), ("later", 0), ("values", 0), ("G", 0), ("S", 0),
                                        ("T", 0), ("gitgap", 0), ("badgap", 0), ("winedit", 1), ("nowinline", 1),
-                                       ("ownafter", 0), ("trimmed", 0)])
+                                       ("ownafter", 0), ("trimmed", 0), ("undatedslug", 0)])
 def test_retro_untouched(tmp_path, mode, code):
     retro_fixture(tmp_path, git=False)
     if mode == "values":
@@ -421,16 +423,21 @@ def test_retro_untouched(tmp_path, mode, code):
               "T": par}.get(mode, ("", ""))
     if p0:
         put(tmp_path, "logs/journal/%s.jsonl" % p0, p1.encode())
+    if mode == "ownafter":
+        with open(tmp_path / "logs" / "journal" / "s1.jsonl", "a") as fh:
+            fh.write(killed + "\n")  # the own file's last line at write, killed mid-write: undated
     f = tmp_path / "logs" / "retro" / "s1.md"
-    assert run("retro.py", ["write", "s1"], tmp_path)[0] == 0
+    got, out = run("retro.py", ["write", "s1"], tmp_path)
+    assert got == 0 and "unparsable" not in out
     rel, data = {"gitline": ("git-hooks", late), "gitbad": ("git-hooks", "{oops\n" + late), "later": ("s9", "{oops\n"),
                  "G": (p0, p1 + killed + "\n" + late), "S": (p0, p1 + killed + "\n" + late), "T": (p0, p1 + killed),
                  "gitgap": ("git-hooks", gap), "badgap": ("p0", killed + "\n" + gap), "winedit": ("git-hooks", late),
-                 "nowinline": ("git-hooks", late)}.get(mode, ("", ""))
+                 "nowinline": ("git-hooks", late),
+                 "undatedslug": ("p0", '{"task": "", "event": "ask_owner", "note": "q:alpha later"}\n')}.get(mode, ("", ""))
     if rel:
         put(tmp_path, "logs/journal/%s.jsonl" % rel, data.encode())
     chat = jl(ts="2026-11-20T10:00:40Z", event="ask_owner", note="q:alpha said in chat") + jl(
-        ts="2026-11-20T10:00:41Z", event="refuse", note="foreign_write: chat") if mode == "ownafter" else ""
+        ts="2026-11-20T10:00:41Z", event="refuse", note="foreign_write: chat") + killed + "\n" if mode == "ownafter" else ""
     if mode in ("gitgap", "badgap", "ownafter"):  # B7: the chat step and session_end come after write
         with open(tmp_path / "logs" / "journal" / "s1.jsonl", "a") as fh:
             fh.write(chat + jl(ts="2026-11-20T10:01:00Z", event="session_end"))
@@ -499,6 +506,7 @@ def test_retro_refusals_sum(tmp_path):
     got, out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)  # t-2031: no retro file -> only missing
     assert "missing: s0, sx" in out and "reasons missing: s1(" in out and "answers missing: s1(Q1" in out
     assert "incomplete" not in out and "(s1)" in out
-    f.write_bytes(f.read_bytes().replace(b"\nwindow: ", b"\nspan: "))  # t-2031 N6: named, never recounted
-    out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)[1]
-    assert "incomplete: s1" in out and "sessions since 2026-11-20: 0 (none)" in out
+    for data in (f.read_bytes().replace(b"\nwindow: ", b"\nspan: "), b""):  # t-2031 N6, t-2035 N8: named, never recounted
+        f.write_bytes(data)
+        out = run("retro.py", ["sum", "--since", "2026-11-20"], tmp_path)[1]
+        assert "incomplete: s1" in out and "sessions since 2026-11-20: 0 (none)" in out
