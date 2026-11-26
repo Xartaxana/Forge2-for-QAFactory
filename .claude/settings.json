@@ -9,6 +9,14 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/forge/hooks/foreign_write.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/forge/hooks/budget.py\""
+          }
+        ]
       }
     ],
     "SessionStart": [

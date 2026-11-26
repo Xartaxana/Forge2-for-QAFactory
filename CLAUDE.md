@@ -9,7 +9,7 @@ Read by every worker at entry. Role files in `.claude/agents/` only point to a s
 - Fix the class: a sibling of a defect is fixed in the same round or named with an executor; you report analogs and do not widen your scope. (case: W-94, fr:A6)
 - One experiment before machinery: when a decision rests on an unknown property of the environment, measure first. (case: owner 27.10.2026, fp:A25)
 - Size caps: designer draft 40,000 bytes; builder report prose about 500 words; critic review about 1800 words; final message 2,000 characters. (case: W-96, fr:D10)
-- At a cap warning write what is done; at the cut hand back done and not done; a plain commit of your unfinished work is allowed. (tool: B5 `budget.py`, not built) (case: W-46, W-81, B5)
+- At a cap warning write what is done; at the cut hand back done and not done; a plain commit of your unfinished work is allowed. (tool: B5 `budget.py`) (case: W-46, W-81, B5)
 - Refer to a document by its key -- card id, `W-<n>`/`D-<n>`, `L-<n>`, `plan <h>` -- never by a line number. (tool: B13 `refs.py`, not built) (case: RELATED_WORK section 8 item 4, 113 line references measured in the spec)
 - Session start prints now, last, snapshot, hooks, old processes and worktrees; with none of it in your context the start hook did not run: read forge/BOOT.md and forge/COORDINATOR.md by hand. (tool: B1, B2, not built) (case: FH-1007, FH-4151, the old forge printed the rule files at every start)
 - An optional hand-back line `snag: <problem> -> <impact> -> <smallest fix>`; the Lead turns it into a work-list record. (tool: B11 `worklist.py`, not built) (case: plan record 25.11.2026 22:20)
