@@ -18,7 +18,6 @@ do Bash ANSI-C quoting (the dollar-quote $'...'), an abbreviated long option (gi
 from the arity lists (git init --ref-format, git clone --template / -u and the rest of clone -h value options; the target
 is misread). The hook is protection against an agent's accidental write, not against an adversary.
 """
-import argparse
 import json
 import os
 import posixpath
@@ -451,16 +450,7 @@ def body(payload, note, root):
 
 
 def run(v, n, argv):
-    """The guarded body: a bad argument exits 0 with the visible line (exit 2 would block EVERY tool call)."""
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=os.path.dirname(os.path.dirname(HERE)))
-    try:
-        a = ap.parse_args(argv)
-    except SystemExit as exc:
-        if exc.code:
-            print("foreign_write not checked: bad arguments (usage: --root D)", file=sys.stderr)
-        return 0
-    return body(v, n, a.root)
+    return HIO.run_root("foreign_write", __doc__, os.path.dirname(os.path.dirname(HERE)), argv, lambda root: body(v, n, root))
 
 
 if __name__ == "__main__":

@@ -103,10 +103,10 @@ def refuse_git(root, hook, text, door):
     return 1
 
 
-def journal(root, event, by, session, note):
+def journal(root, event, by, session, note, task=None):
     """Append one line through journal.py's CLI, the one writer. Never raises and never guesses a session (journal.py itself
     refuses an invalid id): a failure is one stderr line, cut at 200 characters of journal.py's answer, and the caller's
-    verdict stays as it was. Returns True when the line is written."""
+    verdict stays as it was. task: passed as --task when given (cap_warning and cut need one). Returns True when the line is written."""
     why = None
     jp = os.path.join(root, "forge", "tools", "journal.py")
     if not isinstance(session, str) or not session:
@@ -116,7 +116,8 @@ def journal(root, event, by, session, note):
     else:
         try:
             r = subprocess.run([sys.executable, "-B", jp, "--root", root, "--event", event, "--by", by, "--session",
-                                session, "--note=" + note], capture_output=True, env=genv(), timeout=30)
+                                session, "--note=" + note] + (["--task", task] if task else []), capture_output=True,
+                               env=genv(), timeout=30)
             if r.returncode:
                 why = (r.stdout + r.stderr).decode("utf-8", "replace").strip()[:200] or "exit %d" % r.returncode
         except (OSError, subprocess.SubprocessError) as exc:
@@ -124,3 +125,18 @@ def journal(root, event, by, session, note):
     if why:
         print("journal not written: " + why, file=sys.stderr)
     return why is None
+
+
+def run_root(name, doc, default_root, argv, with_root):
+    """The guarded body of a hook that takes `--root D`: a bad argument exits 0 with the visible line (exit 2 would block EVERY
+    tool call); else with_root(D) is the exit code. The ONE copy of this block (hooks budget, foreign_write)."""
+    import argparse
+    ap = argparse.ArgumentParser(description=doc)
+    ap.add_argument("--root", default=default_root)
+    try:
+        a = ap.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code:
+            print("%s not checked: bad arguments (usage: --root D)" % name, file=sys.stderr)
+        return 0
+    return with_root(a.root)

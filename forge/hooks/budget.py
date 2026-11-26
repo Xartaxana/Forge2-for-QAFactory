@@ -17,11 +17,9 @@ cap still applies; a readable one with no usage line yet is silent (nothing to s
 malformed -> `caps missing` on every call, no cut. The hook's own error -> the call passes and `hook_failed` is journaled;
 a call with no session id journals nothing (stderr only).
 """
-import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 
@@ -32,6 +30,8 @@ from hio import io as HIO  # noqa: E402
 STEP = 50000
 PLAIN_GIT = re.compile(r"^\s*git (add|commit|status|diff --stat)\b[^;&|<>`$\\()\r\n]*$")
 SAFE = re.compile(r"[A-Za-z0-9_-]{1,128}")
+CUT_TEXT = ("budget cut: %s -- hand back; the Lead relaunches fresh with the rest. Passing: SubagentHandback, a Write/Edit of "
+            "the handoff path, one plain git command (add, commit, status, diff --stat)")
 FIELDS = ("tokens_warn", "tokens_stop", "wall_warn_s", "wall_stop_s")
 
 
@@ -141,22 +141,6 @@ def judge(st, row, now, is_main):
     return out
 
 
-def journal(root, event, session, note, task):
-    """cap_warning and cut need --task (journal.py NEEDS_TASK) and hio's helper takes none: the same CLI, called here. The
-    task is the dispatch's `task:` line, `unknown` when it has none. Never raises; a refusal is one stderr line."""
-    if not isinstance(session, str) or not session:
-        print("journal not written: no session id", file=sys.stderr)
-        return
-    try:
-        r = subprocess.run([sys.executable, "-B", os.path.join(root, "forge", "tools", "journal.py"), "--root", root, "--event",
-                            event, "--by", "budget", "--session", session, "--task", task or "unknown", "--note=" + note],
-                           capture_output=True, env=HIO.genv(), timeout=30)
-        if r.returncode:
-            print("journal not written: " + (r.stdout + r.stderr).decode("utf-8", "replace").strip()[:200], file=sys.stderr)
-    except (OSError, subprocess.SubprocessError) as exc:
-        print("journal not written: %s" % exc, file=sys.stderr)
-
-
 def tell(root, session, role, st, events):
     """The lines for the agent, each journaled as cap_warning or cut; returns (warn lines, cut lines)."""
     warns, cuts = [], []
@@ -171,7 +155,7 @@ def tell(root, session, role, st, events):
             cuts.append(note)
         else:
             warns.append("%s; write what is done, hand back the rest" % note)
-        journal(root, "cap_warning" if kind == "warn" else "cut", session, note, st["task"])
+        HIO.journal(root, "cap_warning" if kind == "warn" else "cut", "budget", session, note, st["task"] or "unknown")
     return warns, cuts
 
 
@@ -181,52 +165,71 @@ def once(st, key, text, lines):
         lines.append(text)
 
 
+def keys(payload):
+    """(worker?, state key, transcript path or None); the key is None when no safe id exists."""
+    sid, aid = payload.get("session_id"), payload.get("agent_id")
+    worker = isinstance(aid, str) and bool(aid)
+    key = aid if worker else "main-%s" % sid
+    tp = payload.get("transcript_path")
+    if not (isinstance(tp, str) and tp):
+        return worker, key, None
+    sub = os.path.join(tp[:-6] if tp.endswith(".jsonl") else tp, "subagents", "agent-%s.jsonl" % aid)
+    return worker, key, (sub if worker else tp)
+
+
+def first_call(st, worker, path):
+    """The sidecar of a worker's first call: t0, and the role, handoff and task lines of its dispatch."""
+    st["t0"] = time.time()
+    text = (first_user_text(path) if worker and path else None) or ""
+    got = [re.search(r"(?m)^%s:\s*(.+?)\s*$" % n, text) for n in ("role", "handoff", "task")]
+    got = [m.group(1).strip("`") if m else None for m in got]
+    st["role"] = got[0].split()[0] if got[0] else None
+    st["handoff"], st["task"] = got[1], got[2].split()[0] if got[2] else None
+
+
+def pick_row(st, rows, worker, info):
+    """(role, row): main, the worker's row, or the strictest worker row said once for an absent or unknown role."""
+    if not worker:
+        return "main", rows["main"]
+    role = st["role"] if st["role"] in rows and st["role"] != "main" else "unknown"
+    if role == "unknown":
+        once(st, "role", "role: absent or unknown in the dispatch; the strictest worker row applies", info)
+    return role, rows.get(role) or strictest(rows)
+
+
+def verdict(payload, st, role, cuts):
+    """The cut lines still standing after the allowed moves: a cut worker's three moves pass."""
+    if "cut" not in st["said"]:
+        return cuts
+    if allowed(payload, st["handoff"]):
+        return []
+    return cuts or ["cut earlier; role:%s spend %d" % (role, st["spend"])]
+
+
 def evaluate(payload, root):
     """(exit code, stderr text, additionalContext lines)."""
     info = []
     rows = load_rows(root)
     if rows is None or "main" not in rows:
         return 0, "", ["caps missing: forge/caps.json is absent or malformed (card B5); no cap is judged"]
-    sid, aid = payload.get("session_id"), payload.get("agent_id")
-    worker = isinstance(aid, str) and bool(aid)
-    key = aid if worker else "main-%s" % sid
+    worker, key, path = keys(payload)
     if not isinstance(key, str) or not SAFE.fullmatch(key):
         return 0, "", ["budget not checked: no safe worker or session id"]
-    tp = payload.get("transcript_path")
-    tp = tp if isinstance(tp, str) and tp else None
-    path = tp and (os.path.join(tp[:-6] if tp.endswith(".jsonl") else tp, "subagents", "agent-%s.jsonl" % aid) if worker else tp)
     sp = os.path.join(root, "logs", "budget", key + ".json")
     st = state_of(sp)
     first = st["t0"] is None
     if first:
-        st["t0"] = time.time()
-        text = first_user_text(path) if worker and path else None
-        role = re.search(r"(?m)^role:\s*(\w+)", text or "")
-        st["role"] = role.group(1) if role else None
-        ho = re.search(r"(?m)^handoff:\s*(.+?)\s*$", text or "")
-        tk = re.search(r"(?m)^task:\s*(\S+)", text or "")
-        st["task"] = tk.group(1) if tk else None
-        st["handoff"] = ho.group(1).strip("`") if ho else None
-    role, row = "main", rows["main"]
-    if worker:
-        role = st["role"] if st["role"] in rows and st["role"] != "main" else "unknown"
-        row = rows.get(role) or strictest(rows)
-        if role == "unknown":
-            once(st, "role", "role: absent or unknown in the dispatch; the strictest worker row applies", info)
+        first_call(st, worker, path)
+    role, row = pick_row(st, rows, worker, info)
     if worker and first:
-        cap = "caps: tokens %s/%s, wall %s/%s s -- at the cap: hand back done and not done" % tuple(row[f] for f in FIELDS)
-        info.append(cap)
+        info.append("caps: tokens %s/%s, wall %s/%s s -- at the cap: hand back done and not done" % tuple(row[f] for f in FIELDS))
     if not (path and scan(path, st)):
         once(st, "unmeasured", "tokens unmeasured: the transcript is absent or unreadable; the wall cap still applies", info)
-    warns, cuts = tell(root, sid, role, st, judge(st, row, time.time(), not worker))
-    if "cut" in st["said"] and not allowed(payload, st["handoff"]):
-        cuts = cuts or ["cut earlier; role:%s spend %d" % (role, st["spend"])]
-    elif "cut" in st["said"]:
-        cuts = []
+    warns, cuts = tell(root, payload.get("session_id"), role, st, judge(st, row, time.time(), not worker))
+    cuts = verdict(payload, st, role, cuts)
     save(sp, st)
     if cuts:
-        return 2, "budget cut: %s -- hand back; the Lead relaunches fresh with the rest. Passing: SubagentHandback, a Write/" \
-                  "Edit of the handoff path, one plain git command (add, commit, status, diff --stat)" % cuts[0], []
+        return 2, CUT_TEXT % cuts[0], []
     return 0, "", info + warns
 
 
@@ -257,15 +260,7 @@ def body(payload, note, root):
 
 
 def run(v, n, argv):
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--root", default=os.path.dirname(os.path.dirname(HERE)))
-    try:
-        a = ap.parse_args(argv)
-    except SystemExit as exc:
-        if exc.code:
-            print("budget not checked: bad arguments (usage: --root D)", file=sys.stderr)
-        return 0
-    return body(v, n, a.root)
+    return HIO.run_root("budget", __doc__, os.path.dirname(os.path.dirname(HERE)), argv, lambda root: body(v, n, root))
 
 
 if __name__ == "__main__":
