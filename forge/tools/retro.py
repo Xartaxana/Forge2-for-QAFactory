@@ -64,7 +64,7 @@ def own_event(c, per_task, o, ev, note):
         c["refuse:" + hook_id(note)] += 1
     elif ev in ("accept", "reject", "return", "hook_failed"):
         c[ev] += 1
-    if ev in ("reject", "return"):
+    if ev == "reject":  # a return is the worker's stop; its accept or reject ends the attempt (t-2101 F2)
         per_task[clean(o.get("task", ""))] += 1
 
 
@@ -88,7 +88,7 @@ def place(c, per_task, own, f, o, repeat):
 
 
 def tally(entries, session, win):
-    """Return (counter, {task: n} for tasks with more than one reject|return). Only lines dated inside the window are
+    """Return (counter, {task: n} for tasks with more than one reject). Only lines dated inside the window are
     counted, the own file's included: the session journals after write (B7's chat step, session_end; t-2031 N7)."""
     c, per_task, seen = Counter(), Counter(), set()
     for ts, f, _n, _raw, o in entries:  # ts order: a slug is a repeat when an earlier line, any file, carried it

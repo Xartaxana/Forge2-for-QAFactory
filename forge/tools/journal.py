@@ -240,8 +240,9 @@ def main(argv=None):
             if b.startswith("unreadable"):
                 print(b)
         return 1 if bad else 0
-    status, tasks, bad = open_tasks(a.root)
-    wait = set(pending(load(a.root)[0]))
+    loaded = load(a.root)  # one read: a line appended between two reads showed a closed task as open
+    status, tasks, bad = open_tasks(a.root, loaded)
+    wait = set(pending(loaded[0]))
     tasks = [t + (" RESULT PENDING" if t in wait else "") for t in tasks]
     if status == "unknown":
         print("unknown -- no journal")

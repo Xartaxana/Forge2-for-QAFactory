@@ -88,25 +88,22 @@ def test_journal_write(tmp_path, event, note, task, session, code, word):
         assert obj["ts"].endswith("Z") and obj["by"] == "lead" and obj["note"] == note
 
 
-# expected from: the Lead's decision t-2101 on FR-1127 (a return never closes a dispatch) and the dispatch's edges
-@pytest.mark.parametrize("evs,want", [
-    (["dispatch", "return"], "t-1 RESULT PENDING"), (["dispatch", "return", "accept"], "none"),
-    (["dispatch", "return", "reject"], "none"), (["dispatch", "return", "dispatch"], "t-1"),
-    (["dispatch", "return", "return"], "t-1 RESULT PENDING"), (["return"], "none"), (["dispatch", "return", "return", "accept"], "none")])
-def test_journal_open_pending(tmp_path, evs, want):
-    for ev in evs:
-        jw(tmp_path, ev, "n", "t-1", "o")
-    assert run("journal.py", ["open"], tmp_path)[1].strip() == want
-
-
 # expected from: card C1-4 (the open list, the unparsable line, no journal is unknown)
 @pytest.mark.parametrize("rows,tail,code,words", [
     ([], "", 0, ["unknown -- no journal"]),
     ([("dispatch", "t-1")], "", 0, ["t-1"]),
     ([("dispatch", "t-1"), ("accept", "t-1")], "", 0, ["none"]),
     ([("dispatch", "t-1"), ("dispatch", "t-2"), ("return", "t-1")], "", 0, ["t-1 RESULT PENDING", "t-2"]),
+    # the Lead's decision t-2101 on FR-1127 (a return never closes a dispatch); "!" = must not appear
+    ([("dispatch", "t-1"), ("return", "t-1"), ("accept", "t-1")], "", 0, ["none", "!PENDING"]),
+    ([("dispatch", "t-1"), ("return", "t-1"), ("reject", "t-1")], "", 0, ["none", "!PENDING"]),
+    ([("dispatch", "t-1"), ("return", "t-1"), ("dispatch", "t-1")], "", 0, ["t-1", "!PENDING"]),
+    ([("dispatch", "t-1"), ("return", "t-1"), ("return", "t-1")], "", 0, ["t-1 RESULT PENDING"]),
+    ([("return", "t-1")], "", 0, ["none"]),  # an orphan return opens nothing
+    ([("dispatch", "t-1"), ("accept", "t-1"), ("return", "t-1")], "", 0, ["none", "!PENDING"]),  # a late return: still closed
     ([("dispatch", "t-1"), ("defect_found", "t-1")], "", 0, ["t-1"]),  # t-2081 M3: defect_found never closes a task
     ([("dispatch", "t-1")], "{broken\n", 1, ["unparsable line 2 in o.jsonl", "incomplete"]),
+    ([("dispatch", "t-1"), ("return", "t-1")], "{broken\n", 1, ["t-1 RESULT PENDING", "incomplete"]),
 ])
 def test_journal_open_and_read(tmp_path, rows, tail, code, words):
     if tail:  # the one row whose journal is written by the tool: the write-then-open seam
@@ -120,7 +117,7 @@ def test_journal_open_and_read(tmp_path, rows, tail, code, words):
         with open(tmp_path / "logs" / "journal" / "o.jsonl", "a") as fh:
             fh.write(tail)
     got, out = run("journal.py", ["open"], tmp_path)
-    assert got == code and all(w in out for w in words)
+    assert got == code and all((w[1:] not in out) if w[0] == "!" else (w in out) for w in words)
     if tail:
         assert run("journal.py", ["read"], tmp_path)[0] == 1
 
@@ -294,7 +291,7 @@ def test_trim(tmp_path, n, args, stdin, code, first, count, lastline):
 # verdict t-1944 F10 (a journal it cannot read is named, the snapshot is still written), C1-4 (200 lines cut with a marker)
 @pytest.mark.parametrize("git,carriers,close,extra,words", [
     (False, None, False, None, ["no journal lines", "git failed"]),
-    (True, None, True, "journal", ["forge/carriers.json absent (B7)", "t-2", "git status"]),
+    (True, None, True, "journal", ["forge/carriers.json absent (B7)", "t-2 (result pending)", "git status"]),
     (True, [{"carrier": "BOOT.md", "what goes there": "state"}], True, None, ["state -> BOOT.md"]),
     (True, "{bad", True, None, ["carriers.json malformed"]),
     (True, "real", True, None, []),  # K2 (B7): the repository's own forge/carriers.json, every row printed
@@ -306,6 +303,7 @@ def test_snapshot(tmp_path, git, carriers, close, extra, words):
         subprocess.run(["git", "-C", str(tmp_path), "init", "-q"], capture_output=True)
     if extra == "journal":
         jw(tmp_path, "dispatch", "n", "t-2", "o1")
+        jw(tmp_path, "return", "n", "t-2", "o1")
     for i in range(205 if extra == "many" else 0):
         put(tmp_path, "%d.txt" % i, b"")  # top-level: one status line each in every untracked mode
     if extra == "odd":
@@ -358,6 +356,16 @@ HAND = ["counts: ok", "dispatch: ?=2 builder=2 lead=1", "accept: 1", "reject: 2"
 def block_of(root, session="s1"):
     lines = (root / "logs" / "retro" / (session + ".md")).read_text().split("\n")
     return lines[lines.index("<!-- retro:counts:begin -->") + 1:lines.index("<!-- retro:counts:end -->")]
+
+
+# expected from: the verdict t-2101 F2 (a return is the worker's stop, never an attempt end: dispatch, return, reject is one
+# attempt, not a retried task); control: two rejects are retried
+@pytest.mark.parametrize("evs,want", [(["dispatch", "return", "reject"], "retried tasks: 0"),
+                                      (["dispatch", "reject", "dispatch", "reject"], "retried tasks: 1")])
+def test_retro_return_not_attempt(tmp_path, evs, want):
+    put(tmp_path, "logs/journal/s1.jsonl", "".join(
+        jl(ts="2026-11-20T10:00:%02dZ" % i, event=e, task="t-1") for i, e in enumerate(evs)).encode())
+    assert run("retro.py", ["write", "s1"], tmp_path)[0] == 0 and want in block_of(tmp_path)
 
 
 # expected from: card B9 K1, K5, K6 and the edge list; HAND is counted by hand from retro_fixture's rows (the first and
