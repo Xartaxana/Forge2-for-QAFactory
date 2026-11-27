@@ -11,3 +11,5 @@
 {"ts": "2026-11-27T11:40:57Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; critic entry; handle aedff953182fdaa4f; reviewed:d3ffafd; verdict forge/specs/reviews/t-2105-b4-price.md"}
 {"ts": "2026-11-27T11:41:08Z", "task": "unknown", "event": "cap_warning", "by": "budget", "note": "role:main tokens 301852 of 300000 spend 18154814"}
 {"ts": "2026-11-27T11:43:29Z", "task": "t-2106", "event": "accept", "by": "lead", "note": "basis: critic; verdict received forge/specs/reviews/t-2106-b17-start-facts.md: blocker, 5 findings (F1-F5), a fix round of ffd8562 is owed (worklist wl-9)"}
+{"ts": "2026-11-27T11:46:42Z", "task": "t-2103", "event": "return", "by": "lead", "note": "builder hand-back cc09fa7, 45 passed; critic owed (wl-7)"}
+{"ts": "2026-11-27T11:46:42Z", "task": "t-2101", "event": "return", "by": "lead", "note": "critic verdict fit_with_fixes forge/specs/reviews/t-2101-wl5-return.md; fix round owed (wl-7)"}
