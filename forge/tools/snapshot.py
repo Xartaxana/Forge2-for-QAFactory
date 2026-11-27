@@ -54,7 +54,8 @@ def journal_text(root):
     """Return (open tasks text, last 20 lines text); the loader's named problems stay in the first."""
     loaded = journal.load(root)
     entries, bad, _ = loaded
-    tasks = journal.open_tasks(root, loaded)[1]
+    wait = journal.pending(entries)
+    tasks = [t + (" (result pending)" if t in wait else "") for t in journal.open_tasks(root, loaded)[1]]
     none = "no journal lines"
     opened = none if not entries else ("\n".join(tasks) if tasks else "none")
     if bad:

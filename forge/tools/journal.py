@@ -39,7 +39,9 @@ NEEDS_TASK = ("dispatch", "accept", "reject", "return", "cap_warning", "cut", "e
 # the line has no agent field: these events carry the agent as the note's prefix `<agent>: <reason>` (t-2061)
 AGENT_NOTE = ("dispatch_skipped", "escalated", "lead_degraded", "lead_restored", "defect_found")
 AGENT_NOTE_RE = re.compile(r"[a-z][a-z0-9-]*: ")
-CLOSING = ("accept", "reject", "return")
+# FR-1127 (carried, the Lead's decision t-2101): a `return` is the worker stopping, not the acceptance, so it never closes
+# a dispatch; the task stays open and is listed RESULT PENDING until its accept or reject
+CLOSING = ("accept", "reject")
 NOTE_MAX = 300
 SESSION_RE = re.compile(r"[A-Za-z0-9_-]{1,128}")
 LOCK_WAIT_S = 10
@@ -91,17 +93,30 @@ def open_tasks(root, loaded=None):
     entries, bad, found = loaded or load(root)
     if not found:
         return "unknown", [], bad
+    return ("incomplete" if bad else "ok"), [t for t, s in states(entries).items() if s], bad
+
+
+def states(entries):
+    """task -> "" (closed), "open" or "pending" (its last dispatch/return/closing event is a return). A return with no
+    prior dispatch, or after a close, is ignored; a new dispatch makes the task open again, not pending."""
     last = {}
     for e in entries:
         o = e[4] or {}
-        t = o.get("task", "")
+        t, ev = o.get("task", ""), o.get("event")
         if not t:
             continue
-        if o.get("event") == "dispatch":
-            last[t] = True
-        elif o.get("event") in CLOSING and t in last:
-            last[t] = False
-    return ("incomplete" if bad else "ok"), [t for t, o in last.items() if o], bad
+        if ev == "dispatch":
+            last[t] = "open"
+        elif t in last and ev in CLOSING:
+            last[t] = ""
+        elif last.get(t) and ev == "return":
+            last[t] = "pending"
+    return last
+
+
+def pending(entries):
+    """Task ids whose last closing-relevant event is a return: the worker stopped, the acceptance is still owed."""
+    return [t for t, s in states(entries).items() if s == "pending"]
 
 
 def pick_session(root, given):
@@ -226,6 +241,8 @@ def main(argv=None):
                 print(b)
         return 1 if bad else 0
     status, tasks, bad = open_tasks(a.root)
+    wait = set(pending(load(a.root)[0]))
+    tasks = [t + (" RESULT PENDING" if t in wait else "") for t in tasks]
     if status == "unknown":
         print("unknown -- no journal")
         return 0

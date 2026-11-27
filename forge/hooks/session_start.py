@@ -96,11 +96,11 @@ def bad_boot(raw, n):
     return "".join(kept) + "\nforge/BOOT.md not UTF-8: cut after file byte %d of %d, fix the file" % (k, len(raw))
 
 
-def open_text(status, tasks, bad):
+def open_text(status, tasks, bad, pending=()):
     if status == "unknown":
         return "unknown -- no journal"
     more = " and %d more" % (len(tasks) - OPEN_MAX) if len(tasks) > OPEN_MAX else ""
-    text = (", ".join(tasks[:OPEN_MAX]) + more) or "none"
+    text = (", ".join(t + (" (result pending)" if t in pending else "") for t in tasks[:OPEN_MAX]) + more) or "none"
     return text + (" (incomplete: %d unreadable journal lines)" % len(bad) if status == "incomplete" else "")
 
 
@@ -457,7 +457,7 @@ def compose(root, source, eval_arm):
     return fit({"boot": boot, "bad": badtext, "field": field, "hooks": hooks_text(root),
                 "check": checklist(root) if source == "compact" else "",
                 "now": now_text(now), "last": last_text(loaded[0], loaded[2]), "snap": newest_snapshot(root, now),
-                "open": open_text(status, tasks, bad), "git": main_sync(root), "old": old_text(root, now_s),
+                "open": open_text(status, tasks, bad, journal.pending(loaded[0])), "git": main_sync(root), "old": old_text(root, now_s),
                 "wt": worktrees_text(root, loaded[0], status, tasks),
                 "prev": previous(loaded[0], loaded[2]) if source == "startup" else ""})
 

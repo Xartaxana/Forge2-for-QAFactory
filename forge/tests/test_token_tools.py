@@ -88,12 +88,23 @@ def test_journal_write(tmp_path, event, note, task, session, code, word):
         assert obj["ts"].endswith("Z") and obj["by"] == "lead" and obj["note"] == note
 
 
+# expected from: the Lead's decision t-2101 on FR-1127 (a return never closes a dispatch) and the dispatch's edges
+@pytest.mark.parametrize("evs,want", [
+    (["dispatch", "return"], "t-1 RESULT PENDING"), (["dispatch", "return", "accept"], "none"),
+    (["dispatch", "return", "reject"], "none"), (["dispatch", "return", "dispatch"], "t-1"),
+    (["dispatch", "return", "return"], "t-1 RESULT PENDING"), (["return"], "none"), (["dispatch", "return", "return", "accept"], "none")])
+def test_journal_open_pending(tmp_path, evs, want):
+    for ev in evs:
+        jw(tmp_path, ev, "n", "t-1", "o")
+    assert run("journal.py", ["open"], tmp_path)[1].strip() == want
+
+
 # expected from: card C1-4 (the open list, the unparsable line, no journal is unknown)
 @pytest.mark.parametrize("rows,tail,code,words", [
     ([], "", 0, ["unknown -- no journal"]),
     ([("dispatch", "t-1")], "", 0, ["t-1"]),
     ([("dispatch", "t-1"), ("accept", "t-1")], "", 0, ["none"]),
-    ([("dispatch", "t-1"), ("dispatch", "t-2"), ("return", "t-1")], "", 0, ["t-2"]),
+    ([("dispatch", "t-1"), ("dispatch", "t-2"), ("return", "t-1")], "", 0, ["t-1 RESULT PENDING", "t-2"]),
     ([("dispatch", "t-1"), ("defect_found", "t-1")], "", 0, ["t-1"]),  # t-2081 M3: defect_found never closes a task
     ([("dispatch", "t-1")], "{broken\n", 1, ["unparsable line 2 in o.jsonl", "incomplete"]),
 ])

@@ -17,7 +17,7 @@ carry: FS-138, FS-141
 
 ## 2. Journal closed
 
-- `python -B forge/tools/journal.py open` lists no task of this session left without its accept or reject; a `return` alone is RESULT PENDING: the worker stopped and the acceptance is still owed. (tool: none yet -- journal.py open counts a return as closing)
+- `python -B forge/tools/journal.py open` lists no task of this session left without its accept or reject; a `return` alone is RESULT PENDING: the worker stopped and the acceptance is still owed. (tool: journal.py open marks it RESULT PENDING)
 - A session that ends below Lead rank (degradation or mid-tier mode, .claude/agents/critic.md) says so in its `session_end` note, the journal's last event: what was done below Lead rank and what waits for a Lead. (tool: none yet -- journal.py has no degradation event)
 carry: FS-143
 

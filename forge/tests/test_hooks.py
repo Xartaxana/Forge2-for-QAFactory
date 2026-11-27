@@ -499,7 +499,8 @@ def test_session_start_blocks(tmp_path, source, boot, carr, prev, arm):
 
 @pytest.mark.parametrize("evs,want", [
     ([("a", "dispatch"), ("b", "dispatch"), ("a", "accept")], "open: b"), ([("a", "dispatch"), ("a", "reject")], "open: none"),
-    ([("a", "dispatch"), ("a", "return"), ("a", "dispatch")], "open: a"), ([("t%d" % i, "dispatch") for i in range(12)], "t9 and 2 more"),
+    ([("a", "dispatch"), ("a", "return"), ("a", "dispatch")], "open: a"),
+    ([("a", "dispatch"), ("a", "return")], "open: a (result pending)"), ([("t%d" % i, "dispatch") for i in range(12)], "t9 and 2 more"),
     ([], "open: none"), (None, "open: unknown -- no journal"), (None, "previous session: unknown -- no journal"),
     ([], "snapshot: none yet"), ([("a", "dispatch")], "previous session: no session_end after 2026-11-26T10:00 -- read")])
 def test_session_start_open(tmp_path, want, evs):
