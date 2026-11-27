@@ -26,6 +26,7 @@ rows: fr:A7, fr:B1, fr:B2, fr:A10, fr:A19, fr:B5
 ## Tiers and roles
 - No tier runs on Haiku. (case: D-0002)
 - Use the active host's bindings. In Claude Code, the Lead model is set in `.claude/settings.json` and the other roles in `.claude/agents/`. In Codex, the Lead model is set in `.codex/config.toml` and the other roles in `.codex/agents/`. (case: old rule 253)
+- Ranks are read from a delegation config by code. (tool: none yet)
 - The Lead does decomposition, specs, acceptance and mechanism commits after the critic; only the Lead decides what is delegated to whom. (case: old rule 1006)
 - Role is not tier: the coordinator ROLE is routing, not execution; any model leading the dialogue carries it and that does not make the session a Lead; the Lead is the full coordinator whose rank is lead or above, and only it changes mechanisms, the decision log, statuses and gates. (case: old rule 1135)
 - The Architect's start checklist, read at its session start, is the frozen `C:/QAFactory/forge-repo/PROCESS/ARCHITECT_START.md` until a forge 2 checklist exists. (case: old rule 1009)
