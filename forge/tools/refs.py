@@ -134,12 +134,11 @@ def load_cfg(root):
 def card_headings(root, rels, forms):
     """{card id: [spec files holding its `### <id> ` heading]} across forge/specs/*.md."""
     out = {}
-    for rel in rels:
-        if SPEC_FILE.fullmatch(rel):
-            for line in ratchets.text_file(root, rel).split("\n"):
-                m = forms.heading.match(line)
-                if m:
-                    out.setdefault(m.group(1), []).append(rel)
+    for rel in (r for r in rels if SPEC_FILE.fullmatch(r)):
+        for line in ratchets.text_file(root, rel).split("\n"):
+            m = forms.heading.match(line)
+            if m:
+                out.setdefault(m.group(1), []).append(rel)
     return out
 
 
@@ -322,21 +321,36 @@ class PathJudge:
         return None if ok else ("red", "path does not name a tracked file: %s (door: write the path, or an allow row)" % w)
 
     def path_like(self, w):
-        return bool(w) and not re.search(r"[<>*{]", w) and ("/" in w or "\\" in w or w.endswith(self.suffixes))
+        # a regex escape such as backslash-b is not a path (N3: scout.md:8 gave a false note)
+        return bool(w) and not re.match(r"\\[A-Za-z]", w) and not re.search(r"[<>*{]", w) and ("/" in w or "\\" in w or w.endswith(self.suffixes))
+
+
+def words_of(text):
+    """(line number, word) for every word of every backticked token; flat, so the caller nests less."""
+    for n, line in enumerate(text.split("\n"), 1):
+        for tok in re.findall(r"`([^`\n]+)`", line):
+            for x in tok.split():
+                yield n, re.split(r"::|#", x)[0].rstrip(".,;:)")
 
 
 def path_findings(judge, rel, text):
     """([(rel, word, kind, line, message)] red, [notes])."""
     red, notes = [], []
-    for n, line in enumerate(text.split("\n"), 1):
-        for tok in re.findall(r"`([^`\n]+)`", line):
-            for w in [re.split(r"::|#", x)[0].rstrip(".,;:)") for x in tok.split()]:
-                got = judge.word(w) if judge.path_like(w) else None
-                if got and got[0] == "note":
-                    notes.append("%s:%d: %s" % (rel, n, got[1]))
-                elif got:
-                    red.append((rel, w, "path", n, "%s:%d: %s" % (rel, n, got[1])))
+    for n, w in words_of(text):
+        got = judge.word(w) if judge.path_like(w) else None
+        if got and got[0] == "note":
+            notes.append("%s:%d: %s" % (rel, n, got[1]))
+        elif got:
+            red.append((rel, w, "path", n, "%s:%d: %s" % (rel, n, got[1])))
     return red, notes
+
+
+def named_judge(name, sites, rows, scanned, msgs):
+    """N4: a dead scanner names which list it judged (`allow` or `legacy`)."""
+    try:
+        return ratchets.judge_list(sites, rows, allow_key, scanned, scanned, msgs.append)
+    except Cannot as e:
+        raise Cannot("%s list: %s" % (name, e))
 
 
 def at_base(root, base, rel):
@@ -429,11 +443,11 @@ def check(root, base=None):
     # B20: ONE rule for every allow list (ratchets.judge_list): a dead scanner is exit 2 before stale, then stale, then no reason
     msgs = []
     sites = [((r, t), m) for r, t, _k, _n, m in found]
-    open_sites, _, _ = ratchets.judge_list(sites, cfg["allow"], allow_key, len(scan), len(scan), msgs.append)
+    open_sites, _, _ = named_judge("allow", sites, cfg["allow"], len(scan), msgs)
     red += judged_reds(ctx, found, {s[0] for s in open_sites}, status, legacy)
     rows = [{"file": r["file"], "token": t, "reason": r.get("reason", "")} for r in cfg["legacy"] for t in r["tokens"]]
     old = [((r, t), "") for r in seen for t in seen[r]]
-    ratchets.judge_list(old, rows, allow_key, len(seen), len(seen), msgs.append)
+    named_judge("legacy", old, rows, len(seen), msgs)
     red += msgs
     if base:
         red += base_findings(ctx, base, notes)
@@ -454,17 +468,23 @@ def spec_owns(root, rels, cfg):
     """{card id: [owned paths]} from each card's `- owns ...:` line (the `(inside accepted cards)` forms too)."""
     out, forms = {}, Forms(cfg["card_id"])
     for rel in [r for r in rels if SPEC_FILE.fullmatch(r)]:
-        cur = None
-        for line in ratchets.text_file(root, rel).split("\n"):
-            m, own = forms.heading.match(line), OWNS.match(line)
-            if m:
-                cur = m.group(1)
-            elif line.startswith("#"):
-                cur = None
-            elif cur and own:
-                paths = [norm(p.strip("`;.")) for p in re.split(r"[,\s]+", own.group(1)) if "/" in p or "." in p]
-                out.setdefault(cur, []).extend(strip_local(p, cfg) for p in paths)
+        for cid, own in owns_lines(ratchets.text_file(root, rel), forms):
+            paths = [norm(p.strip("`;.")) for p in re.split(r"[,\s]+", own) if "/" in p or "." in p]
+            out.setdefault(cid, []).extend(strip_local(p, cfg) for p in paths)
     return out
+
+
+def owns_lines(text, forms):
+    """(card id, owns text) for each `- owns ...:` line under a card heading; a plain heading ends the card."""
+    cur = None
+    for line in text.split("\n"):
+        m, own = forms.heading.match(line), OWNS.match(line)
+        if m:
+            cur = m.group(1)
+        elif line.startswith("#"):
+            cur = None
+        elif cur and own:
+            yield cur, own.group(1)
 
 
 def card_states(root, cfg=None):
