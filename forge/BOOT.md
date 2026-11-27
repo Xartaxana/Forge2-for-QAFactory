@@ -36,4 +36,4 @@ The factory stops for the person only at: a critical question; the sources list 
 ## Decisions and state
 
 decided by the owner: forge/owner-words.yaml
-phase 1: the forge 2 skeleton is being built; the session moved to forge 2 (W-201) -- 2026-11-27
+phase 1: the forge 2 skeleton is being built; the session moved to forge 2 -- 2026-11-27
