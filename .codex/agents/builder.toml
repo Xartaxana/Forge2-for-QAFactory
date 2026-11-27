@@ -1,0 +1,4 @@
+name = "builder"
+description = "Implements a dispatched spec in its own worktree."
+model = "gpt-6.1-terra"
+developer_instructions = "You are Forge's builder. Read CLAUDE.md and the role instructions in the body of .claude/agents/builder.md. Use this Codex profile's model and the available Codex tools to follow those instructions."

@@ -78,11 +78,16 @@ def strictest(rows):
 
 
 def first_user_text(path):
-    """The text of the transcript's first user message, or None when the file has none or cannot be read."""
+    """The first user message in a Claude Code or Codex transcript, if readable."""
     try:
         with open(path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                msg = json.loads(line) if '"user"' in line else None
+                msg = json.loads(line) if '"user"' in line or '"user_message"' in line else None
+                if isinstance(msg, dict) and msg.get("type") == "event_msg":
+                    event = msg.get("payload")
+                    if isinstance(event, dict) and event.get("type") == "user_message":
+                        text = event.get("message")
+                        return text if isinstance(text, str) else None
                 if isinstance(msg, dict) and msg.get("type") == "user":
                     c = (msg.get("message") or {}).get("content")
                     return c if isinstance(c, str) else "\n".join(b.get("text", "") for b in c if isinstance(b, dict))
@@ -115,7 +120,26 @@ def line_use(line):
     return m.get("id") if isinstance(m.get("id"), str) else None, sum(g[:3]), sum(g)
 
 
-def scan(path, st):
+def codex_use(line):
+    """Return the last input size and cumulative spend from a Codex token_count event."""
+    if '"token_count"' not in line:
+        return None
+    try:
+        row = json.loads(line)
+        event = row["payload"]
+        if row["type"] != "event_msg" or event["type"] != "token_count":
+            return None
+        info = event["info"]
+        context = info["last_token_usage"]["input_tokens"]
+        spend = info["total_token_usage"]["total_tokens"]
+    except (ValueError, TypeError, KeyError):
+        return None
+    if type(context) is int and type(spend) is int and 0 <= context <= spend:
+        return context, spend
+    return None
+
+
+def scan(path, st, codex=False):
     """Advance st (offset, ctx, spend) over the complete new lines. False when the file cannot be read. A message's usage is
     counted once (t-2027 F1, B12's rule): a real transcript repeats it on one line per content block, consecutively."""
     try:
@@ -128,6 +152,11 @@ def scan(path, st):
         return False
     cut = data.rfind(b"\n") + 1
     for line in data[:cut].decode("utf-8", "replace").split("\n"):
+        if codex:
+            usage = codex_use(line)
+            if usage is not None:
+                st["ctx"], st["spend"] = usage
+            continue
         use = line_use(line)
         if use:
             st["ctx"] = use[1]
@@ -187,12 +216,20 @@ def call_of(payload):
     return payload.get("tool_name"), ti if isinstance(ti, dict) else {}
 
 
+def edit_paths(ti):
+    paths = ti.get("file_paths")
+    if isinstance(paths, list):
+        return [p for p in paths if isinstance(p, str)]
+    path = ti.get("file_path")
+    return [path] if isinstance(path, str) else []
+
+
 def tampers(payload):
     """`write` when a call's Write/Edit path names logs/budget/, `shell` when its shell command does, else None (t-2032 N1 (a):
     the state is the hook's alone; t-2036 T1: a shell command is refused for its call only, a write is a cut)."""
     tool, ti = call_of(payload)
-    p, cmd = ti.get("file_path"), ti.get("command")
-    if tool in ("Write", "Edit") and isinstance(p, str) and TAMPER.search(os.path.normpath(p)):
+    cmd = ti.get("command")
+    if tool in ("Write", "Edit") and any(TAMPER.search(os.path.normpath(p)) for p in edit_paths(ti)):
         return "write"
     return "shell" if tool in ("Bash", "PowerShell") and isinstance(cmd, str) and TAMPER.search(cmd) else None
 
@@ -215,8 +252,8 @@ def allowed(payload, handoff):
     if tool == "SubagentHandback":
         return True
     if tool in ("Write", "Edit"):
-        p = ti.get("file_path")
-        return bool(handoff) and isinstance(p, str) and norm(p, payload.get("cwd")) == norm(handoff, payload.get("cwd"))
+        paths, cwd = edit_paths(ti), payload.get("cwd")
+        return bool(handoff and paths) and all(norm(p, cwd) == norm(handoff, cwd) for p in paths)
     cmd = ti.get("command")
     return tool in ("Bash", "PowerShell") and isinstance(cmd, str) and bool(PLAIN_GIT.match(cmd))
 
@@ -284,11 +321,16 @@ def keys(payload):
     sid, aid = payload.get("session_id"), payload.get("agent_id")
     worker = isinstance(aid, str) and bool(aid)
     key = aid if worker else "main-%s" % sid
+    if worker and payload.get("forge_host") == "codex":
+        path = payload.get("transcript_path")
+        return worker, key, path if isinstance(path, str) and path else None
     tp = payload.get("transcript_path")
     if not (isinstance(tp, str) and tp):
         return worker, key, None
+    if not worker:
+        return worker, key, tp
     sub = os.path.join(tp[:-6] if tp.endswith(".jsonl") else tp, "subagents", "agent-%s.jsonl" % aid)
-    return worker, key, (sub if worker else tp)
+    return worker, key, sub
 
 
 def map_role(role, rows):
@@ -360,9 +402,9 @@ def begin(st, worker, path):
     return first
 
 
-def measure(st, path, first, info):
+def measure(st, path, first, info, codex=False):
     """Scan the transcript; an unmeasured context is said once (an unknown spend is never read as zero)."""
-    if not (path and scan(path, st)):
+    if not (path and scan(path, st, codex)):
         once(st, "unmeasured", "tokens unmeasured: the transcript is absent or unreadable; the wall cap still applies", info)
     elif st["ctx"] is None and not first:
         once(st, "nousage", "tokens unmeasured: the transcript holds no usage line; the wall cap still applies", info)
@@ -392,7 +434,7 @@ def evaluate(payload, root):
     if row is None:
         return 0, "", [MISSING % role]
     at = len(info)
-    measure(st, path, first, info)
+    measure(st, path, first, info, payload.get("forge_host") == "codex")
     if worker and first and not lost:  # after measure: the line states the use now
         info.insert(at, caps_text(row, st["ctx"], int(time.time() - st["t0"])))
     warns, cuts = tell(root, session, role, st, [] if lost else judge(st, row, time.time(), not worker))

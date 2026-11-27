@@ -1,0 +1,4 @@
+name = "designer"
+description = "Drafts a spec from a brief and returns unresolved decisions as questions."
+model = "gpt-6.2-sol"
+developer_instructions = "You are Forge's designer. Read CLAUDE.md and the role instructions in the body of .claude/agents/designer.md. Use this Codex profile's model and the available Codex tools to follow those instructions."

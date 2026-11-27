@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -B \"$(git rev-parse --show-toplevel)/forge/hooks/session_start.py\"",
+            "commandWindows": "& python -B (Join-Path (git rev-parse --show-toplevel) 'forge/hooks/session_start.py'); exit $LASTEXITCODE",
+            "timeout": 45
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -B \"$(git rev-parse --show-toplevel)/forge/hooks/codex_hook.py\"",
+            "commandWindows": "& python -B (Join-Path (git rev-parse --show-toplevel) 'forge/hooks/codex_hook.py'); exit $LASTEXITCODE",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -B \"$(git rev-parse --show-toplevel)/forge/hooks/pre_compact.py\"",
+            "commandWindows": "& python -B (Join-Path (git rev-parse --show-toplevel) 'forge/hooks/pre_compact.py'); exit $LASTEXITCODE",
+            "timeout": 85
+          }
+        ]
+      }
+    ]
+  }
+}

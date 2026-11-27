@@ -938,3 +938,36 @@ def test_budget_newest_line_without_usage_keeps_last_value(tmp_path):
     with open(tp.replace(".jsonl", "") + "/subagents/agent-a1.jsonl", "a") as fh:
         fh.write(json.dumps({"type": "user", "message": {"content": "r" * 80000}}) + "\n")
     assert "tokens 260000 of 250000 spend 261000" in call(root, tp)[1]
+
+
+def test_codex_budget_reads_dispatch_and_cumulative_usage(tmp_path):
+    import budget
+
+    path = tmp_path / "rollout.jsonl"
+    dispatch = {"type": "event_msg", "payload": {"type": "user_message", "message": "role: builder\ntask: fixture"}}
+    event = {"type": "event_msg", "payload": {"type": "token_count", "info": {
+        "last_token_usage": {"input_tokens": 300}, "total_token_usage": {"total_tokens": 700}}}}
+    path.write_text("\n".join(map(json.dumps, [dispatch, event, event])) + "\n", encoding="utf-8")
+    worker, key, transcript = budget.keys({"forge_host": "codex", "agent_id": "fixture-worker", "transcript_path": str(path)})
+    assert (worker, key, transcript) == (True, "fixture-worker", str(path))
+    state = budget.fresh()
+    budget.read_dispatch(state, transcript)
+    assert state["role"] == "builder" and state["task"] == "fixture"
+    assert budget.scan(transcript, state, codex=True)
+    assert (state["ctx"], state["spend"]) == (300, 700)
+
+
+@pytest.mark.parametrize("name,stdin,args,seen", [
+    ("pre-commit", b"", [], "env-file"),
+    ("pre-push", b"invalid ref line\n", ["origin", "o"], "cannot judge pushed line"),
+])
+def test_git_launches_hook_interpreter(tmp_path, name, stdin, args, seen):
+    root = mkrepo(tmp_path / "g")
+    hook_dir = tmp_path / "g" / "forge" / "hooks"
+    shutil.copytree(HOOKS, hook_dir, ignore=shutil.ignore_patterns("__pycache__"))
+    put(root + "/.env", "FIXTURE=1\n")
+    git(root, "add", "-f", "--", ".env")
+    input_file = tmp_path / "hook-stdin"
+    input_file.write_bytes(stdin)
+    code, out = git(root, "-c", "core.hooksPath=forge/hooks/git", "hook", "run", f"--to-stdin={input_file}", name, "--", *args)
+    assert code == 1 and f"{name}: refused" in out and seen in out

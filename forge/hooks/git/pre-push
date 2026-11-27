@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/env -Spython\c/python
+# env -S stops at \c. Git for Windows takes the interpreter name after the last slash.
 # card: C1-5
 """pre-push <remote> <url> (cards C1-5, B8, B9, P13): refuses an outward act before CI is awaited.
 
