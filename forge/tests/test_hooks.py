@@ -558,12 +558,12 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     out = start(root, "clear")[1]
     assert "ab�cd\nforge/BOOT.md not UTF-8: shown with replacement characters, fix the file" in out and "cut" not in out
     put(root + "/forge/BOOT.md", "B")
-    jl(root, ("t" * 70, "dispatch"))  # past CUT: the `last:` field stays 64 characters while the open list grows
-    pad = 6144 - len(start(root, "resume")[1])  # B2-5: a text AT the cap is emitted whole, one byte more cuts the list
-    jl(root, ("t" * (pad + 70), "dispatch"))
-    at = start(root, "resume")[1]
-    jl(root, ("t" * (pad + 71), "dispatch"))
-    assert len(at.encode()) == 6144 and "[cut" not in at and "[cut: open list]" in start(root, "resume")[1]
+    jl(root, ("t1", "dispatch"))
+    pad = 6144 - len(start(root, "clear")[1])  # B2-5: a text AT the cap is emitted whole, one byte more cuts the list
+    put(root + "/forge/BOOT.md", "B" * (1 + pad))  # t-2106 F1: ids are clipped now, so a valid BOOT carries the padding
+    at = start(root, "clear")[1]
+    put(root + "/forge/BOOT.md", "B" * (2 + pad))
+    assert len(at.encode()) == 6144 and "[cut" not in at and "[cut: open list]" in start(root, "clear")[1]
     monkeypatch.setattr(sst, "compose", lambda *a: 1 / 0)
     assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
 
@@ -637,8 +637,8 @@ def test_session_start_old_processes(tmp_path, monkeypatch):  # K6
             (16, 3, now - 9000, "node " + root + "-old/y.js"),  # a sibling prefix: not this tree
             (17, 3, now - 9100, "node D:\\wt\\other\\z.js")]  # a linked worktree outside the root: listed
     monkeypatch.setattr(sst, "process_list", lambda now_s: (rows, 1, ""))
-    monkeypatch.setattr(sst, "tree_roots", lambda r: ([r, "D:/wt/other"], ""))
-    full, short = sst.old_text(root, now)
+    wt = ([{"worktree": root}, {"worktree": "D:/wt/other"}], None)
+    full, short = sst.old_text(root, now, wt)
     assert full.startswith("old processes: 4 started from this tree, older than 7200 s: 17 2h31m parent 3 node D:\\wt\\other\\z.js; ")
     assert "; 12 2h13m parent gone python.exe forge/tools/b.py --root " in full and "; 15 2h01m parent 3 " in full
     assert "; 11 2h00m parent gone python " in full and full.endswith(" (1 rows unreadable)")
@@ -646,9 +646,9 @@ def test_session_start_old_processes(tmp_path, monkeypatch):  # K6
     assert short == "old processes: 4 started from this tree, older than 7200 s [cut: rows] (1 rows unreadable)"
     for n, more in ((5, False), (6, True)):
         monkeypatch.setattr(sst, "process_list", lambda now_s: ([(100 + i, 1, now - 7300 - i, "x " + root) for i in range(n)], 0, ""))
-        assert sst.old_text(root, now)[0].endswith(" and 1 more") == more
+        assert sst.old_text(root, now, wt)[0].endswith(" and 1 more") == more
     monkeypatch.setattr(sst, "process_list", lambda now_s: (None, 0, "process list slower than 5 s"))
-    assert sst.old_text(root, now)[0] == "old processes: ? (process list slower than 5 s)"
+    assert sst.old_text(root, now, wt)[0] == "old processes: ? (process list slower than 5 s)"
 
 
 def test_session_start_process_parsers_and_budget(tmp_path, monkeypatch):
@@ -657,8 +657,79 @@ def test_session_start_process_parsers_and_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(sst, "T0", time.monotonic())  # the hook started now ...
     monkeypatch.setattr(sst, "START_BUDGET_S", 0)  # ... and its budget is spent: a call past it never starts
     assert sst.main_sync(str(tmp_path)) == "main: ahead/behind unknown (not collected: start budget)"
-    assert sst.old_text(str(tmp_path), 0)[0] == "old processes: ? (not collected: start budget)"
-    assert sst.worktrees_text(str(tmp_path), [], "ok", [])[0] == "worktrees: ? -- not collected: start budget"
+    assert sst.old_text(str(tmp_path), 0, (None, "x"))[0] == "old processes: ? (not collected: start budget)"
+    assert sst.worktrees_text(sst.worktree_blocks(str(tmp_path)), [], "ok", [])[0] == "worktrees: ? -- not collected: start budget"
+
+
+# expected from: t-2106 verdict F1-F7 and card B17 (c) (d) edges; each row names its finding
+def test_session_start_f1_outside_values(tmp_path):  # F1: a newline id and a lone surrogate never forge a line or kill the print
+    root = mkroot(tmp_path, ci=False)
+    jl(root, ("a\nb: injected", "dispatch"), ("x\ud800", "dispatch"))
+    code, out = start(root, "startup")
+    assert code == 0 and "\nb: injected" not in out and "open: a\\u000ab: injected, x" in out and "reminder failed" not in out
+    assert sst.emitted("x\ud800") == 3 and sst.previous([("t\nz", "f", 1, "", {"event": "d"})], True).endswith("after t\\u000az -- read the snapshot")
+
+
+def test_session_start_f2_git_failure_is_unknown(tmp_path, monkeypatch):  # F2: AR-27/AR-28, a failed call is `?`, never `0 of n`
+    root = mkrepo(tmp_path)
+    put(root + "/forge/hooks/git/pre-push", "#!/bin/sh\n")
+    real = sst.git_out
+    monkeypatch.setattr(sst, "git_out", lambda r, *a: (None, "git exit 128") if "ls-files" in a else real(r, *a))
+    assert sst.git_hooks_text(root) == "hooksPath unset, 1 files, tracked ? (git exit 128)"
+    monkeypatch.setattr(sst, "START_BUDGET_S", 0)
+    monkeypatch.setattr(sst, "T0", time.monotonic())
+    monkeypatch.setattr(sst, "git_out", real)
+    assert sst.git_hooks_text(root) == "? (not collected: start budget)"
+
+
+def test_session_start_f3_f4_f6(tmp_path, monkeypatch):
+    seen = []  # F3: T0 is taken in run() before guard reads stdin
+    monkeypatch.setattr(sst, "T0", None)
+    monkeypatch.setattr(sst.HIO, "guard", lambda *a: seen.append(sst.T0))
+    sst.run(["--root", str(tmp_path)])
+    assert seen[0] is not None
+    root = mkrepo(tmp_path / "r")  # F4: one `git worktree list` per run; F6: a linked worktree reads the main checkout's hooks
+    commit(root, "a")
+    put(root + "/forge/hooks/git/pre-push", "#!/bin/sh\n")
+    git(root, "config", "core.hooksPath", "forge/hooks/git")
+    git(root, "worktree", "add", "-q", str(tmp_path / "wt"), "-b", "w/t1")
+    calls, real = [], sst.git_out
+    monkeypatch.setattr(sst, "git_out", lambda r, *a: calls.append(a) or real(r, *a))
+    monkeypatch.setattr(sst, "T0", None)
+    sst.compose(str(tmp_path / "wt"), "resume", False)
+    assert sum(a[:2] == ("worktree", "list") for a in calls) == 1
+    assert sst.git_hooks_text(str(tmp_path / "wt")) == "hooksPath ok, 0 of 1 tracked executable (1 untracked)"
+
+
+class Run:
+    def __init__(self, out=b"", code=0, boom=None):
+        self.stdout, self.returncode, self.boom = out, code, boom
+
+    def __call__(self, *a, **k):
+        if self.boom:
+            raise self.boom
+        return self
+
+
+@pytest.mark.parametrize("res,why", [  # F7: the process_list battery of card B17 (d)
+    (Run(boom=subprocess.TimeoutExpired("ps", 5)), "process list slower than 5 s"), (Run(b""), "process list exit 0, 0 bytes"),
+    (Run(b"nope"), "process list unreadable: Expecting value"), (Run(b"\xff"), "process list unreadable: 'utf-8' codec"),
+    (Run(b"[1]", 0), "all rows unreadable"), (Run(b"[]", 1), "process list exit 1, 2 bytes"),
+    (Run(boom=OSError("denied")), "process list unreadable: denied")])
+def test_session_start_f7_process_list(monkeypatch, res, why):
+    monkeypatch.setattr(sst.subprocess, "run", res)
+    monkeypatch.setattr(sst.os, "name", "nt")
+    rows, _, got = sst.process_list(0)
+    assert rows is None and got.startswith(why)
+
+
+def test_session_start_f7_rows_and_long_command(monkeypatch):
+    big = [{"ProcessId": i, "ParentProcessId": 1, "CreationDate": "/Date(1000)/", "CommandLine": "x" * 65536 if i == 0 else "p"}
+           for i in range(10000)]
+    monkeypatch.setattr(sst.subprocess, "run", Run(json.dumps(big).encode()))
+    monkeypatch.setattr(sst.os, "name", "nt")
+    rows, bad, _ = sst.process_list(0)
+    assert len(rows) == 10000 and bad == 0 and len(sst.head(rows[0][3])) <= 64 and not sst.from_tree(rows[0][3] + "/r", ["/zz"])
 
 
 def test_session_start_worktrees(tmp_path):

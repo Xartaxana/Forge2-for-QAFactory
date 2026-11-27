@@ -42,7 +42,7 @@ ROWS_MAX = 5
 PROCESS_LIST_TIMEOUT_S = 5
 CUT = 64  # FH-4107: one cut for every outside value (journal fields, command heads, paths)
 CMD_MAX = 65536  # FH-5131
-T0 = None  # set by body(): the budget counts from the hook's start, not from an import
+T0 = None  # set by run() before the stdin read (t-2106 F3): the budget counts from the hook's start
 UTC = datetime.timezone.utc
 STAMP = re.compile(r"^(\d{8}T\d{6}Z)")
 HOOK_MARK = re.compile(r"#\s*hook:\s*(\w+)$")
@@ -100,7 +100,7 @@ def open_text(status, tasks, bad, pending=()):
     if status == "unknown":
         return "unknown -- no journal"
     more = " and %d more" % (len(tasks) - OPEN_MAX) if len(tasks) > OPEN_MAX else ""
-    text = (", ".join(t + (" (result pending)" if t in pending else "") for t in tasks[:OPEN_MAX]) + more) or "none"
+    text = (", ".join(clip(t) + (" (result pending)" if t in pending else "") for t in tasks[:OPEN_MAX]) + more) or "none"  # F1
     return text + (" (incomplete: %d unreadable journal lines)" % len(bad) if status == "incomplete" else "")
 
 
@@ -138,7 +138,7 @@ def newest_snapshot(root, now):
         pass
     if made is None:
         made, mark = datetime.datetime.fromtimestamp(os.path.getmtime(os.path.join(folder, names[-1])), UTC), "~"
-    return "logs/journal/snapshots/%s (%s%s old)" % (names[-1], mark, age((now - made).total_seconds()))
+    return "logs/journal/snapshots/%s (%s%s old)" % (clip(names[-1]), mark, age((now - made).total_seconds()))
 
 
 def now_text(now):
@@ -181,18 +181,17 @@ def harness_text(root, want):
         with open(path, encoding="utf-8") as fh:
             events = json.load(fh).get("hooks", {})  # a non-object `hooks` raises below: `?`, never read as empty
         wired, broken, unparsed = set(), 0, 0
-        for event, groups in events.items():
-            for h in (h for g in groups for h in g.get("hooks") or []):
-                m = HOOK_CMD.match(str(h.get("command", "")).strip())
-                if not m:
-                    unparsed += 1
-                elif not os.path.isfile(os.path.join(root, m.group(1))):
-                    broken += 1
-                else:
-                    wired.add((m.group(1), event))
+        for event, h in [(e, h) for e, groups in events.items() for g in groups for h in g.get("hooks") or []]:  # F5: flat
+            m = HOOK_CMD.match(str(h.get("command", "")).strip())
+            if not m:
+                unparsed += 1
+            elif not os.path.isfile(os.path.join(root, m.group(1))):
+                broken += 1
+            else:
+                wired.add((m.group(1), event))
     except (OSError, ValueError, AttributeError, TypeError):
         return "harness ?"
-    miss = ["%s@%s" % (os.path.basename(f), e) for f, e in sorted(want.items()) if (f, e) not in wired]
+    miss = [clip("%s@%s" % (os.path.basename(f), e)) for f, e in sorted(want.items()) if (f, e) not in wired]
     notes = (["not wired: " + ", ".join(miss)] if miss else []) + (["%d broken" % broken] if broken else []) + \
         (["%d unparsed" % unparsed] if unparsed else [])
     return "harness %d of %d wired" % (len(want) - len(miss), len(want)) + "".join(" (%s)" % n for n in notes)
@@ -200,24 +199,28 @@ def harness_text(root, want):
 
 def git_hooks_text(root):
     """FH-2030, FH-2032, FH-2035: core.hooksPath resolves to forge/hooks/git of the main checkout; every extensionless file
-    there is tracked with mode 100755."""
-    common, _ = git_out(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    there is tracked with mode 100755. A relative hooksPath is resolved as git does: against the top of the work tree, here
+    the main checkout's (t-2106 F6; SessionStart runs there, plan S6), and the files are counted there. A git call that
+    fails is `?` with its reason, never a zero (AR-27, AR-28; t-2106 F2)."""
+    common, why = git_out(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
     if common is None:
-        return "?"
+        return "? (%s)" % why
     main = os.path.dirname(os.path.normpath(common.strip()))
-    val, why = git_out(root, "config", "--get", "core.hooksPath")
+    val, why = git_out(main, "config", "--get", "core.hooksPath")
     if val is None:
-        hp = "unset" if why == "git exit 1" else "?"
+        hp = "unset" if why == "git exit 1" else "? (%s)" % why
     else:
         same = os.path.normcase(os.path.normpath(os.path.join(main, val.strip()))) == \
             os.path.normcase(os.path.join(main, "forge", "hooks", "git"))
         hp = "ok" if same else "wrong: " + clip(val.strip())
-    folder = os.path.join(root, "forge", "hooks", "git")
+    folder = os.path.join(main, "forge", "hooks", "git")
     files = sorted(f for f in os.listdir(folder) if "." not in f and os.path.isfile(os.path.join(folder, f))) \
         if os.path.isdir(folder) else []
-    staged, _ = git_out(root, "-c", "core.quotepath=false", "ls-files", "-s", "--", "forge/hooks/git")
+    staged, why = git_out(main, "-c", "core.quotepath=false", "ls-files", "-s", "--", "forge/hooks/git")
+    if staged is None:
+        return "hooksPath %s, %d files, tracked ? (%s)" % (hp, len(files), why)
     modes = {}
-    for line in (staged or "").splitlines():
+    for line in staged.splitlines():
         head_, _, name = line.partition("\t")
         modes[name] = head_.split(" ")[0]
     execs = sum(modes.get("forge/hooks/git/" + f) == "100755" for f in files)
@@ -276,11 +279,18 @@ def process_list(now_s):
     return (rows or None), len(raw) - len(rows), ("" if rows else "all rows unreadable")
 
 
-def tree_roots(root):
+def worktree_blocks(root):
+    """(blocks, why): `git worktree list --porcelain` read ONCE per run and shared (t-2106 F4); block 0 is the main one."""
+    got, why = git_out(root, "worktree", "list", "--porcelain")
+    if got is None:
+        return None, why
+    return [dict((x.split(" ", 1) + [""])[:2] for x in b.splitlines()) for b in got.strip().split("\n\n") if b.strip()], None
+
+
+def tree_roots(root, blocks):
     """The main root and every worktree path (t-1973 F7 (d)); git failing -> the main root only, marked."""
-    got, _ = git_out(root, "worktree", "list", "--porcelain")
-    paths = [x[len("worktree "):] for x in (got or "").splitlines() if x.startswith("worktree ")]
-    return [root] + paths, "" if got is not None else " (worktree roots not read)"
+    paths = [b["worktree"] for b in blocks or [] if "worktree" in b]
+    return [root] + paths, "" if blocks is not None else " (worktree roots not read)"
 
 
 def from_tree(command, roots):
@@ -306,13 +316,13 @@ def ancestors(by):
     return out
 
 
-def old_text(root, now_s):
+def old_text(root, now_s, wt):
     """(full line, line with the rows cut): processes started from this tree, older than OLD_PROCESS_S (B17 (d))."""
     rows, unreadable, why = process_list(now_s)
     if rows is None:
         line = "old processes: ? (%s)" % why
         return line, line
-    roots, note = tree_roots(root)
+    roots, note = tree_roots(root, wt[0])
     by = {r[0]: r for r in rows}
     skip = ancestors(by)
     old = sorted((r for r in rows if r[0] not in skip and now_s - r[2] > OLD_PROCESS_S and from_tree(r[3], roots)),
@@ -330,13 +340,12 @@ def old_text(root, now_s):
     return lead + ": " + "; ".join(items[:ROWS_MAX]) + more + tail, lead + " [cut: rows]" + tail
 
 
-def worktrees_text(root, entries, status, tasks):
+def worktrees_text(wt, entries, status, tasks):
     """(full rows, rows cut): each linked worktree with its branch and the state of its `w/<task>` task, read-only."""
-    got, why = git_out(root, "worktree", "list", "--porcelain")
-    if got is None:
+    blocks, why = wt
+    if blocks is None:
         line = "worktrees: ? -- %s" % why
         return line, line
-    blocks = [dict((x.split(" ", 1) + [""])[:2] for x in b.splitlines()) for b in got.strip().split("\n\n") if b.strip()]
     if len(blocks) < 2:
         return "worktrees: none linked", "worktrees: none linked"
     sent = {(e[4] or {}).get("task") for e in entries if (e[4] or {}).get("event") == "dispatch"}
@@ -372,8 +381,8 @@ def previous(entries, found):
     if not found:
         return "previous session: unknown -- no journal"
     if parsed and parsed[-1][4].get("event") == "session_end":
-        return "previous session: closed %s" % parsed[-1][0]
-    return "previous session: no session_end after %s -- read the snapshot" % (parsed[-1][0] if parsed else "(no journal line)")
+        return "previous session: closed %s" % clip(parsed[-1][0])
+    return "previous session: no session_end after %s -- read the snapshot" % (clip(parsed[-1][0]) if parsed else "(no journal line)")
 
 
 def render(p, cut):
@@ -386,9 +395,14 @@ def render(p, cut):
     return "\n".join(x for x in (p["boot"], p["field"], p["hooks"], check, facts, p["git"], old, wt, p["prev"]) if x)
 
 
+def enc(text):
+    """The one encoder: UTF-8 with replacement, so a lone surrogate costs a `?`, never the whole start text (t-2106 F1)."""
+    return text.encode("utf-8", "replace")
+
+
 def emitted(text):
     """The bytes that leave the hook: the text and the one `\\n` emit() adds (t-2010 B2-5)."""
-    return len(text.encode("utf-8")) + 1
+    return len(enc(text + "\n"))
 
 
 def fit(p):
@@ -423,7 +437,7 @@ def git_out(root, *args):
     except subprocess.TimeoutExpired:
         return None, "git slower than %d s" % GIT_WAIT_S
     except OSError as exc:
-        return None, "git failed: %s" % exc
+        return None, "git failed: %s" % clip(exc)
     if r.returncode:
         return None, "git exit %d" % r.returncode
     return r.stdout, None
@@ -453,19 +467,19 @@ def compose(root, source, eval_arm):
     boot, present, badtext = boot_block(root, eval_arm, source in BOOT_SOURCES)
     rules = ", forge/COORDINATOR.md (Lead, Architect)"  # plan S6: workers get no SessionStart; the Lead's rules file is named here
     field = "re-read: forge/BOOT.md" + rules if present else "" if eval_arm else "re-read: forge/BOOT.md (not written yet, B1)" + rules
-    now, now_s = datetime.datetime.now().astimezone(), time.time()
+    now, now_s, wt = datetime.datetime.now().astimezone(), time.time(), worktree_blocks(root)
     return fit({"boot": boot, "bad": badtext, "field": field, "hooks": hooks_text(root),
                 "check": checklist(root) if source == "compact" else "",
                 "now": now_text(now), "last": last_text(loaded[0], loaded[2]), "snap": newest_snapshot(root, now),
-                "open": open_text(status, tasks, bad, journal.pending(loaded[0])), "git": main_sync(root), "old": old_text(root, now_s),
-                "wt": worktrees_text(root, loaded[0], status, tasks),
+                "open": open_text(status, tasks, bad, journal.pending(loaded[0])), "git": main_sync(root), "old": old_text(root, now_s, wt),
+                "wt": worktrees_text(wt, loaded[0], status, tasks),
                 "prev": previous(loaded[0], loaded[2]) if source == "startup" else ""})
 
 
 def emit(text):
     """Bytes with `\\n` to stdout: Windows' text layer would turn each `\\n` into `\\r\\n` and break the cap count."""
     sys.stdout.flush()
-    data = (text + "\n").encode("utf-8")
+    data = enc(text + "\n")
     try:
         sys.stdout.buffer.write(data)
         sys.stdout.buffer.flush()
@@ -474,19 +488,19 @@ def emit(text):
 
 
 def body(value, note, root):
-    global T0
-    T0 = time.monotonic()
     source = value.get("source") if value else None
     if source not in ("startup", "resume", "clear", "compact"):
         source = "startup"
     try:
         emit(compose(root, source, bool(os.environ.get("FORGE_EVAL_ARM"))))
     except Exception as exc:  # noqa: BLE001 -- the hook never blocks or delays work (K1)
-        print("reminder failed: %s; read forge/BOOT.md by hand" % exc)
+        print("reminder failed: %s; read forge/BOOT.md by hand" % clip(exc))
     return 0
 
 
 def run(argv):
+    global T0
+    T0 = time.monotonic()  # t-2106 F3: before the stdin read, so the card's 40 s bound holds from the hook's start
     root = os.path.dirname(os.path.dirname(HERE))
     if argv[:1] == ["--root"] and len(argv) == 2:
         root = argv[1]
