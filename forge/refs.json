@@ -69,14 +69,6 @@
  ],
  "card_id": "A<n> | B<n> | C<d>-<n>",
  "line_ref_aliases": [
-  "plan",
-  "spec",
-  "part2",
-  "part2b",
-  "part3",
-  "part3b",
-  "part4",
-  "part4b",
   "audit",
   "v1.10"
  ],
@@ -92,311 +84,6 @@
  ],
  "allow": [
   {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "A24",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:109",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:117",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:126",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:126-130",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:133-138",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:136",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:21",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:33",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:62",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:72",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2:75",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:62",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:66",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:67",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:70",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:73",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part2b:78",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3:56",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3:64",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3:74",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3:84",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3b:65",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3b:73",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part3b:78",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4:40",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4:59",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4:80",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4:81",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:108",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:109",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:118",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:51-82",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:52",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:53",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:62-71",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:63",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:64",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:65",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:69",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:70",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:74",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:85",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:85-98",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:90",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:91",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:92",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:93",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:94",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:95",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:96",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "part4b:98",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:160",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:160-171",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:166",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:166-171",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:167",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:168",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:169",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:170",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-amended-by-map.md",
-   "token": "spec.md:171",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
    "file": "forge/specs/20261126-forge2-light-factory-spec-part10.md",
    "token": "A37",
    "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
@@ -404,21 +91,6 @@
   {
    "file": "forge/specs/20261126-forge2-light-factory-spec-part10.md",
    "token": "plan 26.11",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-light-factory-spec-part7.md",
-   "token": "A24",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-light-factory-spec-part7.md",
-   "token": "plan 1a",
-   "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
-  },
-  {
-   "file": "forge/specs/20261126-forge2-light-factory-spec-part8.md",
-   "token": "A24",
    "reason": "look-alike or old key in a forge 2 spec file written before B13 (seeded at landing; the Lead prunes as the files are fixed)"
   },
   {
@@ -465,6 +137,61 @@
    "file": "forge/TESTING.md",
    "token": "factory/tools/",
    "reason": "directory of phase 2, holds no tracked file yet"
+  },
+  {
+   "file": "measure/tools/arm.py",
+   "token": "S11-1",
+   "reason": "plan-record node S11-1, no card heading (Lead 27.11.2026)"
+  },
+  {
+   "file": "measure/tools/seeded.py",
+   "token": "S11-1",
+   "reason": "plan-record node S11-1, no card heading (Lead 27.11.2026)"
+  },
+  {
+   "file": "forge/tests/test_seeded.py",
+   "token": "S11-1",
+   "reason": "plan-record node S11-1, no card heading (Lead 27.11.2026)"
+  },
+  {
+   "file": "forge/tools/rule_cuts.py",
+   "token": "B22",
+   "reason": "plan-record node B22, no card heading (Lead 27.11.2026)"
+  },
+  {
+   "file": "forge/tests/test_rule_cuts.py",
+   "token": "B22",
+   "reason": "plan-record node B22, no card heading (Lead 27.11.2026)"
+  },
+  {
+   "file": ".claude/agents/builder.md",
+   "token": "carry.py",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
+  },
+  {
+   "file": "CLAUDE.md",
+   "token": "worklist.py",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
+  },
+  {
+   "file": "forge/COORDINATOR.md",
+   "token": "forge/worklist.yaml",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
+  },
+  {
+   "file": "forge/COORDINATOR.md",
+   "token": "forge/tools/worklist.py",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
+  },
+  {
+   "file": "forge/COORDINATOR.md",
+   "token": "worklist.py",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
+  },
+  {
+   "file": "forge/COORDINATOR.md",
+   "token": "carry.py",
+   "reason": "names a tool not built yet (B11 worklist.py, B15 carry.py); the row goes stale when the tool lands, then it is deleted"
   }
  ],
  "legacy": [
@@ -537,7 +264,8 @@
     "scripts/validate_artifacts.py:1767-1768",
     "skills/qa-onboarding/phases/p4-generate.md:191-241",
     "vocabularies.md:82-87"
-   ]
+   ],
+   "reason": "old tokens of the edited copy while its bytes matched the frozen original (AR-20: a row only shrinks)"
   }
  ],
  "local_roots": [
