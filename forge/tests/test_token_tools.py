@@ -188,11 +188,12 @@ BASE = ["new", "--role", "builder", "--task", "t-9", "--given", "a.md", "--non-g
 @pytest.mark.parametrize("caps,owns,code,words", [
     (None, "ok", 0, ["caps: missing -- forge/caps.json (B5)", "DoD: `python -B x.py`"]),
     ([{"role": "builder", "tokens_warn": 1, "tokens_stop": 2, "wall_warn_s": 3, "wall_stop_s": 4}], "ok", 0,
-     ["caps: tokens 1/2, wall 3/4 s -- at the cap: hand back done and not done"]),
+     ["caps: limits tokens 1/2, wall 3/4 s (used now: tokens unmeasured, wall 0 s) -- at a limit: hand back done and not done"]),
     ("{bad", "ok", 0, ["caps: missing"]),
     ([{"role": "scout"}], "ok", 0, ["caps: missing"]),
     ([{"role": "scout", "tokens_warn": 5, "tokens_stop": 9, "wall_warn_s": None, "wall_stop_s": None}], "ok", 0,
-     ["caps: tokens 5/9, wall none/none s -- at the cap: hand back done and not done; role unknown -- strictest row"]),
+     ["caps: limits tokens 5/9, wall none/none s (used now: tokens unmeasured, wall 0 s) -- at a limit: hand back done and not "
+      "done; role unknown -- strictest row"]),
     ([{"role": "main", "tokens_warn": 5, "tokens_stop": None, "wall_warn_s": None, "wall_stop_s": None}], "ok", 0,
      ["caps: missing -- forge/caps.json (B5)"]),  # t-2032 N3 P3b: no worker row, as the hook (P3: the builder row above)
     (None, "rel", 1, ["owns path not absolute or not inside the root: forge/tools/x.py"]),
@@ -221,6 +222,24 @@ def test_dispatch_caps_hook_not_loadable(tmp_path, monkeypatch, src):  # t-2032 
         (tmp_path / "budget.py").write_text(src)
     monkeypatch.setattr(dispatch, "BUDGET", str(tmp_path / "budget.py"))
     assert dispatch.caps_line(str(tmp_path), "builder") == "caps: missing -- forge/hooks/budget.py not loadable (B5)"
+
+
+@pytest.mark.parametrize("age,used", [(None, "wall 0 s"), (500, "wall 500 s")])
+def test_hook_limits_line_states_use(tmp_path, monkeypatch, age, used):  # t-2110: critics read `wall 2880/3600 s` as time used
+    monkeypatch.syspath_prepend(os.path.join(os.path.dirname(T), "hooks"))
+    import budget
+    (tmp_path / "forge").mkdir()
+    (tmp_path / "forge" / "caps.json").write_text(json.dumps(
+        [{"role": "builder", "tokens_warn": 1, "tokens_stop": 2, "wall_warn_s": 3000, "wall_stop_s": 4000}]))
+    if age:  # a later call carries a state; a first call has no sidecar (the hook stamps t0), and only it prints the line
+        (tmp_path / "logs" / "budget").mkdir(parents=True)
+        (tmp_path / "logs" / "budget" / "a1.json").write_text(json.dumps(budget.fresh() | {"role": "builder", "t0": time.time() - age}))
+    _, _, info = budget.evaluate({"session_id": "s", "agent_id": "a1", "tool_name": "Read", "tool_input": {}}, str(tmp_path))
+    text = "\n".join(info)
+    if age is None:
+        assert "limits: tokens 1/2, wall 3000/4000 s (used now: tokens unmeasured, %s) -- at a limit" % used in text
+    else:
+        assert "limits:" not in text
 
 
 def full(tmp_path):

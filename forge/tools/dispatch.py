@@ -37,7 +37,8 @@ def caps_line(root, role):
         spec = importlib.util.spec_from_file_location("forge_hooks_budget", BUDGET)
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return mod.caps_line(root, role)
+        # the key stays `caps:` (check parses it); the value says `limits` so it is not read as usage (t-2110)
+        return mod.caps_line(root, role).replace("limits:", "caps: limits", 1)
     except Exception:  # noqa: BLE001 -- the header is printed either way, the cause named
         return "caps: missing -- forge/hooks/budget.py not loadable (B5)"
 

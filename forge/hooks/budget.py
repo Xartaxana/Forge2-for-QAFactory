@@ -328,9 +328,12 @@ def verdict(payload, st, role, cuts):
     return cuts or ["cut earlier; role:%s spend %s" % (role, spend_text(st))]
 
 
-def caps_text(row):
-    return "caps: tokens %s/%s, wall %s/%s s -- at the cap: hand back done and not done" % tuple(
-        "none" if row[f] is None else row[f] for f in FIELDS)
+def caps_text(row, tokens=None, wall=0):
+    """The limits line a worker sees. Two critics (27.11.2026) read `wall 2880/3600 s` as time already used and stopped at once
+    (t-2110): it now says `limits`, and states the use now beside them. Dispatch time: nothing used (tokens unmeasured, 0 s)."""
+    cap = tuple("none" if row[f] is None else row[f] for f in FIELDS)
+    return "limits: tokens %s/%s, wall %s/%s s (used now: tokens %s, wall %d s) -- at a limit: hand back done and not done" % (
+        cap + ("unmeasured" if tokens is None else tokens, wall))
 
 
 MISS = "caps: missing -- forge/caps.json (B5)"
@@ -388,9 +391,10 @@ def evaluate(payload, root):
     role, row = pick_row(st, rows, worker, info)
     if row is None:
         return 0, "", [MISSING % role]
-    if worker and first and not lost:
-        info.append(caps_text(row))
+    at = len(info)
     measure(st, path, first, info)
+    if worker and first and not lost:  # after measure: the line states the use now
+        info.insert(at, caps_text(row, st["ctx"], int(time.time() - st["t0"])))
     warns, cuts = tell(root, session, role, st, [] if lost else judge(st, row, time.time(), not worker))
     cause = cause_of(lost, worker, payload)
     forced = [cut_once(root, session, st, "role:%s %s spend %s" % (role, cause, spend_text(st)))] if cause else []
