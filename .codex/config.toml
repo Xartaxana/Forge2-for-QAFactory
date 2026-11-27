@@ -1,0 +1,5 @@
+# Default model for a new Forge Lead session.
+model = "gpt-6.2-sol"
+
+[features]
+hooks = true

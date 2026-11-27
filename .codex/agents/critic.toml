@@ -1,0 +1,4 @@
+name = "critic"
+description = "Reviews work against its spec and writes a verdict."
+model = "gpt-6.2-sol"
+developer_instructions = "You are Forge's critic. Read CLAUDE.md and the role instructions in the body of .claude/agents/critic.md. Use this Codex profile's model and the available Codex tools to follow those instructions."
