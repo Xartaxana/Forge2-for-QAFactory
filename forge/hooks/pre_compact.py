@@ -1,4 +1,5 @@
 # card: C1-5
+# hook: PreCompact
 """PreCompact hook (cards C1-5, F18, B7): writes a snapshot before the compaction. It writes only and NEVER refuses.
 
 pre_compact.py [--root D] [--timeout-s N]   any input, an empty one included; D defaults to this repository, N to 45.

@@ -2,6 +2,7 @@
 """Tool tests of card C1-5 (hooks, the one secret table). Pure functions run in-process; a real git fixture only where git
 itself is the thing judged. Every git subprocess runs with all GIT_* variables removed (GIT_DIR, GIT_INDEX_FILE: an
 inherited one would aim a fixture at the real repository). Tokens are built at run time, never written here."""
+import datetime
 import importlib.machinery
 import importlib.util
 import json
@@ -489,7 +490,7 @@ def test_session_start_blocks(tmp_path, source, boot, carr, prev, arm):
     code, out = start(root, source, arm)
     assert code == 0 and ("not written yet (B1)" in out) == (boot and not arm) and ("re-read: forge/BOOT.md" in out) == (not arm)
     assert ("(not written yet, B1)" in out) == (not arm) and (not arm or "BOOT" not in out)  # B2-1: presence on every source
-    assert "snapshot: logs/journal/snapshots/a.md | open: t1" in out
+    assert "snapshot: logs/journal/snapshots/a.md (~0m old) | open: t1" in out  # B17 (c): no stamp in the name -> file time, `~`
     assert ("forge/carriers.json absent (B7)" in out) == bool(carr) and ("previous session: closed" in out) == bool(prev)
     put(root + "/forge/BOOT.md", "BOOTTEXT")
     out = start(root, source, arm)[1]
@@ -544,7 +545,7 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     assert "carriers checklist: forge/carriers.json malformed:" in start(root, "compact")[1]
     for n in ("x.md", "x-2.md", "x-10.md"):  # B2-3: by (stamp, suffix number), not by name
         put(root + "/logs/journal/snapshots/" + n, "")
-    assert "snapshot: logs/journal/snapshots/x-10.md |" in start(root, "resume")[1]
+    assert "snapshot: logs/journal/snapshots/x-10.md (~" in start(root, "resume")[1]
     with open(root + "/forge/BOOT.md", "wb") as fh:
         fh.write(b"\xff" * 4096)
     code, out = start(root, "clear")
@@ -556,14 +557,118 @@ def test_session_start_crash_and_cap(tmp_path, monkeypatch, capsys):
     out = start(root, "clear")[1]
     assert "ab�cd\nforge/BOOT.md not UTF-8: shown with replacement characters, fix the file" in out and "cut" not in out
     put(root + "/forge/BOOT.md", "B")
-    jl(root, ("t", "dispatch"))
+    jl(root, ("t" * 70, "dispatch"))  # past CUT: the `last:` field stays 64 characters while the open list grows
     pad = 6144 - len(start(root, "resume")[1])  # B2-5: a text AT the cap is emitted whole, one byte more cuts the list
-    jl(root, ("t" * (pad + 1), "dispatch"))
+    jl(root, ("t" * (pad + 70), "dispatch"))
     at = start(root, "resume")[1]
-    jl(root, ("t" * (pad + 2), "dispatch"))
+    jl(root, ("t" * (pad + 71), "dispatch"))
     assert len(at.encode()) == 6144 and "[cut" not in at and "[cut: open list]" in start(root, "resume")[1]
     monkeypatch.setattr(sst, "compose", lambda *a: 1 / 0)
     assert sst.body(None, "", root) == 0 and "reminder failed: division by zero; read forge/BOOT.md by hand" in capsys.readouterr().out
+
+
+# expected from: card B17 (c) (d) start facts; owner's word 27.11.2026: stable lines first, so the start text keeps the
+# longest byte-equal prefix between sessions (prompt cache) -- BOOT, re-read, hooks, checklist, then the volatile lines
+def test_session_start_order_stable_first(tmp_path):
+    root = mkroot(tmp_path, ci=False)
+    put(root + "/forge/BOOT.md", "BOOTTEXT")
+    out = start(root, "compact")[1]
+    at = [out.index(k) for k in ("BOOTTEXT", "re-read:", "hooks:", "carriers checklist", "now:", "main:", "old processes:",
+                                 "worktrees:")]
+    assert at == sorted(at) and re.search(r"now: \d{4}-\d\d-\d\d [A-Z][a-z]{2} \d\d:\d\d [+-]\d\d:\d\d \| last: ", out)
+
+
+CMD_A, CMD_B = 'python "$CLAUDE_PROJECT_DIR/forge/hooks/a.py"', 'python -B "$CLAUDE_PROJECT_DIR/forge/hooks/b.py"'
+
+
+@pytest.mark.parametrize("settings,want", [  # K5: wired, not wired, broken, unparsed
+    (None, "harness 0 of 2 wired (no settings.json)"), ("nope", "harness ?"), ({"hooks": []}, "harness ?"),
+    ({"hooks": {"SessionStart": [{"hooks": [{"command": CMD_A}]}], "PreToolUse": [{"hooks": [{"command": CMD_B}]}]}},
+     "harness 2 of 2 wired"),
+    ({"hooks": {"PreToolUse": [{"hooks": [{"command": CMD_A}, {"command": CMD_A.replace("a.py", "gone.py")},
+                                          {"command": "bash x.sh"}]}]}},
+     "harness 0 of 2 wired (not wired: a.py@SessionStart, b.py@PreToolUse) (1 broken) (1 unparsed)")])
+def test_session_start_hooks_line(tmp_path, settings, want):
+    root = str(tmp_path)
+    put(root + "/forge/hooks/a.py", "# card: X\n# hook: SessionStart\n")
+    put(root + "/forge/hooks/b.py", "# card: Y\n# hook: PreToolUse\n")
+    put(root + "/forge/hooks/_io.py", "# card: Z\n")  # no `hook:` mark: not a harness hook
+    if settings is not None:
+        put(root + "/.claude/settings.json", settings if isinstance(settings, str) else json.dumps(settings))
+    assert sst.harness_text(root, sst.harness_hooks(root)) == want
+
+
+@pytest.mark.parametrize("path,want", [(None, "hooksPath unset, "), ("forge/hooks/git", "hooksPath ok, "),
+                                       ("elsewhere", "hooksPath wrong: elsewhere, ")])
+def test_session_start_git_hooks(tmp_path, path, want):
+    root = mkrepo(tmp_path)
+    put(root + "/forge/hooks/git/pre-push", "#!/bin/sh\n")
+    put(root + "/forge/hooks/git/pre-commit", "#!/bin/sh\n")  # untracked
+    put(root + "/forge/hooks/git/notes.md", "x")  # an extension: not a git hook
+    git(root, "add", "--", "forge/hooks/git/pre-push")
+    git(root, "update-index", "--chmod=+x", "forge/hooks/git/pre-push")
+    if path:
+        git(root, "config", "core.hooksPath", path)
+    assert sst.git_hooks_text(root) == want + "1 of 2 tracked executable (1 untracked)"
+
+
+def test_session_start_last_and_snapshot_age(tmp_path):
+    e = lambda o: ("ts", "f", 1, "", o)  # noqa: E731 -- journal.load's entry shape
+    assert sst.last_text([], False) == "? -- no journal" and sst.last_text([], True) == "no journal lines"
+    long = {"ts": "T", "event": "accept", "task": "x\ny" + "z" * 200, "by": "lead"}
+    assert sst.last_text([e(long)], True) == "T accept x\\u000ay" + "z" * 56 + " by lead"  # FH-4107: escaped, cut at 64
+    assert sst.last_text([e(long), e(None)], True).endswith(" by lead (incomplete)")
+    put(str(tmp_path) + "/logs/journal/snapshots/20261127T100000Z.md", "")
+    now = datetime.datetime(2026, 11, 27, 12, 30, tzinfo=datetime.timezone.utc)
+    assert sst.newest_snapshot(str(tmp_path), now) == "logs/journal/snapshots/20261127T100000Z.md (2h30m old)"
+    assert sst.newest_snapshot(str(tmp_path), now + datetime.timedelta(days=3)).endswith("(3d02h old)")
+
+
+def test_session_start_old_processes(tmp_path, monkeypatch):  # K6
+    root, now, me = str(tmp_path / "forge2-repo"), 100000.0, os.getpid()
+    rows = [(me, 2, now - 10, "python hook"), (2, 3, now - 9000, "claude " + root),  # this hook's ancestors: excluded
+            (3, 1, now - 99999, "explorer"),
+            (10, 3, now - 7200, "python " + root + "/x.py"),  # AT the limit: not listed
+            (11, 99, now - 7201, 'python "%s/forge/tools/a.py" --x' % root),  # parent absent -> gone
+            (12, 13, now - 8000, "C:\\" + "p" * 60 + "\\python.exe forge/tools/b.py --root " + root.replace("/", "\\")),
+            (13, 3, now - 100, "sh"),  # created after 12: a reused pid -> 12's parent is gone
+            (15, 3, now - 7300, root + "/run.cmd"),  # a live, older parent
+            (16, 3, now - 9000, "node " + root + "-old/y.js"),  # a sibling prefix: not this tree
+            (17, 3, now - 9100, "node D:\\wt\\other\\z.js")]  # a linked worktree outside the root: listed
+    monkeypatch.setattr(sst, "process_list", lambda now_s: (rows, 1, ""))
+    monkeypatch.setattr(sst, "tree_roots", lambda r: ([r, "D:/wt/other"], ""))
+    full, short = sst.old_text(root, now)
+    assert full.startswith("old processes: 4 started from this tree, older than 7200 s: 17 2h31m parent 3 node D:\\wt\\other\\z.js; ")
+    assert "; 12 2h13m parent gone python.exe forge/tools/b.py --root " in full and "; 15 2h01m parent 3 " in full
+    assert "; 11 2h00m parent gone python " in full and full.endswith(" (1 rows unreadable)")
+    assert all(" %d " % p not in full for p in (me, 2, 10, 16))
+    assert short == "old processes: 4 started from this tree, older than 7200 s [cut: rows] (1 rows unreadable)"
+    for n, more in ((5, False), (6, True)):
+        monkeypatch.setattr(sst, "process_list", lambda now_s: ([(100 + i, 1, now - 7300 - i, "x " + root) for i in range(n)], 0, ""))
+        assert sst.old_text(root, now)[0].endswith(" and 1 more") == more
+    monkeypatch.setattr(sst, "process_list", lambda now_s: (None, 0, "process list slower than 5 s"))
+    assert sst.old_text(root, now)[0] == "old processes: ? (process list slower than 5 s)"
+
+
+def test_session_start_process_parsers_and_budget(tmp_path, monkeypatch):
+    nt = '[{"ProcessId":5,"ParentProcessId":1,"CreationDate":"/Date(1000)/","CommandLine":null},{"ProcessId":6}]'
+    assert sst.parse_nt(nt) == [(5, 1, 1.0, ""), None] and sst.parse_ps(" 5 1 30 python x\nbad\n", 100) == [(5, 1, 70, "python x"), None]
+    monkeypatch.setattr(sst, "T0", time.monotonic())  # the hook started now ...
+    monkeypatch.setattr(sst, "START_BUDGET_S", 0)  # ... and its budget is spent: a call past it never starts
+    assert sst.main_sync(str(tmp_path)) == "main: ahead/behind unknown (not collected: start budget)"
+    assert sst.old_text(str(tmp_path), 0)[0] == "old processes: ? (not collected: start budget)"
+    assert sst.worktrees_text(str(tmp_path), [], "ok", [])[0] == "worktrees: ? -- not collected: start budget"
+
+
+def test_session_start_worktrees(tmp_path):
+    root = mkrepo(tmp_path / "r")
+    commit(root, "a")
+    for br in ("w/t1", "w/t2", "w/t3", "other"):
+        git(root, "worktree", "add", "-q", str(tmp_path / br.replace("/", "-")), "-b", br)
+    jl(root, ("t1", "dispatch"), ("t2", "dispatch"), ("t2", "accept"))
+    out = start(root, "startup")[1]
+    assert "worktrees: 4 linked\n" in out and "(w/t1) -- task open" in out and "(w/t2) -- task closed" in out
+    assert "(w/t3) -- state unknown: task never dispatched" in out and "(other) -- state unknown: no task in branch name" in out
 
 
 def fx(tmp_path, ctx=None, role="builder", out=1000, handoff=True, caps=True, lines_n=1):

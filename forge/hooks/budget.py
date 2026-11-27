@@ -1,4 +1,5 @@
 # card: B5
+# hook: PreToolUse
 """PreToolUse hook (card B5, amended by A30, B18): context size and wall time caps per forge worker launch.
 
 budget.py [--root D]   the tool call JSON arrives on the input. The worker = the input's agent_id; its role and handoff path

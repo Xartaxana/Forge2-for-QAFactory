@@ -1,4 +1,5 @@
 # card: C1-5
+# hook: PreToolUse
 """PreToolUse hook (cards C1-5, B9): refuses a write under a root of forge/hooks/protected-roots.json.
 
 foreign_write.py [--root D]   the tool call JSON arrives on the input; D (default: this repository) holds the roots file.
