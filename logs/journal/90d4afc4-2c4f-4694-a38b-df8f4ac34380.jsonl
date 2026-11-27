@@ -14,3 +14,17 @@
 {"ts": "2026-11-27T11:46:42Z", "task": "t-2103", "event": "return", "by": "lead", "note": "builder hand-back cc09fa7, 45 passed; critic owed (wl-7)"}
 {"ts": "2026-11-27T11:46:42Z", "task": "t-2101", "event": "return", "by": "lead", "note": "critic verdict fit_with_fixes forge/specs/reviews/t-2101-wl5-return.md; fix round owed (wl-7)"}
 {"ts": "2026-11-27T11:49:07Z", "task": "t-2105", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic blocker forge/specs/reviews/t-2105-b4-price.md, 8 blocking"}
+{"ts": "2026-11-27T12:00:11Z", "task": "t-2101", "event": "dispatch", "by": "lead", "note": "node: wl-5; builder fix round attempt 2; handle afc9d1a208b82613d; diff + verdict t-2101-wl5-return.md"}
+{"ts": "2026-11-27T12:00:12Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; builder fix round attempt 2; handle a83ee1b2eb3ba7570; diff + verdict t-2105-b4-price.md"}
+{"ts": "2026-11-27T12:00:12Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; critic entry; handle a756527b9da3368bf; reviewed:cc09fa7"}
+{"ts": "2026-11-27T12:00:12Z", "task": "t-2104", "event": "dispatch", "by": "lead", "note": "node: B13; critic entry; handle a4367d1a8fe101bd5; reviewed:21c5870"}
+{"ts": "2026-11-27T12:00:12Z", "task": "t-2107", "event": "dispatch", "by": "lead", "note": "node: C2-1; critic entry; handle ad7dc68a558ed58f8; reviewed:9401abf"}
+{"ts": "2026-11-27T12:01:45Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; critic entry, rest of a cut review (first verdict partial at the wall cap); handle afa4daf96c7f27345; reviewed:cc09fa7; verdict t-2103-b11-worklist-2.md"}
+{"ts": "2026-11-27T12:03:49Z", "task": "unknown", "event": "cap_warning", "by": "budget", "note": "role:main tokens 350739 of 300000 spend 24789171"}
+{"ts": "2026-11-27T12:03:49Z", "task": "t-2103", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic verdicts t-2103-b11-worklist.md (partial, 1-3) and -2.md (blocker, 4-5)"}
+{"ts": "2026-11-27T12:03:50Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; builder fix round attempt 2; handle aeba6eeeb1d7c2dfc; findings 1-5"}
+{"ts": "2026-11-27T12:03:50Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; critic re-review: blocker; handle af01b218c1afb864c; reviewed:39538a8"}
+{"ts": "2026-11-27T12:09:38Z", "task": "t-2101", "event": "accept", "by": "lead", "note": "basis: critic; fixes checked by Lead: forge/specs/reviews/t-2101-wl5-return.md, border 0 (F1 journal main, F2 retro own_event, F4-F6 tests); witness 152 passed; lead-applies: spec cards B2, B14 rule 6, B18 (a), B9 retried (wl-15)"}
+{"ts": "2026-11-27T12:10:07Z", "task": "t-2105", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 2; critic re-review blocker forge/specs/reviews/t-2105-b4-price-2.md F10-F13"}
+{"ts": "2026-11-27T12:10:07Z", "task": "t-2105", "event": "escalated", "by": "lead", "note": "lead: two failed builder attempts on B4 (t-2105-b4-price.md, -2.md); the next attempt one tier up, dispatched after the compaction (wl-7)"}
+{"ts": "2026-11-27T12:10:08Z", "task": "t-2107", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic blocker forge/specs/reviews/t-2107-c2-1-pages.md (1)-(4),(6); F5 is the Lead's call"}
