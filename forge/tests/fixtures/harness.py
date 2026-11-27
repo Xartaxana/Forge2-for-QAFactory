@@ -1,3 +1,4 @@
+# card: S11-1
 """Fixture harness for forge/tests/test_seeded.py: never a real harness (C0-4 edge). argv: mode, model."""
 import json
 import sys

@@ -3,7 +3,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 ## 2. Cards
 
 ### C4-1 Launcher, states, conductor seam
-- amended by: A1, A2, A3, A4, A5, A12, A13, A14, A19, A24, A27, A28, A29, A30, A34 (cards whose `amends:` line names this card; read them with it)
+- amended by: A1, A2, A3, A4, A5, A12, A13, A14, A19, A24, A36, A27, A28, A29, A30, A34 (cards whose `amends:` line names this card; read them with it)
 - Delivers: `run_stage.py start --story --route story --mode <m>` (`record.py init`, journal opened), `next --story` (computes each stage/group state from record + journal, takes one move, prints it), `resume --story` (after `stopped`). Launch: `context.py` -> `world.py snapshot` -> `host_adapter.launch_line(profile, role, prompt, model)` (C4-5) with env `FACTORY_STORY/STAGE/GROUP/AGENT` -> journal event (C4-6) -> the performer's return = it asks exit.
 - Move per state (frame 2a table):
   - `waiting`: every `reads` section produced by an exited stage -> launch.
@@ -24,7 +24,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - deps: C3-1..C3-5, C4-3, C4-5, C4-6; F8, F42, F43; N1 (`FACTORY_GROUP` -> row `group`), N4, N5.
 - keys: K1 a fixture record per each of the 12 states yields its move; K2 the third identical refusal goes to `no_move`; K3 a relaunch context holds no transcript; K4 two groups: a closed group goes on while the other is refused; K5 conductor returning nothing twice -> `ask.py` form `conductor` to the person (never a dead end).
 - edges: host launch error or timeout -> `no_move` with the error text; record changed by another writer between compute and move -> recompute once, then move; mode `comparison|night`: stops answered by the launching model through `ask.py`, never a pass (frame 2a); the person's relaunch after `stopped` with a changed ticket -> `sources` reopened as intent changed; journal absent at `next` -> created; record absent -> `start` only.
-- test: `factory/tests/test_run_stage.py` one table, state x expected move with fixture launch line, strongest first: 12 states | frame 2a; refusal max | 2a, data 2; holds | plan 1a rule 8; relaunch block | plan 1b needed 3; conductor in/out | 2a seam.
+- test: `factory/tests/test_run_stage.py` one table, state x expected move with fixture launch line, strongest first: 12 states | frame 2a; refusal max | 2a, data 2; holds | plan 1а rule 8; relaunch block | plan 1б needed 3; conductor in/out | 2a seam.
 
 ### C4-2 Critic, probes, fix rounds
 - amended by: A1, A7, A13, A16, A22, A25, A34 (cards whose `amends:` line names this card; read them with it)
@@ -44,7 +44,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - owns: C:/QAFactory/forge2-repo/factory/data/questions.yaml, C:/QAFactory/forge2-repo/factory/tools/ask.py, C:/QAFactory/forge2-repo/factory/tests/test_ask.py
 - deps: C3-1, C3-5, C4-6 (`docs_given`); F1, F2, F13; N6, N7, N9 (no root question in comparison/night).
 - keys: K1 answer stored byte-equal with executor; K2 a `doc_ids` entry not in person-docs/questions -> refused to the performer, door "cite a document id; put the content in the record" (D3); K3 comparison mode offers no pass option; K4 `docs_given` event per message (id, bytes).
-- edges: the same question already answered -> not asked, the answer cited (plan 1v rule 2); empty answer -> not an answer, question stays open (silence is no answer, V8); answer over 64 KB -> stored whole (no cut), the message to the executor points to the row; `bug_or_not` with no bug drafts -> not asked, G5.P closed by `empty: no_bugs`; `holds` naming a missing id -> refused naming it.
+- edges: the same question already answered -> not asked, the answer cited (plan 1в rule 2); empty answer -> not an answer, question stays open (silence is no answer, V8); answer over 64 KB -> stored whole (no cut), the message to the executor points to the row; `bug_or_not` with no bug drafts -> not asked, G5.P closed by `empty: no_bugs`; `holds` naming a missing id -> refused naming it.
 - test: `factory/tests/test_ask.py` one table: forms x modes, D3 refusal, repeat question, verbatim | frame 2a, 2d, D3; plan 1.7; battery on `--words` (empty, 64 KB/65 KB, non-UTF-8, quotes and newlines) | rule 11.
 
 ### C4-4 Test runner, evidence recorder
@@ -64,7 +64,7 @@ Frame spec part 3b: card bodies of phase 4 (C4-1..C4-8), forge 2 and the light Q
 - deps: C1-5 (secret table), C3-6 (`repositories`), C4-6; F31; N9; host plan sections 3, 8-10.
 - keys: K1 recorded host events translate to neutral form; K2 a write outside `repositories` + `work_root` refused with door "permission row from the person" (none in comparison/night); K3 a secret pattern refused; K4 unproven point -> its floor named once in the report; K5 no harness name in `factory/tools` or `factory/hooks` (C1-2).
 - edges: hook files are content until the Lead places them (CLAUDE.md worker duties); `secret-patterns.yaml` absent or hook crash on a closed point -> refuse (frame 6); crash on an open point -> allow + `note`, the floor at exit counts; unknown root (no `repositories` row) -> that write refused, door "answer the one root question" (`ask.py` `critical`), other work goes on (frame 2e); in `mode: comparison|night` roots come only from knowledge present at launch: an unknown root -> refused, no question, named in the report (N9); paths only literal in commands -> errs GREEN on indirect writes, X5 floor at exit is the second net; profile broken (missing field) -> `host_adapter` refuses at load naming the field (a broken profile never gates); event JSON broken -> closed points refuse, open allow + note.
-- test: `factory/tests/test_hooks.py` one table: recorded host events (fixtures), point x {case, clean twin, crash, broken event}, unknown root, probe receipt parse | frame 2e, host plan 8; battery on event JSON (empty, 1 MB, deep nesting, non-UTF-8 path) | rule 11.
+- test: `factory/tests/test_hooks.py` one table: recorded host events (fixtures), point x {case, clean twin, crash, broken event}, unknown root, probe receipt parse | frame 2e, section 8 of the host-profile plan; battery on event JSON (empty, 1 MB, deep nesting, non-UTF-8 path) | rule 11.
 
 ### C4-6 Run journal, dashboard (2f)
 - amended by: A1, A17, A27, A29, A30, A35, B4, B16 (cards whose `amends:` line names this card; read them with it)

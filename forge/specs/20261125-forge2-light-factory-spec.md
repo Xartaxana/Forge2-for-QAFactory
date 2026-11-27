@@ -203,7 +203,7 @@ Owner: data = code; judgment = a role, accepted a tier above; intent = the perso
 | D3 | stop message cites only document/form ids (`ask.py` field); a working-file request returns to the performer (1v issue rule 3) | questions | data | xref | refuse |
 | W1 | each read and typed-field reader has a producer, each leave a reader (CI) | stage rows, schema | data | xref | CI red |
 
-Gate rows amended by pointer: X1, X2, X6 by A24; X4 by A24, A26, A28; X3, X5 by none (cards whose `amends:` line names the row; read them with it; map t-1980).
+Gate rows amended by pointer: X1 by A24; X2, X6 by A36; X4 by A24, A26, A28, A36; X3, X5 by none (cards whose `amends:` line names the row; read them with it; map t-1980).
 
 The critic sits only in G3, G4, G6 (stage row column). A red cause, reason, critical mark or `holds` is the performer's judgment: code checks presence and row-set membership (AR-29); critic, person or conductor accepts it.
 
@@ -351,7 +351,7 @@ Status: F1-F4 open for the owner; F5, F6, F7, F13 taken by the Lead by the recom
 
 **F14** ("for now local" vs CI): (a) Actions once pushed; until then `ci.py` runs `forge/ci-jobs.json` pre-push; (b) local only. Rec (a); push by the owner's word. C1-6.
 
-**F30** (fix 16; plan 1a rule 10 silent on who labels refusals, `refound`, `working_file_opened` in a measuring run): (a) the Lead, from record and journal, before scoring -- Lead time per run; (b) a fresh critic, the Lead samples -- one more agent call; (c) left `unknown` -- rule 10 unmeasured. Rec (a). C4-6, C0-4, C4-7.
+**F30** (fix 16; plan 1а rule 10 silent on who labels refusals, `refound`, `working_file_opened` in a measuring run): (a) the Lead, from record and journal, before scoring -- Lead time per run; (b) a fresh critic, the Lead samples -- one more agent call; (c) left `unknown` -- rule 10 unmeasured. Rec (a). C4-6, C0-4, C4-7.
 
 **F31** (fix 20; `axis 8: narrows`): a host without Python 3. (a) declared precondition, launch refused with door "install Python 3" -- such hosts lose the factory until then; (b) a second writer in another runtime -- two writers (AR-14, P31), double cost; (c) a packaged binary -- does not load here, untestable. Rec (a); a narrowing: the owner decides. C3-1, C4-5.
 
@@ -369,5 +369,5 @@ Status: F1-F4 open for the owner; F5, F6, F7, F13 taken by the Lead by the recom
 - r1 read: verdict whole; r0 whole; plan v1.2 523-900, 1076-1092, 1224-1283, 1337-1563; `architecture.md` 66-72, AR-6/8/9/11/15/16/18/20/22 (Grep -A3), 176, 191; P5, P15, P18 (Grep); part 2 headings, F15-F23, 182-197.
 - `facts:` used: r0 39683 bytes (8cc6b5192); 22 fixes; plan 479074d60; part 2 forks from F15 -> mine from F30.
 - Size: measured by the Lead at each acceptance (journal `accepted` lines of t-1916, t-1920).
-- Not read: plan 131-473, 902-940.
+- Not read: the original plan's established-facts sections and the unread transition into its caps section.
 - r2 read: t-1919, r1 whole. Closed small: one live `expectations` row per requirement; latest verdict decides.
