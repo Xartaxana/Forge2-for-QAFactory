@@ -113,7 +113,7 @@ Historical t-1980 counts before the A24/A36 split: not an amendment 42, added 43
   - stale: B1 -- held by the current line (part4b B2); see above
   - stale: B5 -- held by the current line; see above
   - stale: B9 -- held by the current line; see above (fork F4)
-- B21: none -- B17 names B21 only as the table that holds its two C1-1 lines ("written in B21's table as rows 11 and 10", part9 B17 amends entry). B21's table already holds them (part9 B21 Delivers); B18's rows 6 and 9 likewise (part9 B21 Delivers)
+- B21: none -- B17 names B21 only as the table that holds its two C1-1 lines (part9 B17 amends entry; B21 table rows 11 and 10). B21's table already holds them (part9 B21 Delivers); B18's rows 6 and 9 likewise (part9 B21 Delivers)
   - not an amendment: B17 -- part9 B17 amends entry
 - B3: amended by B13, B14, B20
   - not an amendment: B11 -- part4b-3 B11 amends entry "BOOT's line classes (B1, B3)" (a citation) and "B3 COORDINATOR rule applies unchanged"
@@ -146,7 +146,7 @@ Historical t-1980 counts before the A24/A36 split: not an amendment 42, added 43
 - C1-2: amended by B1, B16, B20
 - C1-3: amended by B20
 - C1-4: amended by B2, B5, B7, B9, B14, B15, B17, B18
-  - added: B2 -- part4b B2 `amends:` entry "- amends C1-4 (...) -> THE WHOLE CLOSED EVENT LIST, stated here once (F12)" (B2's second amends entry, with no colon)
+  - added: B2 -- part4b B2 `amends C1-4` entry "- amends C1-4 (...) -> THE WHOLE CLOSED EVENT LIST, stated here once (F12)" (B2's second amends entry, with no colon)
   - added: B18 -- part9 B18 amends entry "- amends C1-4 AS BUILT (`forge/tools`), each line once, nothing doubled: `journal.py` -- `--run "<cmd>"` ..."
 - C1-5: amended by B2, B5, B8, B9, B11, B14, B17, B19
   - added: B8 -- part4b-2 B8 amends entry "- amends C1-5 (...): pre-push, before `ci.py`, scans the WHOLE pushed range ..."
@@ -243,7 +243,7 @@ the 47 `- amended by:` lines).
 - part5 A24 (two looks) amends entry A24 r2 `- amends (r1 -> r2; ...)`: targets A36 (formerly A24 r1), C4-1, A1, A12, C3-3, X1, C3-2, C3-1, A26, X4, A21, A4, C2-4, C3-5
 - part6 A26 amends entry A26 `- amends (...)`: targets C2-4, C2-5, C2-3, A21, C2-1, C3-2, C3-1, C3-3, X4, A24 and A36 (formerly A24 r1), C3-6, C3-5. Not targets: A28 (d) (cited: "has its home in A28 (d); this card reads it"), and `refs:A20`, `refs:A21`, `slices:A15, A16` (carry ids)
 - part7 A27 amends entry A27 `- amends (...)`: targets as A27's own list part7 5. Accepted cards whose keys or lines change: C3-1, C3-2, C3-3, C3-5, C3-6, C3-8, C4-1, C4-3, C4-4, C4-5, C4-6, A1, A21, C0-2, C0-4, C2-6, C4-7. Not targets: C3-4, C3-7, C4-2, C4-8 ("wait"), A2 ("IN through the C4-5 hook"), A14 ("move waits"), A25 (deferred), C2-8 ("unchanged") (fork F3)
-- part9 B18 amends entry B18 `- amends C1-4 AS BUILT ...` with "Also amends": targets C1-4, C1-1, B14, B5. Not targets: "Not changed: B5's `role:`/`caps:` lines, B14's id issue and session rules, B2's event list", and "written as B21 rows 9 and 6" (B21's table already holds them)
+- part9 B18 amends entry B18 `- amends C1-4 AS BUILT ...` with "Also amends": targets C1-4, C1-1, B14, B5. Not targets: "Not changed: B5's `role:`/`caps:` lines, B14's id issue and session rules, B2's event list", and the reference to B21 table rows 9 and 6 (B21's table already holds them)
 
 ## Forks (the Lead's decision)
 
