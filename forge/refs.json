@@ -149,6 +149,16 @@
    "reason": "plan-record node S11-1, no card heading (Lead 27.11.2026)"
   },
   {
+   "file": "forge/tests/fixtures/harness.py",
+   "token": "S11-1",
+   "reason": "fixture of plan-record node S11-1, which has no card heading"
+  },
+  {
+   "file": "forge/tests/fixtures/refusing_arm.py",
+   "token": "S11-1",
+   "reason": "fixture of plan-record node S11-1, which has no card heading"
+  },
+  {
    "file": "forge/tests/test_seeded.py",
    "token": "S11-1",
    "reason": "plan-record node S11-1, no card heading (Lead 27.11.2026)"
@@ -196,6 +206,83 @@
  ],
  "legacy": [
   {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part4b.md",
+   "tokens": [
+    "/QAFactory/forge-repo/tools/agent_budget.py:16-17,46",
+    "/QAFactory/forge-repo/tools/session_context.py:1081-1106",
+    "agent_budget.py:37-44",
+    "agent_budget.py:46-49",
+    "agent_budget.py:6-15",
+    "audit:68",
+    "docs/OWNER_PRINCIPLES.md:31",
+    "docs/OWNER_PRINCIPLES.md:51-57",
+    "docs/tasks/handoffs/20261125-forge2-recon-owner-words.md:20",
+    "part2:109",
+    "part2:119",
+    "part2:121",
+    "part2:122",
+    "part2:126",
+    "part2:147",
+    "part2:159",
+    "part2:25",
+    "part2:33",
+    "part2:40",
+    "part2:60",
+    "part2:62",
+    "part2:67",
+    "part2:68",
+    "part2:69",
+    "part2:72",
+    "part2:75",
+    "part2:85",
+    "part2:88",
+    "part2:89",
+    "part2:93",
+    "part2b:62",
+    "part2b:67",
+    "part2b:70",
+    "part2b:73",
+    "part2b:78",
+    "part2b:81",
+    "part3:13",
+    "part3:180",
+    "part3b:65",
+    "part3b:73",
+    "part3b:76",
+    "plan:1053-1055",
+    "plan:1065-1070",
+    "plan:1071-1075",
+    "plan:1076-1082",
+    "plan:1081-1082",
+    "plan:1083-1086",
+    "plan:1128",
+    "plan:1478-1479",
+    "plan:1497-1498",
+    "plan:1509-1510",
+    "plan:1678-1698",
+    "plan:1713-1724",
+    "plan:1725-2047",
+    "plan:1966-1969",
+    "plan:2220-2229",
+    "plan:949-951",
+    "plan:950",
+    "spec:151",
+    "spec:19-29",
+    "spec:320",
+    "spec:33-64",
+    "spec:334",
+    "spec:362",
+    "spec:63",
+    "v1.10:1638-1640",
+    "v1.10:1679-1680",
+    "v1.10:1681-1683",
+    "v1.10:1690-1693",
+    "v1.10:1694-1695",
+    "v1.10:1696"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
+  },
+  {
    "file": "forge/specs/20261125-forge2-light-factory-plan.md",
    "tokens": [
     "-spec-part3.md:64",
@@ -204,7 +291,6 @@
     "-spec.md:52",
     ".claude/agents/qa-test-strategist.md:101-103",
     "20261113-plan-fabrika-ne-huzhe-agenta.md:8",
-    "A24",
     "A38",
     "C3-17",
     "C3-18",
@@ -266,6 +352,63 @@
     "vocabularies.md:82-87"
    ],
    "reason": "old tokens of the edited copy while its bytes matched the frozen original (AR-20: a row only shrinks)"
+  },
+  {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part4-2.md",
+   "tokens": [
+    "SKILL.md:11",
+    "SKILL.md:11-12",
+    "part3:34",
+    "part3:64",
+    "part3:74",
+    "part3b:30",
+    "part3b:48",
+    "qa-requirements-tester.md:17-38",
+    "qa-requirements-tester.md:45"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
+  },
+  {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part4-3.md",
+   "tokens": [
+    "/QAFactory/forge-repo/tools/transcripts.py:52",
+    "part3:191",
+    "part3:30",
+    "part3:45",
+    "part3:74",
+    "part3b:44",
+    "part3b:53",
+    "spec:131",
+    "spec:69",
+    "tools/agent_budget.py:46-47"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
+  },
+  {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part4.md",
+   "tokens": [
+    "/QAFactory/forge-repo/tools/transcripts.py:52",
+    "part3:95"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
+  },
+  {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part4b-4.md",
+   "tokens": [
+    "B99",
+    "README.md:12",
+    "example.com:8080",
+    "logs/journal/s1.jsonl:4",
+    "part2:126"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
+  },
+  {
+   "file": "forge/specs/20261125-forge2-light-factory-spec.md",
+   "tokens": [
+    "experiments/ao3-wrapper/factory-vs-free-agent/RUN-INSTRUCTIONS.md:37"
+   ],
+   "reason": "historic references already present at the B13 baseline in this edited specification copy"
   }
  ],
  "local_roots": [
