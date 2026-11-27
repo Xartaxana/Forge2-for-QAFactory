@@ -31,3 +31,27 @@
 {"ts": "2026-11-27T12:10:22Z", "task": "t-2104", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic blocker forge/specs/reviews/t-2104-b13-refs.md F1-F10 (F3 and the S11-1/B22 part of F10 are spec)"}
 {"ts": "2026-11-27T12:19:00Z", "task": "t-2103", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 2; critic re-review blocker forge/specs/reviews/t-2103-b11-worklist-3.md (7, 9-13)"}
 {"ts": "2026-11-27T12:19:00Z", "task": "t-2103", "event": "escalated", "by": "lead", "note": "lead: two failed builder attempts on B11; the next attempt one tier up after the compaction (wl-7); journal.py needs the B14 takeover event first"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2108", "event": "dispatch", "by": "lead", "note": "node: B17; builder fix round of ffd8562 (verdict t-2106-b17-start-facts.md); handle aa77e24889be05472; w/t-2108"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2109", "event": "dispatch", "by": "lead", "note": "node: wl-8; builder; W-210 dispatch-line hook; handle a09b8fc01916d8111; w/t-2109"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2110", "event": "dispatch", "by": "lead", "note": "node: wl-14; builder; budget caps line reads as limits; handle ab74787623c98aa4a; w/t-2110"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2107", "event": "dispatch", "by": "lead", "note": "node: C2-1; builder fix round attempt 2; handle a9a010daac8968970; F5 ruled red"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; builder attempt 3 escalated, model opus; handle a1c33494bf6a5dd39; F10-F14"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; builder attempt 3 escalated, model opus; handle a50906adbc2a9f27f; blocking 7, 9-13 + takeover event"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2102", "event": "dispatch", "by": "lead", "note": "node: wl-1; critic entry, quotes check; handle a5e68cf3c60b5d434; verdict t-2102-wl1-quotes.md"}
+{"ts": "2026-11-27T12:37:02Z", "task": "t-2104", "event": "dispatch", "by": "lead", "note": "node: B13; builder fix round attempt 2; handle a0e9e322b36ca47be; rulings: allow rows that hide defects removed, S11-1 and B22 allow rows, spec parts as questions"}
+{"ts": "2026-11-27T12:38:16Z", "task": "t-2109", "event": "dispatch", "by": "lead", "note": "node: wl-8; critic entry; handle a8d2798bca47c8b1a; reviewed:8fb6883"}
+{"ts": "2026-11-27T12:42:02Z", "task": "t-2110", "event": "accept", "by": "lead", "note": "basis: critic skipped by the Lead (tier above builder): wording-only diff, 40 lines, no logic; witness 47 passed (-k budget or caps or dispatch or limits); CLAUDE.md lead-applies line added"}
+{"ts": "2026-11-27T12:42:28Z", "task": "unknown", "event": "cap_warning", "by": "budget", "note": "role:main tokens 407541 of 300000 spend 34671859"}
+{"ts": "2026-11-27T12:42:36Z", "task": "t-2107", "event": "return", "by": "lead", "note": "builder fix round 85c64d1, 29 passed"}
+{"ts": "2026-11-27T12:42:36Z", "task": "t-2107", "event": "dispatch", "by": "lead", "note": "node: C2-1; critic re-review: blocker; handle ad6dde6b0a0e0c71e; reviewed:85c64d1"}
+{"ts": "2026-11-27T12:42:36Z", "task": "t-2108", "event": "return", "by": "lead", "note": "builder fix round 5cb9eb9, 48 passed"}
+{"ts": "2026-11-27T12:42:37Z", "task": "t-2108", "event": "dispatch", "by": "lead", "note": "node: B17; critic re-review: blocker; handle adfa46b2ea57a04cd; reviewed:5cb9eb9"}
+{"ts": "2026-11-27T12:42:37Z", "task": "t-2102", "event": "reject", "by": "lead", "note": "converging; failure_class: capability; attempt: 1; critic fit_with_fixes t-2102-wl1-quotes.md, 0 blocking, F1-F10 quote clauses"}
+{"ts": "2026-11-27T12:42:37Z", "task": "t-2102", "event": "dispatch", "by": "lead", "note": "node: wl-1; builder fix round attempt 2; handle a61a33026b9fa6103"}
+{"ts": "2026-11-27T12:46:23Z", "task": "t-2102", "event": "accept", "by": "lead", "note": "basis: critic; fixes checked by Lead: forge/specs/reviews/t-2102-wl1-quotes.md, border 0 (14 note cells, data only); witness: 374 quotes on their line (critic), 14 re-quotes ok, rule_cuts 74 passed; 8 not-found rows stay for wl-10, FR-1118 node N1 for the Lead"}
+{"ts": "2026-11-27T12:49:41Z", "task": "t-2107", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 2; critic re-review blocker t-2107-c2-1-pages-2.md N1 empty stages or gate file exits 0, N2 wrong field types traceback or pass"}
+{"ts": "2026-11-27T12:49:41Z", "task": "t-2108", "event": "return", "by": "lead", "note": "critic re-review fit_with_fixes t-2108-b17-fix.md: N1 relative hooksPath must resolve against show-toplevel (linked worktree reads wrong), N2 vacuous CMD_MAX assert; fix round owed"}
+{"ts": "2026-11-27T12:49:41Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; critic re-review attempt 3 ; handle adef3077fabd18485"}
+{"ts": "2026-11-27T12:49:41Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; critic re-review attempt 3 ; handle a51408143dc0f1c7c"}
+{"ts": "2026-11-27T12:49:42Z", "task": "t-2104", "event": "dispatch", "by": "lead", "note": "node: B13; critic re-review   ; handle a0044996d132b6e75"}
+{"ts": "2026-11-27T12:49:42Z", "task": "t-2109", "event": "dispatch", "by": "lead", "note": "node: wl-8; builder fix round attempt 2; handle af1feec6ee2078518"}
