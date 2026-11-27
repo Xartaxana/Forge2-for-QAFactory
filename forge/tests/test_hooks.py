@@ -971,3 +971,26 @@ def test_git_launches_hook_interpreter(tmp_path, name, stdin, args, seen):
     input_file.write_bytes(stdin)
     code, out = git(root, "-c", "core.hooksPath=forge/hooks/git", "hook", "run", f"--to-stdin={input_file}", name, "--", *args)
     assert code == 1 and f"{name}: refused" in out and seen in out
+
+
+# expected from: C1-5 foreign-write refusal and B5 edit-path budget checks.
+@pytest.mark.parametrize("name,inputs,code", [
+    (None, None, 0),
+    ("other", None, 0),
+    ("Bash", {"command": "Get-Location", "shell": "pwsh", "workdir": "{root}"}, 0),
+    ("apply_patch", {"command": "*** Begin Patch\n*** End Patch"}, 0),
+    ("apply_patch", {"command": "*** Add File: safe.txt\n*** Update File: also-safe.txt"}, 0),
+    ("apply_patch", {"command": "*** Update File: safe.txt\n*** Move to: {root}/outside/new.txt"}, 2),
+])
+def test_codex_hook_event_dispatch(tmp_path, monkeypatch, capsys, name, inputs, code):
+    import codex_hook
+
+    root = tmp_path.as_posix()
+    monkeypatch.setattr(codex_hook, "ROOT", root)
+    put(root + "/forge/hooks/protected-roots.json", json.dumps({"roots": [root + "/outside"]}))
+    shutil.copyfile(os.path.join(ROOT, "forge", "caps.json"), root + "/forge/caps.json")
+    tool_input = {k: v.replace("{root}", root) for k, v in inputs.items()} if inputs else inputs
+    payload = {"tool_name": name, "tool_input": tool_input, "session_id": "fixture", "cwd": root}
+    assert codex_hook.body(payload if name else None, "empty input") == code
+    if code:
+        assert "foreign_write: refused" in capsys.readouterr().err
