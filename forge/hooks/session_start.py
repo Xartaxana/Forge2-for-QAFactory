@@ -199,8 +199,9 @@ def harness_text(root, want):
 
 def git_hooks_text(root):
     """FH-2030, FH-2032, FH-2035: core.hooksPath resolves to forge/hooks/git of the main checkout; every extensionless file
-    there is tracked with mode 100755. A relative hooksPath is resolved as git does: against the top of the work tree, here
-    the main checkout's (t-2106 F6; SessionStart runs there, plan S6), and the files are counted there. A git call that
+    there is tracked with mode 100755. A relative hooksPath is resolved as git does: against the top of the work tree of `root`
+    (git rev-parse --show-toplevel), so from a linked worktree whose hooks are not main's the line reads `wrong: <value>`
+    (card B17 (c); t-2108 N1); the files are counted in the main checkout. A git call that
     fails is `?` with its reason, never a zero (AR-27, AR-28; t-2106 F2)."""
     common, why = git_out(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
     if common is None:
@@ -210,9 +211,13 @@ def git_hooks_text(root):
     if val is None:
         hp = "unset" if why == "git exit 1" else "? (%s)" % why
     else:
-        same = os.path.normcase(os.path.normpath(os.path.join(main, val.strip()))) == \
-            os.path.normcase(os.path.join(main, "forge", "hooks", "git"))
-        hp = "ok" if same else "wrong: " + clip(val.strip())
+        top, why = git_out(root, "rev-parse", "--show-toplevel")
+        if top is None:
+            hp = "? (%s)" % why
+        else:
+            same = os.path.normcase(os.path.normpath(os.path.join(top.strip(), val.strip()))) == \
+                os.path.normcase(os.path.normpath(os.path.join(main, "forge", "hooks", "git")))
+            hp = "ok" if same else "wrong: " + clip(val.strip())
     folder = os.path.join(main, "forge", "hooks", "git")
     files = sorted(f for f in os.listdir(folder) if "." not in f and os.path.isfile(os.path.join(folder, f))) \
         if os.path.isdir(folder) else []

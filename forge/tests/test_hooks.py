@@ -698,7 +698,9 @@ def test_session_start_f3_f4_f6(tmp_path, monkeypatch):
     monkeypatch.setattr(sst, "T0", None)
     sst.compose(str(tmp_path / "wt"), "resume", False)
     assert sum(a[:2] == ("worktree", "list") for a in calls) == 1
-    assert sst.git_hooks_text(str(tmp_path / "wt")) == "hooksPath ok, 0 of 1 tracked executable (1 untracked)"
+    # N1: git resolves a relative hooksPath in the worktree it runs in; the linked one has no such folder -> wrong
+    assert sst.git_hooks_text(str(tmp_path / "wt")) == "hooksPath wrong: forge/hooks/git, 0 of 1 tracked executable (1 untracked)"
+    assert sst.git_hooks_text(root).startswith("hooksPath ok")
 
 
 class Run:
@@ -729,7 +731,9 @@ def test_session_start_f7_rows_and_long_command(monkeypatch):
     monkeypatch.setattr(sst.subprocess, "run", Run(json.dumps(big).encode()))
     monkeypatch.setattr(sst.os, "name", "nt")
     rows, bad, _ = sst.process_list(0)
-    assert len(rows) == 10000 and bad == 0 and len(sst.head(rows[0][3])) <= 64 and not sst.from_tree(rows[0][3] + "/r", ["/zz"])
+    assert len(rows) == 10000 and bad == 0 and len(sst.head(rows[0][3])) <= 64 
+    # N2: past the CMD_MAX cut a path is not found, inside it is
+    assert not sst.from_tree("x" * 65536 + " /zz/a", ["/zz"]) and sst.from_tree("x" * 100 + " /zz/a", ["/zz"])
 
 
 def test_session_start_worktrees(tmp_path):
