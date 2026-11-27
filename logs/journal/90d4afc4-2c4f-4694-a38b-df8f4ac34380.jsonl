@@ -1,0 +1,13 @@
+{"ts": "2026-11-27T11:33:12Z", "task": "", "event": "dispatch_skipped", "by": "lead", "note": "builder: retroactive -- B17 (c)(d) start facts written by the Lead itself on the owner's direct ask (W-205), commit ffd8562, pushed without a critic; a post-hoc critic is dispatched as t-2106"}
+{"ts": "2026-11-27T11:35:52Z", "task": "", "event": "dispatch_skipped", "by": "lead", "note": "designer: t-2101 wl-5 spec drafted by the Lead in the dispatch -- a narrow node fixed by the carried text of FR-1127, a designer would cost more"}
+{"ts": "2026-11-27T11:35:52Z", "task": "t-2101", "event": "dispatch", "by": "lead", "note": "node: wl-5; builder; handle a30f32c2ecd7a3487; w/t-2101; return keeps a dispatch open (FR-1127)"}
+{"ts": "2026-11-27T11:35:52Z", "task": "t-2102", "event": "dispatch", "by": "lead", "note": "node: wl-1; builder; handle ae9a34299b679bb06; w/t-2102; 382 ledger notes to quotes"}
+{"ts": "2026-11-27T11:35:52Z", "task": "t-2103", "event": "dispatch", "by": "lead", "note": "node: B11; builder; handle a94ea7664abcf6237; w/t-2103; the work list tool"}
+{"ts": "2026-11-27T11:35:52Z", "task": "t-2104", "event": "dispatch", "by": "lead", "note": "node: B13; builder; handle a8e25a638c58de7ad; w/t-2104; references by key"}
+{"ts": "2026-11-27T11:35:52Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; builder; handle a46cd263e45bb2cfa; w/t-2105; price as a forge metric"}
+{"ts": "2026-11-27T11:35:53Z", "task": "t-2107", "event": "dispatch", "by": "lead", "note": "node: C2-1; builder; handle aaac21b5504471749; w/t-2107; craft page index and check"}
+{"ts": "2026-11-27T11:35:53Z", "task": "t-2106", "event": "dispatch", "by": "lead", "note": "node: B17; critic; handle ade59e4818c19aa37; post-hoc review of ffd8562, verdict forge/specs/reviews/t-2106-b17-start-facts.md"}
+{"ts": "2026-11-27T11:40:01Z", "task": "t-2101", "event": "dispatch", "by": "lead", "note": "node: wl-5; critic entry; handle a7444e574922aa722; reviewed:ef0bdec; verdict forge/specs/reviews/t-2101-wl5-return.md"}
+{"ts": "2026-11-27T11:40:57Z", "task": "t-2105", "event": "dispatch", "by": "lead", "note": "node: B4; critic entry; handle aedff953182fdaa4f; reviewed:d3ffafd; verdict forge/specs/reviews/t-2105-b4-price.md"}
+{"ts": "2026-11-27T11:41:08Z", "task": "unknown", "event": "cap_warning", "by": "budget", "note": "role:main tokens 301852 of 300000 spend 18154814"}
+{"ts": "2026-11-27T11:43:29Z", "task": "t-2106", "event": "accept", "by": "lead", "note": "basis: critic; verdict received forge/specs/reviews/t-2106-b17-start-facts.md: blocker, 5 findings (F1-F5), a fix round of ffd8562 is owed (worklist wl-9)"}
