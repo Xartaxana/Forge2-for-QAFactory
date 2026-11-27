@@ -29,3 +29,5 @@
 {"ts": "2026-11-27T12:10:07Z", "task": "t-2105", "event": "escalated", "by": "lead", "note": "lead: two failed builder attempts on B4 (t-2105-b4-price.md, -2.md); the next attempt one tier up, dispatched after the compaction (wl-7)"}
 {"ts": "2026-11-27T12:10:08Z", "task": "t-2107", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic blocker forge/specs/reviews/t-2107-c2-1-pages.md (1)-(4),(6); F5 is the Lead's call"}
 {"ts": "2026-11-27T12:10:22Z", "task": "t-2104", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 1; critic blocker forge/specs/reviews/t-2104-b13-refs.md F1-F10 (F3 and the S11-1/B22 part of F10 are spec)"}
+{"ts": "2026-11-27T12:19:00Z", "task": "t-2103", "event": "reject", "by": "lead", "note": "failure_class: capability; attempt: 2; critic re-review blocker forge/specs/reviews/t-2103-b11-worklist-3.md (7, 9-13)"}
+{"ts": "2026-11-27T12:19:00Z", "task": "t-2103", "event": "escalated", "by": "lead", "note": "lead: two failed builder attempts on B11; the next attempt one tier up after the compaction (wl-7); journal.py needs the B14 takeover event first"}
