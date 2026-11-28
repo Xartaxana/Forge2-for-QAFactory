@@ -57,7 +57,7 @@ In a project the factory writes under `<work_root>/` (2a, 2f, 2g) and test code 
 - P13, FR-4: a person's word passes any gate (`passes`), never the launching model's -> an unpassable gate; a pass in a comparison run.
 - P20, FR-58: expectation never from code -> an expectation sourced from the implementation.
 - P16, P17, P19, P28, P29: pyramid, WHAT in cases, many-to-many links, automate what reruns -> G3.C finding.
-- P24: regression found, handed over, never run -> a regression run in a journal.
+- P24 and W-224 in the default story pass: execute checks for the story, determine blast radius and hand over the affected existing regression with its commands and stand requirements. A separate run request uses permitted tools in the agreed scope and returns actual results and gaps.
 - P26, P30: code records evidence; the critic's probe breaks the value (G4.C) -> agent-written evidence.
 - P31: one launcher, one record writer, one arm launcher -> a second road.
 - P7, FR-52: the free agent's model in comparisons -> model mismatch in the journal.
@@ -71,14 +71,14 @@ In a project the factory writes under `<work_root>/` (2a, 2f, 2g) and test code 
 - axis 3: held by key|table -- test command, runner forms (C4-4), test roots; unknown value -> raw output kept, summary `unknown`.
 - axis 4: held by table|role -- `readiness`; unknown value -> performer judges as assumption; reason "code not written yet".
 - axis 5: held by role -- every source route; unknown value -> attempt recorded, else "source unavailable".
-- axis 6: held by table|key -- delivery targets (C3-7, only `md` now), key "how results are accepted"; unknown value -> `md` + preview.
+- axis 6: delivery targets by result kind (C3-7, bundled `md` first). On an unknown target, keep the preview and use any authorized project tool; name what was actually delivered.
 - axis 7: held by key|role -- stand keys, raise permission; unknown value -> "no environment" with the attempt.
 - axis 8: held by table|role -- host profile (C4-5); unknown value -> unproven point, floor at stage exit.
-- axis 8: narrows -- a host without Python 3 has no record writer: launch refused, door "install Python 3"; fork F31.
+- axis 8: the automated runner needs Python 3 (A19). On a host without it, offer installation once and keep an agent-led path with the available craft and tools.
 - axis 9: held by table|key -- stops in stage rows, question forms, key "who answers"; unknown value -> answer verbatim, conductor.
 - axis 10: held by key -- person-doc language (F4); package text English.
 - axis 11: held by table|role -- stage 4 by requirement group; context over window -> conductor (2a); unknown value -> one group.
-- axis 12: held by role -- functional only, declared scope (owner 17.11.2026, `architecture.md` "Decided by the owner").
+- axis 12: held by role -- start with functional craft; later craft follows project risk or an explicit request (plan phases 11–15).
 - axis 13: held by key -- first story without onboarding; no state from the old factory (owner 25.11).
 - AR-1: closed variety (routes, reasons, expectation kinds, red causes, forms, targets, gate rules, empty outcomes) is rows, one loader `rows.py` -> a value list in code.
 - AR-2: performer judges open variety; debt with a door at exit only; unlisted reasons routed up -> a mid-stage refusal, silent default, dead end.
@@ -96,7 +96,7 @@ In a project the factory writes under `<work_root>/` (2a, 2f, 2g) and test code 
 - Derived, never stored (AR-10): after approval = `seq > approved_plan_seq` (none while `null`); superseded = a live row names it in `supersedes` -> out of the live set, its `from` dependents stale; `supersedes` never propagates stale.
 - Field readers (AR-22): the schema lists `readers` per typed field (W1). expectation `readiness` -> `run_stage.py` (not-implemented: written, not run), `docs_build.py` "Left to you"; `executable_where` -> `run_tests.py`, `docs_build.py` "Left to you".
 - Empty outcome: `empty: <kind>` from `factory/data/empty-outcomes.yaml`.
-- ONE writer `factory/tools/record.py`: `init`; `add` (a batch per call, all or nothing: a bad row refuses the batch, every bad row named); `revise` (new row, `supersedes`; meaning changed); `stale` (over `from`); `empty`; `check`. Content is the performer's; groups F11. It takes `passes` only from `ask.py` (its `stop` names a question whose tool-written answer holds the `words`), `probes` only from a `critic.py` launch, `reason_verdicts` only from `critic.py`, `ask.py` or the conductor; a performer's `add` there: refused, door a question row. In `mode: comparison|night` it refuses `passes` and outward permission rows, door "stop named in the report; the gate stays".
+- ONE writer `factory/tools/record.py`: `init`; `add` (a batch per call, all or nothing: a bad row refuses the batch, every bad row named); `revise` (new row, `supersedes`; meaning changed); `stale` (over `from`); `empty`; `check`. Content is the performer's; groups F11. It takes `passes` only from `ask.py` (its `stop` names a question with a trusted live human answer scoped to that gate and holding the verbatim `words`; C4-3), `probes` only from a `critic.py` launch, `reason_verdicts` only from `critic.py`, `ask.py` or the conductor; a performer's `add` there: refused, door a question row. In `mode: comparison|night` it refuses `passes` and outward permission rows, door "stop named in the report; the gate stays".
 - Readers: `context.py`, `exit_check.py`, `world.py`, `docs_build.py`, `run_stage.py`, `critic.py`, `ask.py`, `export_md.py`, `dashboard.py`.
 - Plan 1b needed: N1 W1; N2 X1; N3 `context.py`; N4 G4.1, G4.3, after-approval; N5 `shortfall`. Found: F1 `findings`/`assumptions` + `about`; F2 tool-written runs, evidence, probes, answers; F3 X3; F4 X2; F5 critic gates + late rows (2c).
 - Absent: stage 1 not started; other readers refuse, door `record.py init`. Unreadable: error with door `record.py check`; never empty (AR-28).
@@ -112,7 +112,7 @@ In a project the factory writes under `<work_root>/` (2a, 2f, 2g) and test code 
 | `fix_round` | open critic findings, round n (F8) | relaunch fresh with findings and the sections they name; critic re-checks those; rounds spent -> `to_report`, go on; no critic: relaunch with the person's words, rebuild -> `at_stop` |
 | `at_stop` | rules met, document built, stage has a stop | `ask.py`; by answer (V4): approved -> `exited` (stage 3 sets `approved_plan_seq`); fixes -> `fix_round` with the words; partial -> returned rows staled, `open`; intent changed -> `approved_plan_seq` `null`, old-intent rows staled, stage 1 or 3 reopened, next approval sets it; stop -> `stopped` |
 | `held` | all remaining rows held by open questions | others go on; the answer releases them -> `open` |
-| `stopped` | the person said stop | nothing runs; record kept; the person's relaunch resumes from it (V3) |
+| `stopped` | the person said stop | record kept; on resume verify changes to requirements, answers, code and build before using saved results (V3) |
 | `exited` | exit met | later stage stales its rows -> `stale`; shortfall names it -> `shortfall` |
 | `stale` | rows of an exited stage staled (rule 7) | relaunch with stale rows only; met rows stay met |
 | `shortfall` | open shortfall names an exited producer | relaunch the producer with those rows only; consumer holds only dependent rows |
@@ -124,7 +124,7 @@ Conductor seam, one entry in `run_stage.py`. In: state, evidence (row ids, refus
 - Stage: `id`, `name`, `reads`, `leaves` (`required|optional`), `craft`, `exit` (rule ids; due from the first, 2c), `critic` (`none`|page), `stop` (`none`|doc id|form), `grouped`, `parallel_max`. Route: `id`, `stages`; only `story` now. Stage 1 leaves `sources`, `understanding`, `requirements`, `questions`; stage 3 leaves `expectations`.
 - Writer C3-2 (a change is a behaviour change, comparison run). Readers: `rows.py`, `run_stage.py`, `context.py`, `exit_check.py`, W1.
 - `rows.py` loads every `factory/data/*.yaml`: absent or unreadable -> launch refused naming the file and its card; never an empty list (AR-28).
-- No `reads`: stage 1 only. Unknown route: refused, routes named. Missing page: W1 names it, not launchable. Context over the window: `no_move`, never cut.
+- No `reads`: stage 1 only on the standard route. A request outside a configured route uses the needed craft, available inputs and permitted tools. Missing page: W1 names it for the configured stage. Context over the window: use scoped rows with references via the conductor seam; preserve their whole source text.
 
 ### 2c Gate rule row (`factory/data/gate-rules.yaml`), reasons (`reasons.yaml`)
 - Fields: `id`, `over` (sections), `when` (`exit|after_critic|critic|stop|ask|ci`: every section-3 id is a row, `exit_check.py` runs the first two; F41), `checks` (a predicate of `exit_check.py`), `owner` (`data|judgment|intent`), `class`, `debt` (what is open, what closes it), `door` (tool, field or reason; always also a `passes` row), `protects` + `origin` (plan 4.3), `on_unknown` (`ask`|`default: <v>`, printed).
@@ -132,7 +132,7 @@ Conductor seam, one entry in `run_stage.py`. In: state, evidence (row ids, refus
 - Late rows (`seq` above what the section's critic saw) go to the next critic gate by name; after G6.C to its re-check, else the report "not critiqued".
 - ORDER at G3, G4, G6: `exit` rules -> `docs_build.py` preview (none without a document) -> critic, reading it -> fix rounds (each rebuilds it; critic re-checks) -> `after_critic` rules incl. D1, G6.1 on the built document -> person stop; a failure there: fix round + re-check, never a silent rewrite. Critic-less stop (stages 1, 2, 5): `exit` rules -> build -> `after_critic` (D1) -> stop. Invariant: the person never sees a document the critic has not seen.
 - Reasons: "stand unavailable" (attempt), "no reliable expectation source", "source unavailable", "person decided not to check" (words), "code not written yet", "no tool for this surface", "executed by agent, no evidence" (why), `other` (own words + attempt). A named row closes the debt; `other` is never refused: a provisional pass routed up (next critic gate, else the person at the next stop, else the conductor), accepted or returned in `reason_verdicts` (-> shortfall). Every reason is in the report by name.
-- A `passes` row (writer `ask.py`, 2a) closes any debt (P13); over an `owner: data` rule it also writes `factory_findings` (FR-4); `score.py` counts passes.
+- A `passes` row (writer `ask.py`, 2a) lets the named work continue (P13). It leaves the underlying result status and missing evidence visible. Over an `owner: data` rule it also writes `factory_findings` (FR-4); `score.py` counts passes.
 - Refusal: all debts at once, each with its door; never "wrong form". Rule 10 label by the acceptor (measuring runs: F30); unlabelled = `unknown`.
 - Writer C3-3. Readers: `exit_check.py` (any time; launcher at exit and after critic), page "how checked" (F12), `critic.py`, `dashboard.py`.
 
@@ -303,7 +303,7 @@ Order: phase 0; phases 1, 2 in parallel; C2-8 before phase 3; 3 after 1; 4 after
 
 | Artifact | Created by | Reader behaviour while absent |
 |---|---|---|
-| forge 2 skeleton | C1-1..C1-6 | phase 0 follows the old forge's `CLAUDE.md`, `docs/TESTING.md`; no factory code before C1-3, C1-6 |
+| forge 2 skeleton | C1-1..C1-6 | phase 0 follows the old forge's `CLAUDE.md`, `docs/TESTING.md`; factory code waits for C1-3, C1-6 and plan 8 |
 | truth tables, baseline | C0-2..C0-5 | no behaviour change accepted; unit tests only |
 | ao3 truth table | C0-3 | no craft page or seeded set written (F5) |
 | stage-chain spike | C2-8 | phase 3 not dispatched |
@@ -317,7 +317,7 @@ Order: phase 0; phases 1, 2 in parallel; C2-8 before phase 3; 3 after 1; 4 after
 | hook point a harness lacks | - | floor at stage exit, named once |
 | run journal | first launch | "no journal" |
 | doc language key | C3-6 | English, printed as default (F4) |
-| seams, phases 6-10 | - | 6: unknown route refused, `story` named; 7: only `md`, X5 refuses outward, report previews; 8: same launcher, `mode: night`; 9: no profile -> floors; 10: C4-7 keeps record, journal, host answers |
+| seams, phases 6-10 | - | 6: configurable routes and agent-led work; 7: independent target and receipt per result kind, with X5 permission; 8: same launcher, `mode: night`; 9: no profile -> available tools and floors, with gaps named; 10: C4-7 keeps record, journal, host answers |
 
 ## 7. Forks
 

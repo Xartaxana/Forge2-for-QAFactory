@@ -206,6 +206,11 @@
  ],
  "legacy": [
   {
+   "file": "forge/specs/20261125-forge2-light-factory-spec-part2b.md",
+   "reason": "Three pre-existing historical locators in the C2 copy, taken from HEAD before the regression contract edit.",
+   "tokens": ["A37", "A38", "factory-vs-free-agent.md:44-54"]
+  },
+  {
    "file": "forge/specs/20261125-forge2-light-factory-spec-part4b.md",
    "tokens": [
     "/QAFactory/forge-repo/tools/agent_budget.py:16-17,46",

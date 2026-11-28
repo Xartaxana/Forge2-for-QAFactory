@@ -1,6 +1,7 @@
 # forge/COORDINATOR.md -- rules of the Lead and the Architect (forge 2)
 
 Read at every session start by the Lead and the Architect. Worker rules are in `CLAUDE.md`; a rule stands in one file only. Legend of `rows:` lines and tool markers: see `CLAUDE.md`. The commit that lands a card removes that card's `not built` marks in the rule files (case: plan S3, six marks left stale).
+For test-factory work, follow the factory design link in forge/BOOT.md before routing, designing or accepting a card (case: plan 8).
 
 ## Acceptance
 - Acceptance comes only from a tier above or with critic input; no session certifies its own work, and a worker never writes accept or reject. A builder accept with no critic input under its task was self-certification. (case: FH-6111, a worker certified its own work; FH-3055)

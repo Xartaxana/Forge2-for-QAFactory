@@ -50,7 +50,8 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - owns: C:/QAFactory/forge2-repo/factory/data/stages.yaml, C:/QAFactory/forge2-repo/factory/data/routes.yaml, C:/QAFactory/forge2-repo/factory/tools/rows.py, C:/QAFactory/forge2-repo/factory/tools/context.py, C:/QAFactory/forge2-repo/factory/tests/test_rows.py
 - deps: C3-1, C2-1 (page index; fixture pages until C2-2..C2-5, frame 6); F12, F42; N1, N2.
 - keys: K1 W1 green on the shipped rows; K2 W1 names a read with no producer and a field with no reader file; K3 context sections byte-equal the record rows; K4 an absent data file refuses `load()` naming file and card; K5 over-window exit 3 writes no cut file.
-- edges: `reads` empty -> only stage 1 (frame 2b); a `reads` section with zero live rows -> handed as its `empty:` row or `not recorded: <section>`, never omitted; grouped stage with no group label on `expectations` rows -> one group (axis 11; F42); window field absent from the profile -> comparison `unknown`, journaled, launch proceeds (a host launch error then goes to `no_move`); craft page absent -> W1 names it, stage not launchable (frame 6 row "craft pages"); unknown route -> refused naming `story`.
+- edges: an empty `reads` list belongs to stage 1 on the configured story route; a `reads` section with zero live rows keeps its `empty:` or `not recorded: <section>` row; no group label -> one group. Unknown window -> journal `unknown`; over-window -> give the conductor the affected row ids and available references. A missing craft page fails the configured stage's W1 check. An unknown route hands the agent the request, available sources, relevant craft and usable tools. Supplied tests, cases or evidence can satisfy inputs for the relevant work without reproducing earlier stages; keep their provenance.
+- Acceptance pair: automate supplied cases with their given requirement links; when the same input has no product-story links, deliver against the case ids and report the traceability limit. G4.1 still checks the configured story route. This standalone work must not invent a requirement or fill earlier story stages to pass.
 - test: `factory/tests/test_rows.py` one table: W1 (each miss class, green rows) | frame 2b, 1b needed 1; loader absent/unreadable per file | 2b; context byte-equality and relaunch block | plan 1б needed 3; window over/at | 2b, F9; C3-7 rows | C3-7; battery on a person-edited data row (broken YAML, non-UTF-8, duplicate id) | rule 11.
 
 ### C3-3 Gate rules, reasons, red causes, exit check
@@ -124,7 +125,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 | stand | none | "no environment" with attempt | first run need | context.py |
 | raise_permission | false | not allowed (plan V13) | first need to raise | context.py |
 | who_answers | the session's person | default | never | ask.py |
-| accept_target | `md` | `md` + preview | never in phase 4 | docs_build.py, export_md.py, exit_check.py |
+| accept_target | `md` | `md` + preview | phase 4 bundles Markdown; phase 7 permits a target per result kind and reads the earlier scalar as the default | docs_build.py, export_md.py, exit_check.py |
 | doc_language | `en` | English, printed (F4) | never | docs_build.py |
 | marathon_minutes | 20 | default | never | dashboard.py |
 
@@ -140,7 +141,7 @@ STATUS: returned at 55347 bytes, over the cap, with the designer's `decomposable
 - owns: C:/QAFactory/forge2-repo/factory/data/delivery-targets.yaml
 - deps: C3-2.
 - keys: K1 `rows.py load()` reads the row; K2 W1 finds a reader for each field.
-- edges: `accept_target` names an id with no row -> `md` + preview, line "target <id> not built: md used" (axis 6; phase 7 adds rows); an outward target row in phase 4 -> none exists, X5 refuses outward (frame 6 row "seams").
+- edges: an unbundled target keeps its `md` preview and can be reached by the project's authorized tool. The report gives each result its destination, actual receipt or reason it was left undelivered. After an ambiguous write, reconcile at that destination before retrying. X5 covers any outward write. Phase 7 tests simultaneous typed targets and an unavailable destination that leaves the rest of the work usable.
 - test: rows in `factory/tests/test_rows.py` | frame 4 index; frame 2e, axis 6.
 
 ### C3-8 Expectation-source kinds
