@@ -36,4 +36,5 @@ The factory stops for the person only at: a critical question; the sources list 
 ## Decisions and state
 
 decided by the owner: forge/owner-words.yaml
-phase 1: the forge 2 skeleton is being built; factory coding waits for all manual spec scenarios to pass and one architecture to be agreed -- 2026-11-28
+Factory coding waits for every scenario to pass a manual spec review and for a common architecture to be agreed (plan 8)
+phase 1: the forge 2 skeleton is being built; the session moved to forge 2 -- 2026-11-27
