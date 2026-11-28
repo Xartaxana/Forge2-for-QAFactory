@@ -38,7 +38,7 @@ Frame spec part 2b: card bodies of phase 2 (C2-1..C2-8), forge 2 and the light Q
 
 ### C2-3 Pages: check selection + techniques, levels, automate, regression
 - amended by: A4, A7, A8, A15, A25, A26, A31, A32, A33 (cards whose `amends:` line names this card; read them with it)
-- Delivers: `factory/craft/check-selection.md`, `levels.md`, `automate.md`, `regression.md`; owner's words: pyramid levels, case and autotest not one-to-one (part 1 section 5); regression handed over, never run (P24).
+- Delivers: `factory/craft/check-selection.md`, `levels.md`, `automate.md`, `regression.md`; owner's words: pyramid levels, case and autotest not one-to-one (part 1 section 5). Default story pass hands over regression (P24). An explicit run request uses the stated expectation sources and returns actual observations and gaps.
 - owns: C:/QAFactory/forge2-repo/factory/craft/check-selection.md, C:/QAFactory/forge2-repo/factory/craft/levels.md, C:/QAFactory/forge2-repo/factory/craft/automate.md, C:/QAFactory/forge2-repo/factory/craft/regression.md
 - deps: as C2-2 (incl. the C0-2/C0-3 freeze).
 - keys: as C2-2; K5 `levels.md` holds no level list of its own (slices:D1).
